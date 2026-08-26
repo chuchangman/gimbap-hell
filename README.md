@@ -404,7 +404,7 @@ test/
 |---|---|
 | 빌드 | `npm ci` |
 | 실행 | `npm start` (= `node server/index.mjs`) |
-| 헬스체크 | `/health` -> `{"ok":true,"rooms":n}` |
+| 헬스체크 | `/health` -> `{"ok":true,"rooms":n,"store":"file|redis","entries":n}` |
 | 포트 | `process.env.PORT` (Render 가 주입) |
 | 리전 | `singapore` (한국에서 가장 가까운 무료 리전) |
 
@@ -439,7 +439,13 @@ Render 무료 플랜은 **파일 시스템이 휘발성**입니다. 재배포할
 남겨뒀습니다 — `room.mjs` 가 `add()` 바로 다음 줄에서 `board()` 를 부르기 때문입니다.
 메모리 캐시가 사실상의 원본이고, Upstash 쓰기는 뒤에서 비동기로 따라갑니다.
 그래서 **Upstash 가 죽어도 게임은 그대로 돌아가고**, 그 판 기록만 남지 않습니다.
-부팅 배너에 어느 저장소를 쓰는지 찍히니 배포 로그에서 확인하세요.
+어느 저장소를 쓰는지는 `/health` 로 밖에서 바로 확인할 수 있습니다.
+
+    curl https://<서비스>.onrender.com/health
+    {"ok":true,"rooms":0,"store":"redis","entries":12}
+
+`store` 가 `file` 이면 환경변수가 안 들어간 것이고, `storeError` 가 붙어 있으면
+URL 이나 토큰이 틀린 것입니다. 부팅 배너에도 같은 내용이 찍힙니다.
 
 ### 그 밖에 무료 플랜에서 알아둘 것
 

@@ -40,7 +40,13 @@ function send(res, code, body, type) {
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
-  if (urlPath === '/health') return send(res, 200, JSON.stringify({ ok: true, rooms: rooms.size }), MIME['.json']);
+  if (urlPath === '/health') return send(res, 200, JSON.stringify({
+    ok: true,
+    rooms: rooms.size,
+    store: store.mode,              // 'file' | 'redis' — 배포가 어느 저장소를 쓰는지 밖에서 확인용
+    entries: leaderboard.size(),
+    storeError: store.error || undefined
+  }), MIME['.json']);
   if (urlPath === '/leaderboard.json') return send(res, 200, JSON.stringify(leaderboard.top(50)), MIME['.json']);
 
   // 경로 탈출 방지 — '..' 과 '.' 을 아예 걸러낸다
