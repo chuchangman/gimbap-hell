@@ -1,0 +1,15 @@
+# Render Blueprint — 이 파일이 있으면 Render 가 설정을 자동으로 읽는다.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: gimbap-hell
+    runtime: node
+    plan: free
+    region: singapore          # 한국에서 가장 가까운 무료 리전
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health   # server/index.mjs 가 이미 제공하는 엔드포인트
+    autoDeploy: true           # main 에 푸시하면 자동 재배포
+    envVars:
+      - key: NODE_VERSION
+        value: "20.20.2"

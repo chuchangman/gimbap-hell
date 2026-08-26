@@ -1,0 +1,19 @@
+{
+  "name": "gimbap-hell",
+  "version": "1.0.0",
+  "description": "김밥지옥 — 3D 1인칭 멀티플레이 김밥 웨이브 디펜스 (three.js + Socket.IO)",
+  "type": "commonjs",
+  "main": "server/index.mjs",
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "node server/index.mjs",
+    "test": "node test/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "socket.io": "^4.8.3"
+  }
+}

@@ -1,0 +1,16 @@
+# 의존성
+node_modules/
+
+# 런타임에 생기는 데이터 (서버가 없으면 알아서 만든다)
+data/
+
+# 로컬 환경
+.env
+.env.*
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
