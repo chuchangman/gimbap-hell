@@ -13,7 +13,7 @@ import { Server } from 'socket.io';
 
 import { Room, nameError } from './room.mjs';
 import * as leaderboard from './leaderboard.mjs';
-import { PACES, WAVES } from '../public/js/config.js';
+import { WAVES } from '../public/js/config.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', 'public');
@@ -112,13 +112,6 @@ io.on('connection', (socket) => {
     if (cb) cb({ ok: true, code, youId: socket.id });
     pushState(room);
     pushKitchen(room);
-  });
-
-  socket.on('room:pace', (d) => {
-    const room = roomOf(socket);
-    if (!room || !room.isHost(socket.id)) return;
-    room.setPace(d && d.pace);
-    pushState(room);
   });
 
   socket.on('game:start', () => {
@@ -258,7 +251,7 @@ server.listen(PORT, () => {
   console.log('  ➜ http://localhost:' + PORT);
   if (lan) console.log('  📡 팀원에게: http://' + lan + ':' + PORT + '   (같은 Wi-Fi)');
   console.log('');
-  console.log('  웨이브 ' + WAVES.length + '개 · 난이도 ' + Object.keys(PACES).join(' / '));
+  console.log('  웨이브 ' + WAVES.length + '개');
   console.log('  🏆 가게 랭킹 ' + leaderboard.size() + '건 기록됨 (' + store.where + ')');
   if (store.error) console.log('  ⚠  저장소 연결 실패 — 이번 판 기록이 남지 않습니다');
   console.log('  한 명이 [새 가게 열기] → 나머지는 방 코드 4글자로 입장');

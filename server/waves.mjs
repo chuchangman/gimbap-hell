@@ -13,7 +13,7 @@
    ──────────────────────────────────────────────────────────── */
 import {
   WAVES, QUEUE_SLOTS, PREP_FIRST, PREP_BETWEEN, REPUTATION_MAX,
-  CUSTOMER_LOOKS, NORMAL_LOOKS, PACES, DEFAULT_PACE, SCORE, scaleCount,
+  CUSTOMER_LOOKS, NORMAL_LOOKS, SCORE, scaleCount,
   WALK_IN_MS, WALK_OUT_MS, KIND, ITEMS,
   BASE_FILLINGS, unlockedExtras, unlockAt,
   SPECIAL_PATIENCE, SPECIAL_RATIO, SPECIAL_FILLS, CUSTOMER_HP,
@@ -36,8 +36,7 @@ function sample(arr, n) {
 }
 
 export class WaveRunner {
-  constructor(paceKey, playerCount) {
-    this.pace = PACES[paceKey] || PACES[DEFAULT_PACE];
+  constructor(playerCount) {
     this.players = Math.max(1, playerCount || 1);
     this.reset();
   }
@@ -88,8 +87,8 @@ export class WaveRunner {
   buildWave(n) {
     const w = WAVES[n - 1];
     const count = scaleCount(w.n, this.players);
-    const patience = Math.round(w.patience * this.pace.patience);
-    const gap = w.gap * this.pace.gap;
+    const patience = w.patience;
+    const gap = w.gap;
 
     // 전체의 SPECIAL_RATIO 만큼이 카운터로 오는 진상 손님
     const specials = Math.min(count, Math.round(count * SPECIAL_RATIO));

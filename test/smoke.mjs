@@ -122,7 +122,7 @@ for (let w = 1; w <= 10; w++) { const n = unlockedExtras(w).length; if (n < prev
 ok(mono, '웨이브가 갈수록 쓸 수 있는 재료가 줄지 않는다');
 ok(unlockedExtras(10).length === 5, 'W10 — 8종 전부 해금');
 
-const WU = new WaveRunner('normal', 3);
+const WU = new WaveRunner(3);
 WU.wave = 1;
 rewind(WU, 'phaseEndsAt', 999);
 const ev2 = WU.tick();
@@ -132,7 +132,7 @@ ok(ev2[0] && ev2[0].unlocked === 'crab' && !!ev2[0].unlockedName,
 /* ═════════════════════════════════════════════ */
 head('[C/D/E] 키오스크 일반 손님 vs 카운터 진상 손님');
 
-const W = new WaveRunner('normal', 3);
+const W = new WaveRunner(3);
 const built = W.buildWave(8);
 const kiosks = built.list.filter((c) => c.kind === KIND.KIOSK);
 const counters = built.list.filter((c) => c.kind === KIND.COUNTER);
@@ -154,7 +154,7 @@ ok(custom.some((f) => !BASE_FILLINGS.every((b) => f.includes(b))),
   'E2 진상 주문은 기본 3종 규칙의 예외다 (커스텀 조합)');
 ok(custom.every((f) => f.length >= 3 && f.length <= 5), '   진상 주문은 3~5종을 요구한다');
 
-const W2 = new WaveRunner('normal', 3);
+const W2 = new WaveRunner(3);
 W2.wave = 9;                       // 손님이 자리보다 많은 웨이브로
 rewind(W2, 'phaseEndsAt', 999);
 W2.tick();
@@ -174,7 +174,7 @@ const bands = [0.9, 0.5, 0.25, 0.05].map((p) => grumbleFor(p, 1));
 ok(new Set(bands).size === 4, 'D3 인내심 구간마다 다른 대사가 나온다');
 ok(bands.every((b) => typeof b === 'string' && b.length > 0), '   4단계 대사: ' + bands.join(' / '));
 
-const W3 = new WaveRunner('normal', 3);
+const W3 = new WaveRunner(3);
 W3.wave = 7;                       // 진상이 확실히 섞이는 웨이브로
 rewind(W3, 'phaseEndsAt', 999);
 W3.tick();
@@ -210,7 +210,7 @@ ok(matchScore(['ham', 'egg'], [done('ham')]) < matchScore(['ham'], [done('ham'),
   '빠진 게 더 넣은 것보다 크게 깎인다');
 ok(servedQuality(['ham'], [done('ham', 60)]) === 60, '최종 품질 = 조리 평균 × 맞춤도');
 
-const W4 = new WaveRunner('normal', 3);
+const W4 = new WaveRunner(3);
 rewind(W4, 'phaseEndsAt', 999);
 W4.tick();
 for (let i = 0; i < 10; i++) { W4.nextSpawnAt = 0; W4.tick(); }
@@ -235,7 +235,7 @@ if (waiting.length >= 2) {
 }
 
 /* 손님을 지목해서 서빙 */
-const WT = new WaveRunner('normal', 3);
+const WT = new WaveRunner(3);
 WT.wave = 7;
 rewind(WT, 'phaseEndsAt', 999);
 WT.tick();
@@ -318,7 +318,7 @@ K2.join('x'); K2.join('y');
 K2.act('x', 'fridge:take', { item: 'gim' });
 ok(!!K2.hand('x') && !K2.hand('y'), '손은 사람마다 따로다');
 
-const W5 = new WaveRunner('normal', 1);
+const W5 = new WaveRunner(1);
 W5.wave = 9;
 rewind(W5, 'phaseEndsAt', 999);
 W5.tick();
@@ -326,7 +326,7 @@ W5.pending = []; W5.active = [];
 const evs = W5.tick();
 ok(W5.result === 'victory' && evs.some((e) => e.type === 'gameOver'), '10웨이브를 넘기면 완주');
 
-const W6 = new WaveRunner('normal', 1);
+const W6 = new WaveRunner(1);
 rewind(W6, 'phaseEndsAt', 999);
 W6.tick();
 W6.reputation = 1;

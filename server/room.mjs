@@ -3,7 +3,7 @@
    판정은 전부 여기(서버)에서 한다. 클라이언트를 고쳐도 뚫리지 않는다.
    ──────────────────────────────────────────────────────────── */
 import {
-  COMBAT, SCORE, DEFAULT_PACE, PACES, REPUTATION_MAX, QUEUE_Z, slotX
+  COMBAT, SCORE, REPUTATION_MAX, QUEUE_Z, slotX
 } from '../public/js/config.js';
 import { Kitchen, nowMs } from './kitchen.mjs';
 import { WaveRunner } from './waves.mjs';
@@ -37,7 +37,6 @@ export class Room {
     this.players = new Map();       // id → { id, name, color, x, z, y, ry, lastSwing }
     this.hostId = null;
     this.phase = 'lobby';           // lobby | playing | result
-    this.pace = DEFAULT_PACE;
     this.kitchen = new Kitchen();
     this.waves = null;
     this.result = null;
@@ -82,16 +81,12 @@ export class Room {
     return this.shop;
   }
 
-  setPace(key) {
-    if (PACES[key]) this.pace = key;
-  }
-
   /* ──────────────── 라운드 ──────────────── */
   start() {
     if (this.phase === 'playing') return false;
     this.kitchen.reset();
     for (const id of this.players.keys()) this.kitchen.join(id);
-    this.waves = new WaveRunner(this.pace, this.players.size);
+    this.waves = new WaveRunner(this.players.size);
     this.phase = 'playing';
     this.result = null;
     let i = 0;
@@ -238,7 +233,6 @@ export class Room {
       shop: this.shop,
       phase: this.phase,
       hostId: this.hostId,
-      pace: this.pace,
       players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color })),
       wave: this.waves ? this.waves.snapshot() : null,
       result: this.result,

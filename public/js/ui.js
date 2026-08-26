@@ -2,7 +2,7 @@
    DOM UI — 입장 · 대기실 · HUD(웨이브/손님/평판) · 결과 · 토스트
    ──────────────────────────────────────────────────────────── */
 import {
-  ITEMS, TIME, PACES, DEFAULT_PACE, REPUTATION_MAX, KIND
+  ITEMS, TIME, REPUTATION_MAX, KIND
 } from './config.js';
 import { S, emit, on, myHand, isHost, serverNow, wave as waveOf } from './net.js';
 import { focusNow, bapReady } from './kitchen.js';
@@ -79,11 +79,8 @@ export function renderLobby() {
     '<span class="' + (p.id === S.meId ? 'me' : '') + '">' + esc(p.name) + '</span>' +
     (p.id === st.hostId ? '<span class="tag">방장</span>' : '') + '</li>').join('');
 
-  $$('#pace-seg button').forEach((b) => b.classList.toggle('on', b.dataset.pace === st.pace));
-  const pace = PACES[st.pace] || PACES[DEFAULT_PACE];
-  $('#pace-desc').textContent =
-    '인내심 ×' + pace.patience + ' · 손님 간격 ×' + pace.gap +
-    ' — 인원 ' + st.players.length + '명 기준으로 손님 수가 자동 조정됩니다.';
+  $('#party-desc').textContent =
+    '인원 ' + st.players.length + '명 기준으로 손님 수가 자동 조정됩니다.';
 
   $('#host-controls').classList.toggle('hidden', !isHost());
   $('#not-host-hint').classList.toggle('hidden', isHost());
@@ -385,16 +382,6 @@ export function renderResult() {
 
 /* ──────────────── 초기화 ──────────────── */
 export function initUI() {
-  /* 난이도 버튼 */
-  $('#pace-seg').innerHTML = Object.entries(PACES).map(([k, v]) =>
-    '<button data-pace="' + k + '"' + (k === DEFAULT_PACE ? ' class="on"' : '') + '>' + v.name + '</button>').join('');
-  $$('#pace-seg button').forEach((b) => {
-    b.addEventListener('click', () => {
-      if (!isHost()) return;
-      emit('room:pace', { pace: b.dataset.pace });
-    });
-  });
-
   /* 입장 */
   const nameOf = () => $('#input-name').value.trim();
   const shopOf = () => $('#input-shop').value.trim();

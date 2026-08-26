@@ -211,14 +211,6 @@ export function scaleCount(n, players) {
   return Math.max(1, Math.round(n * k));
 }
 
-/* 방장이 고르는 난이도 — 인내심과 등장 간격에 곱한다 */
-export const PACES = {
-  easy:   { name: '여유', patience: 1.3, gap: 1.2 },
-  normal: { name: '보통', patience: 1.0, gap: 1.0 },
-  hard:   { name: '전쟁', patience: 0.8, gap: 0.85 }
-};
-export const DEFAULT_PACE = 'normal';
-
 /* 평범한 손님 외형/이름 */
 export const NORMAL_LOOKS = [
   { name: '교복 학생', emoji: '🎒', color: 0x4a6fa5 },
