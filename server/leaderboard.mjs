@@ -1,6 +1,17 @@
 /* ────────────────────────────────────────────────────────────
    가게 랭킹 — 역대 영업 기록을 점수 순으로 모아둔다.
-   data/leaderboard.json 에 저장하므로 서버를 껐다 켜도 남는다.
+
+   저장 위치는 두 가지다.
+     · 기본     data/leaderboard.json          (로컬 개발 · 자체 호스팅)
+     · Upstash  UPSTASH_REDIS_REST_URL + _TOKEN 이 둘 다 있으면 Redis
+
+   Render 무료 플랜은 파일 시스템이 휘발성이다. 재배포뿐 아니라 15분
+   미사용으로 잠들었다 깨어나기만 해도 파일이 통째로 사라진다. 그래서
+   배포판은 Upstash 를 쓴다.
+
+   읽기(top/size/board)와 쓰기(add)는 전부 동기로 남겨뒀다. room.mjs 가
+   add() 바로 다음 줄에서 board() 를 부르기 때문이다. 메모리 캐시(rows)가
+   사실상의 원본이고, Upstash 쓰기는 뒤에서 비동기로 따라간다.
 
    기록 하나:
      { id, shop, score, wave, totalWaves, kind, players[], rolls, avgQuality, at }
@@ -16,10 +27,32 @@ const DEFAULT_DIR = path.join(HERE, '..', 'data');
 /* 저장 위치 — GIMBAP_LEADERBOARD 로 덮어쓸 수 있다 (테스트가 실제 기록을 건드리지 않도록) */
 const file = () => process.env.GIMBAP_LEADERBOARD || path.join(DEFAULT_DIR, 'leaderboard.json');
 
+/* Upstash Redis (REST) — URL 과 토큰이 둘 다 있을 때만 켜진다 */
+const redisUrl = () => (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, '');
+const redisToken = () => process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const redisKey = () => process.env.GIMBAP_LEADERBOARD_KEY || 'gimbap:leaderboard';
+const useRedis = () => !!(redisUrl() && redisToken());
+
 const MAX_ENTRIES = 200;     // 이보다 많아지면 점수 낮은 것부터 버린다
 export const SHOP_MAX = 16;  // 가게 이름 길이 제한
 
 let rows = null;             // 메모리 캐시
+
+/** Upstash REST 에 명령 하나 — ['GET', key] 같은 배열을 그대로 보낸다 */
+async function redisCmd(command) {
+  const res = await fetch(redisUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + redisToken(),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(command)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error('HTTP ' + res.status + (body.error ? ' — ' + body.error : ''));
+  if (body.error) throw new Error(body.error);
+  return body.result;
+}
 
 /** 가게 이름 정리 — 제어문자 제거 + 길이 제한 */
 export function cleanShopName(name, fallback) {
@@ -47,6 +80,7 @@ function sort(list) {
 
 function load() {
   if (rows) return rows;
+  if (useRedis()) return (rows = []);   // Upstash 모드에선 init() 이 채운다
   try {
     const parsed = JSON.parse(fs.readFileSync(file(), 'utf8'));
     rows = Array.isArray(parsed) ? parsed.filter(valid) : [];
@@ -57,7 +91,36 @@ function load() {
   return rows;
 }
 
+/**
+ * 부팅 때 한 번 — 저장소에서 랭킹을 읽어 캐시에 올린다.
+ * 서버가 요청을 받기 전에 await 해야 첫 손님이 빈 랭킹을 보지 않는다.
+ * → { mode, where, count, error? }
+ */
+export async function init() {
+  if (!useRedis()) {
+    load();
+    return { mode: 'file', where: file(), count: rows.length };
+  }
+  const where = 'Upstash Redis · ' + redisKey();
+  try {
+    const raw = await redisCmd(['GET', redisKey()]);
+    const parsed = raw ? JSON.parse(raw) : [];
+    rows = sort(Array.isArray(parsed) ? parsed.filter(valid) : []);
+    return { mode: 'redis', where, count: rows.length };
+  } catch (err) {
+    rows = [];               // 못 읽었어도 게임은 돌아가야 한다
+    console.error('[leaderboard] Upstash 읽기 실패:', err.message);
+    return { mode: 'redis', where, count: 0, error: err.message };
+  }
+}
+
 function persist() {
+  if (useRedis()) {
+    /* 결과 화면을 막지 않도록 뒤에서 쓴다 — 캐시가 이미 최신이라 읽기엔 지장 없다 */
+    redisCmd(['SET', redisKey(), JSON.stringify(rows)])
+      .catch((err) => console.error('[leaderboard] Upstash 저장 실패:', err.message));
+    return;
+  }
   try {
     const target = file();
     fs.mkdirSync(path.dirname(target), { recursive: true });

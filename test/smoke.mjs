@@ -426,6 +426,12 @@ ok(pushed.board.outside && pushed.board.outside.shop === '밀려난집',
   '10위 밖이면 이번 판을 따로 붙여 보여준다');
 ok(leaderboard.top(3).length === 3, 'top(n) 이 상위 n 개를 준다');
 
+/* 저장소 모드 — 환경변수가 없으면 파일, UPSTASH_* 가 있으면 Redis (배포판) */
+const lbStore = await leaderboard.init();
+ok(lbStore.mode === 'file', '환경변수가 없으면 파일 모드로 뜬다 (' + lbStore.mode + ')');
+ok(lbStore.count === leaderboard.size(), '   부팅 정보의 건수가 실제 랭킹과 같다 (' + lbStore.count + '건)');
+ok(!lbStore.error, '   파일 모드에선 연결 오류가 없다');
+
 
 head('[I] 🧹 손님 체력 — 때려서 쫓아내기');
 

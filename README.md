@@ -404,17 +404,47 @@ test/
 |---|---|
 | 빌드 | `npm ci` |
 | 실행 | `npm start` (= `node server/index.mjs`) |
-| 헬스체크 | `/health` → `{"ok":true,"rooms":n}` |
+| 헬스체크 | `/health` -> `{"ok":true,"rooms":n}` |
 | 포트 | `process.env.PORT` (Render 가 주입) |
 | 리전 | `singapore` (한국에서 가장 가까운 무료 리전) |
 
-배포 절차는 [render.com/blueprints](https://dashboard.render.com/blueprints) 에서 이 저장소를
-선택하면 끝입니다. `main` 에 푸시하면 자동으로 재배포됩니다 (`autoDeploy: true`).
+[render.com/blueprints](https://dashboard.render.com/blueprints) 에서 이 저장소를 고르면
+끝입니다. `main` 에 푸시하면 자동으로 재배포됩니다 (`autoDeploy: true`).
 
-### 무료 플랜에서 알아둘 것
+### 랭킹 저장소 — 무료 플랜에선 Upstash 가 필요합니다
 
-- **15분 미사용 시 잠듭니다.** 다시 접속하면 깨어나는 데 ~50초 걸립니다.
-- **파일 시스템이 휘발성입니다.** 재배포·재시작하면 `data/leaderboard.json` 의
-  가게 랭킹이 초기화됩니다. 랭킹을 영구 보관하려면 유료 디스크를 붙이거나
-  `GIMBAP_LEADERBOARD` 환경변수로 외부 경로를 지정하세요.
+Render 무료 플랜은 **파일 시스템이 휘발성**입니다. 재배포할 때뿐 아니라
+**15분 미사용으로 잠들었다 깨어나기만 해도** `data/leaderboard.json` 이 통째로
+사라집니다. 경로를 바꿔도 같은 휘발성 디스크 안이라 소용이 없습니다.
+
+그래서 `leaderboard.mjs` 는 저장 위치를 두 가지로 둡니다.
+
+| 환경변수 | 저장 위치 |
+|---|---|
+| 없음 | `data/leaderboard.json` (로컬 개발 · 자체 호스팅) |
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis |
+
+무료 Upstash 붙이는 법:
+
+1. [console.upstash.com](https://console.upstash.com) 에서 GitHub 로그인 -> **Create Database**
+2. Type `Redis`, Region 은 `ap-northeast-1` (도쿄) 정도로
+3. 만든 DB 의 **REST API** 패널에서 `UPSTASH_REDIS_REST_URL` 과
+   `UPSTASH_REDIS_REST_TOKEN` 두 값을 복사
+4. Render 서비스 -> **Environment** 에 그대로 붙여넣고 저장 (자동 재배포됨)
+
+키 이름은 기본이 `gimbap:leaderboard` 이고, `GIMBAP_LEADERBOARD_KEY` 로 바꿀 수 있습니다.
+무료 티어가 하루 1만 명령인데 이 게임은 **판이 끝날 때 쓰기 1회**뿐이라 남아돕니다.
+
+동작 방식은 이렇습니다. 읽기(`top`/`size`/`board`)와 쓰기(`add`)는 전부 **동기**로
+남겨뒀습니다 — `room.mjs` 가 `add()` 바로 다음 줄에서 `board()` 를 부르기 때문입니다.
+메모리 캐시가 사실상의 원본이고, Upstash 쓰기는 뒤에서 비동기로 따라갑니다.
+그래서 **Upstash 가 죽어도 게임은 그대로 돌아가고**, 그 판 기록만 남지 않습니다.
+부팅 배너에 어느 저장소를 쓰는지 찍히니 배포 로그에서 확인하세요.
+
+### 그 밖에 무료 플랜에서 알아둘 것
+
+- **15분 미사용 시 잠듭니다.** 다시 깨어나는 데 ~50초 걸리니, 사람들을 모아
+  테스트하기 전에 미리 한 번 열어서 깨워두는 편이 좋습니다.
 - Socket.IO 실시간 통신(WebSocket)은 무료 플랜에서도 그대로 동작합니다.
+- 인스턴스가 하나라서 메모리 캐시가 갈릴 일이 없습니다. 유료로 올려
+  인스턴스를 여러 개 굴릴 거라면 랭킹 쓰기를 Redis 원자 연산으로 바꿔야 합니다.

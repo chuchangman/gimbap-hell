@@ -237,6 +237,9 @@ function lanAddress() {
   return null;
 }
 
+/* 랭킹을 먼저 읽어 캐시에 올린다 — 첫 손님이 빈 랭킹을 보지 않도록 */
+const store = await leaderboard.init();
+
 server.listen(PORT, () => {
   const lan = lanAddress();
   console.log('');
@@ -246,7 +249,8 @@ server.listen(PORT, () => {
   if (lan) console.log('  📡 팀원에게: http://' + lan + ':' + PORT + '   (같은 Wi-Fi)');
   console.log('');
   console.log('  웨이브 ' + WAVES.length + '개 · 난이도 ' + Object.keys(PACES).join(' / '));
-  console.log('  🏆 가게 랭킹 ' + leaderboard.size() + '건 기록됨 (data/leaderboard.json)');
+  console.log('  🏆 가게 랭킹 ' + leaderboard.size() + '건 기록됨 (' + store.where + ')');
+  if (store.error) console.log('  ⚠  저장소 연결 실패 — 이번 판 기록이 남지 않습니다');
   console.log('  한 명이 [새 가게 열기] → 나머지는 방 코드 4글자로 입장');
   console.log('');
 });
