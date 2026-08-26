@@ -11,7 +11,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 
-import { Room } from './room.mjs';
+import { Room, nameError } from './room.mjs';
 import * as leaderboard from './leaderboard.mjs';
 import { PACES, WAVES } from '../public/js/config.js';
 
@@ -47,7 +47,7 @@ const server = http.createServer((req, res) => {
     entries: leaderboard.size(),
     storeError: store.error || undefined
   }), MIME['.json']);
-  if (urlPath === '/leaderboard.json') return send(res, 200, JSON.stringify(leaderboard.top(50)), MIME['.json']);
+  if (urlPath === '/leaderboard.json') return send(res, 200, JSON.stringify(leaderboard.publicTop(50)), MIME['.json']);
 
   // 경로 탈출 방지 — '..' 과 '.' 을 아예 걸러낸다
   const parts = urlPath.split('/').filter((p) => p && p !== '.' && p !== '..');
@@ -85,6 +85,8 @@ io.on('connection', (socket) => {
   socket.emit('hello', { id: socket.id, waves: WAVES.length });
 
   socket.on('room:create', (d, cb) => {
+    const bad = nameError(d && d.name);
+    if (bad) return cb && cb({ ok: false, err: bad });
     const code = makeCode();
     const room = new Room(code, d && d.shop);
     rooms.set(code, room);
@@ -98,6 +100,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('room:join', (d, cb) => {
+    const bad = nameError(d && d.name);
+    if (bad) return cb && cb({ ok: false, err: bad });
     const code = String((d && d.code) || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) return cb && cb({ ok: false, err: '그런 방이 없습니다.' });

@@ -9,6 +9,18 @@ import { Kitchen, nowMs } from './kitchen.mjs';
 import { WaveRunner } from './waves.mjs';
 import * as leaderboard from './leaderboard.mjs';
 
+/* 닉네임 규칙 — 서버가 최종 판정자다. 클라이언트 검사는 거들 뿐 */
+export const NAME_MIN = 2;
+export const NAME_MAX = 12;
+
+/** 문제가 있으면 사람이 읽을 메시지, 없으면 null */
+export function nameError(name) {
+  const s = String(name == null ? '' : name).trim();
+  if (s.length < NAME_MIN) return '이름은 ' + NAME_MIN + '글자 이상이어야 합니다.';
+  if (s.length > NAME_MAX) return '이름은 ' + NAME_MAX + '글자를 넘을 수 없습니다.';
+  return null;
+}
+
 const COLORS = ['#f5b942', '#63a8e8', '#58c07a', '#e0728f', '#a98ae0', '#e08a4a'];
 
 /* 라운드 시작 위치 — 주방 가운데 통로에 흩어놓는다 */
@@ -273,7 +285,7 @@ export class Room {
       players: res.players, servedRolls: w.servedRolls, avgQuality: w.avgQuality
     });
     res.rank = rec.rank;
-    res.board = leaderboard.board(rec.entry.id, 10);
+    res.board = leaderboard.publicBoard(rec.entry.id, 10);
     res.entryId = rec.entry.id;
 
     this.history.unshift({ kind, wave: w.wave, score: total, rank: rec.rank, at: nowMs() });

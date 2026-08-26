@@ -17,7 +17,7 @@ import path from 'node:path';
 process.env.GIMBAP_LEADERBOARD =
   path.join(os.tmpdir(), 'gimbap-test-lb-' + Date.now() + '.json');
 
-import { Room } from '../server/room.mjs';
+import { Room, nameError, NAME_MIN, NAME_MAX } from '../server/room.mjs';
 import { Kitchen } from '../server/kitchen.mjs';
 import { WaveRunner } from '../server/waves.mjs';
 import * as leaderboard from '../server/leaderboard.mjs';
@@ -422,8 +422,10 @@ for (let i = 0; i < 12; i++) finish('채우기' + i, 2000 + i);
 const pushed = finish('밀려난집', 1);
 ok(pushed.rank > 10, '점수가 낮으면 10위 밖으로 밀린다 (' + pushed.rank + '위)');
 ok(pushed.board.top.length === 10, '상위 10개만 보여준다');
-ok(pushed.board.outside && pushed.board.outside.shop === '밀려난집',
-  '10위 밖이면 이번 판을 따로 붙여 보여준다');
+ok(pushed.board.outside && pushed.board.outside.shop === leaderboard.maskShop('밀려난집'),
+  '10위 밖이면 이번 판을 따로 붙여 보여준다 (' + (pushed.board.outside || {}).shop + ')');
+ok(pushed.board.top.every((r) => r.shop !== '높은집'),
+  '   결과 화면 랭킹도 가게 이름을 가린다');
 ok(leaderboard.top(3).length === 3, 'top(n) 이 상위 n 개를 준다');
 
 /* 저장소 모드 — 환경변수가 없으면 파일, UPSTASH_* 가 있으면 Redis (배포판) */
@@ -431,6 +433,34 @@ const lbStore = await leaderboard.init();
 ok(lbStore.mode === 'file', '환경변수가 없으면 파일 모드로 뜬다 (' + lbStore.mode + ')');
 ok(lbStore.count === leaderboard.size(), '   부팅 정보의 건수가 실제 랭킹과 같다 (' + lbStore.count + '건)');
 ok(!lbStore.error, '   파일 모드에선 연결 오류가 없다');
+
+/* ═════════════════════════════════════════════ */
+head('[H2] 🙈 랭킹 가게 이름 가리기 · 🔤 닉네임 2글자');
+
+ok(leaderboard.maskShop('동네김밥집') === '동●●●●', "'동네김밥집' → " + leaderboard.maskShop('동네김밥집'));
+ok(leaderboard.maskShop('가') === '가', '한 글자면 가릴 것이 없다');
+ok(leaderboard.maskShop('') === '', '빈 이름은 빈 채로');
+ok(leaderboard.maskShop(null) === '', 'null 도 안 터진다');
+ok(leaderboard.maskShop('🍣김밥') === '🍣●●', '이모지도 한 글자로 센다 (' + leaderboard.maskShop('🍣김밥') + ')');
+ok(leaderboard.maskShop('AB').length === 2, '길이는 원본과 같다 — 몇 글자인지까진 숨기지 않는다');
+
+const pubTop = leaderboard.publicTop(3);
+ok(pubTop.length === 3 && pubTop.every((r) => /^.●*$/u.test(r.shop) || Array.from(r.shop).length === 1),
+  'publicTop 은 가게 이름을 가려서 준다 (' + pubTop.map((r) => r.shop).join(', ') + ')');
+ok(leaderboard.top(3)[0].shop !== pubTop[0].shop, '   원본 top() 은 그대로 둔다 — 저장된 값은 안 건드린다');
+
+const rawFirst = leaderboard.top(1)[0];
+const pubBoard = leaderboard.publicBoard(rawFirst.id, 3);
+ok(Array.from(pubBoard.top[0].shop)[0] === Array.from(rawFirst.shop)[0], '   첫 글자는 살아 있다');
+ok(pubBoard.top.every((r) => r.score !== undefined), '   점수 같은 나머지 필드는 그대로');
+
+ok(nameError('김') !== null, '한 글자 닉네임은 거절한다');
+ok(nameError('') !== null, '빈 닉네임도 거절한다');
+ok(nameError(null) !== null, 'null 닉네임도 거절한다');
+ok(nameError('  가  ') !== null, '공백을 빼고 한 글자면 거절한다');
+ok(nameError('김밥') === null, NAME_MIN + '글자면 통과한다');
+ok(nameError('가'.repeat(NAME_MAX)) === null, NAME_MAX + '글자까지 통과한다');
+ok(nameError('가'.repeat(NAME_MAX + 1)) !== null, NAME_MAX + '글자를 넘으면 거절한다');
 
 
 head('[I] 🧹 손님 체력 — 때려서 쫓아내기');

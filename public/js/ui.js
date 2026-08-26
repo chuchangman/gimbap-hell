@@ -35,12 +35,17 @@ function fmt(sec) {
 }
 
 /* ──────────────── 화면 ──────────────── */
+let curScreen = '';
 export function showScreen(id) {
+  const entered = curScreen !== id;
+  curScreen = id;
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === id));
   const playing = id === 'screen-game';
   $('#hud').classList.toggle('hidden', !playing);
   P.enabled = playing;
   if (!playing) releaseLock();
+  // 판이 끝나고 돌아온 경우까지 포함해, 들어온 순간엔 무조건 새로 받는다
+  if (entered && id === 'screen-lobby') loadLobbyBoard(true);
 }
 
 /** 서버 phase 에 따라 알맞은 화면으로 */
@@ -50,6 +55,7 @@ export function route() {
   if (S.state.phase === 'result') { renderResult(); return showScreen('screen-result'); }
   renderLobby();
   showScreen('screen-lobby');
+  loadLobbyBoard();
 }
 
 /* ──────────────── 도움말 ──────────────── */
@@ -281,6 +287,29 @@ export function wavePop(d) {
 /* ──────────────── 🏆 가게 랭킹 ──────────────── */
 const medal = (n) => (n === 1 ? '🥇' : n === 2 ? '🥈' : n === 3 ? '🥉' : n + '위');
 
+/* 대기실 좌측 랭킹 — 가게 이름은 서버가 이미 첫 글자만 남겨서 준다 */
+let boardAt = 0;
+
+export async function loadLobbyBoard(force) {
+  const now = Date.now();
+  if (!force && now - boardAt < 30000) return;   // 앉아 있는 동안엔 30초마다만
+  boardAt = now;
+  const list = $('#lobby-board-list');
+  if (!list) return;
+  try {
+    const rows = await (await fetch('/leaderboard.json', { cache: 'no-store' })).json();
+    list.innerHTML = rows.length
+      ? rows.slice(0, 10).map((r, i) =>
+          '<li><span class="pos">' + medal(i + 1) + '</span>' +
+          '<span class="shop">' + esc(r.shop) + '</span>' +
+          '<b class="pts">' + r.score + '</b></li>').join('')
+      : '<li class="none">아직 기록이 없습니다.</li>';
+  } catch {
+    boardAt = 0;                                 // 실패했으면 다음 기회에 다시
+    list.innerHTML = '<li class="none">랭킹을 불러오지 못했습니다.</li>';
+  }
+}
+
 function boardRow(row, n, mine) {
   const when = row.at ? new Date(row.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) : '';
   return '<li class="' + (mine ? 'mine' : '') + '">' +
@@ -369,6 +398,14 @@ export function initUI() {
   /* 입장 */
   const nameOf = () => $('#input-name').value.trim();
   const shopOf = () => $('#input-shop').value.trim();
+
+  /* 서버도 같은 규칙으로 막는다 (room.mjs nameError) — 여기선 먼저 알려줄 뿐 */
+  const nameOk = () => {
+    if (nameOf().length >= 2) return true;
+    $('#join-err').textContent = '이름은 2글자 이상이어야 합니다.';
+    $('#input-name').focus();
+    return false;
+  };
   $('#input-shop').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-create').click(); });
 
   /* 가게 이름을 비워두면 "○○의 가게" 가 된다 — 미리 보여준다 */
@@ -377,8 +414,10 @@ export function initUI() {
     $('#input-shop').placeholder = n ? n + '의 가게' : '비워두면 「이름」의 가게';
   };
   $('#input-name').addEventListener('input', syncShopHint);
+  $('#input-name').addEventListener('input', () => { $('#join-err').textContent = ''; });
   syncShopHint();
   $('#btn-create').addEventListener('click', () => {
+    if (!nameOk()) return;
     emit('room:create', { name: nameOf(), shop: shopOf() }, (res) => {
       if (!res || !res.ok) return ($('#join-err').textContent = (res && res.err) || '실패');
       S.meId = res.youId;
@@ -386,6 +425,7 @@ export function initUI() {
     });
   });
   $('#btn-join').addEventListener('click', () => {
+    if (!nameOk()) return;
     const code = $('#input-code').value.trim().toUpperCase();
     if (code.length !== 4) return ($('#join-err').textContent = '방 코드 4글자를 입력하세요.');
     emit('room:join', { code, name: nameOf() }, (res) => {

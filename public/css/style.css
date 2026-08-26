@@ -62,6 +62,20 @@ h3 { font-size: 12px; color: var(--dim); letter-spacing: .08em; text-transform: 
   border-radius: 20px; padding: 28px 26px; box-shadow: var(--shadow); text-align: center;
 }
 .card.wide { width: min(620px, 100%); text-align: left; }
+
+/* 대기실 — 좌측 랭킹 + 우측 본문 */
+.lobby-layout {
+  display: grid; grid-template-columns: 300px minmax(0, 620px);
+  gap: 16px; align-items: start;
+}
+.lobby-board { width: auto; text-align: left; padding: 20px 18px; position: sticky; top: 0; }
+.lobby-board h3 { margin: 0 0 12px; }
+.lobby-board .hint { margin: 10px 0 0; }
+@media (max-width: 1000px) {
+  /* 좁아지면 한 줄로 — 본문이 먼저, 랭킹은 아래로 */
+  .lobby-layout { grid-template-columns: minmax(0, 620px); }
+  .lobby-board { position: static; order: 2; }
+}
 .logo { font-size: 30px; text-align: center; }
 .logo span { color: var(--gold); }
 .tagline { color: var(--dim); font-size: 14px; line-height: 1.75; margin: 10px 0 20px; text-align: center; }
@@ -409,6 +423,11 @@ input:focus { border-color: var(--gold); }
 .board .meta { color: var(--dim); font-size: 11px; white-space: nowrap; }
 .board .when { color: #7a6b56; font-size: 11px; text-align: right; }
 .board .pts { color: var(--gold); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 사이드바용 좁은 랭킹 */
+.board.compact li { grid-template-columns: 30px 1fr 52px; gap: 8px; padding: 7px 9px; font-size: 12px; }
+.board.compact li.none, .board.compact li.gap { grid-template-columns: 1fr; }
+.board.compact .meta, .board.compact .when { display: none; }
 
 @media (max-width: 620px) {
   .board li { grid-template-columns: 34px 1fr 56px; }

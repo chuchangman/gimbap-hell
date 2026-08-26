@@ -164,6 +164,32 @@ export function add(result) {
   return { rank: rank || null, total: list.length, entry };
 }
 
+/* ── 화면에 내보낼 형태 ──────────────────────────────────
+   가게 이름은 첫 글자만 남기고 가린다. 남이 지은 이름이 랭킹에
+   그대로 박히지 않도록. 가리는 일은 서버에서 해야 의미가 있다 —
+   클라이언트에서만 가리면 /leaderboard.json 에 원본이 그대로 나온다.
+   ──────────────────────────────────────────────────── */
+
+/** '동네김밥집' → '동●●●●' (이모지가 섞여도 글자 단위로 센다) */
+export function maskShop(name) {
+  const chars = Array.from(String(name == null ? '' : name));
+  if (chars.length <= 1) return chars.join('');
+  return chars[0] + '●'.repeat(chars.length - 1);
+}
+
+const maskRow = (r) => ({ ...r, shop: maskShop(r.shop) });
+
+/** 화면용 상위 n 개 */
+export function publicTop(n) {
+  return top(n).map(maskRow);
+}
+
+/** 화면용 랭킹 묶음 */
+export function publicBoard(highlightId, n) {
+  const b = board(highlightId, n);
+  return { ...b, top: b.top.map(maskRow), outside: b.outside ? maskRow(b.outside) : null };
+}
+
 /** 상위 n 개 */
 export function top(n) {
   return load().slice(0, n || 10);
