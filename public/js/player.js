@@ -1,9 +1,9 @@
 /* ────────────────────────────────────────────────────────────
    1인칭 컨트롤러 — WASD 이동, 마우스 시점, 충돌, 조준 상호작용, 빗자루 스윙
-   위치는 10Hz 로 서버에 보내고, 다른 사람은 서버가 알려준 위치로 그린다.
+   위치는 NET.tickMs 마다 서버에 보내고, 다른 사람은 서버가 알려준 위치로 그린다.
    ──────────────────────────────────────────────────────────── */
 import * as THREE from '/vendor/three.module.min.js';
-import { COMBAT, QUEUE_Z, slotX } from './config.js';
+import { COMBAT, QUEUE_Z, slotX, NET } from './config.js';
 import {
   camera, interactables, solids, bumpHand, setSwingProgress, setArmBob
 } from './world.js';
@@ -303,9 +303,9 @@ export function updatePlayer(dt) {
   state.target = obj;
   state.prompt = obj ? resolveAction(obj.userData.station) : null;
 
-  // 위치 동기화 (20Hz) — 받는 쪽이 보간하므로 이 주기가 부드러움의 상한이다
+  // 위치 동기화 — 받는 쪽이 보간하므로 이 주기가 부드러움의 상한이다
   const t = performance.now();
-  if (state.enabled && t - lastSent > 50) {
+  if (state.enabled && t - lastSent > NET.tickMs) {
     lastSent = t;
     emit('player:move', { x: camera.position.x, z: camera.position.z, y: height, ry: yaw });
   }

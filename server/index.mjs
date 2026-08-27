@@ -2,7 +2,7 @@
    정적 파일 서버 + Socket.IO 멀티플레이
      · 방 만들기 / 방 코드로 입장
      · 5Hz 로 방 상태(웨이브·손님·주방)를 뿌린다
-     · 20Hz 로 플레이어 위치를 뿌린다 (volatile)
+     · NET.tickMs 마다 플레이어 위치를 뿌린다 (volatile)
    ──────────────────────────────────────────────────────────── */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 import { Room, nameError } from './room.mjs';
 import * as leaderboard from './leaderboard.mjs';
-import { WAVES } from '../public/js/config.js';
+import { WAVES, NET } from '../public/js/config.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', 'public');
@@ -239,7 +239,7 @@ setInterval(() => {
   }
 }, 200);
 
-/* 위치 브로드캐스트 (20Hz) — 클라이언트가 이 t 를 기준으로 보간한다.
+/* 위치 브로드캐스트 (NET.tickMs) — 클라이언트가 이 t 를 기준으로 보간한다.
    시각을 안 실어주면 받은 시각으로 보간해야 하는데, 네트워크가 한 번
    막혔다 몰아 오면 아바타가 순간이동한다.
 
@@ -254,7 +254,7 @@ setInterval(() => {
       io.to(room.code).volatile.emit('positions', { t: Date.now(), list: room.positions() });
     }
   }
-}, 50);
+}, NET.tickMs);
 
 /* ──────────────── 시작 ──────────────── */
 function lanAddress() {

@@ -2,7 +2,7 @@
    소켓 + 공유 상태
    서버가 보내주는 스냅샷을 S 에 담아두고, 나머지 모듈은 여기서 읽는다.
    ──────────────────────────────────────────────────────────── */
-import { samplePath } from './config.js';
+import { samplePath, NET } from './config.js';
 
 const listeners = new Map();
 
@@ -35,7 +35,7 @@ export const serverNow = () => Date.now() + S.offset;
    화면에 그릴 남들의 위치는 remotePositions() 로 받는다 — 표본을
    쌓아두고 INTERP_MS 만큼 과거를 재생해 등속으로 흐르게 한다.
    ──────────────────────────────────────────────────────── */
-const INTERP_MS = 100;      // 보내는 주기(50ms)의 2배 — 한 번 빠져도 버틴다
+const INTERP_MS = NET.interpMs;   // config.js 의 NET 에서 온다
 const KEEP_MS = 1000;       // 이보다 오래된 표본은 버린다
 const snaps = new Map();    // 자리번호 → [{ t, x, z, y, ry }, ...] 시간순
 const owner = new Map();    // 자리번호 → 표본을 쌓을 때의 주인 id

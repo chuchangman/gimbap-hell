@@ -8,7 +8,7 @@ import {
   FRIDGE_ITEMS, KIND, SPECIAL_PATIENCE, SPECIAL_RATIO, QUEUE_SLOTS,
   matchScore, servedQuality, grumbleFor, scaleCount,
   CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
-  samplePath, shortestTurn
+  samplePath, shortestTurn, NET
 } from '../public/js/config.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -577,6 +577,16 @@ const oldBytes = Buffer.byteLength(JSON.stringify({ t: Date.now(), list:
   [...pk6.players.values()].map((p) => ({ id: p.id, x: p.x, z: p.z, y: p.y, ry: p.ry })) }));
 const cut = Math.round((1 - nowBytes / oldBytes) * 100);
 ok(cut >= 60, '6인 방 위치 패킷이 ' + oldBytes + 'B → ' + nowBytes + 'B (-' + cut + '%)');
+
+/* ═════════════════════════════════════════════ */
+head('[H6] 🔁 위치 동기화 주기');
+
+ok(NET.tickMs > 0 && NET.tickMs <= 200,
+  '주기가 설정돼 있다 — ' + NET.tickMs + 'ms (약 ' + Math.round(1000 / NET.tickMs) + 'Hz)');
+ok(NET.interpMs >= NET.tickMs * 2,
+  '보간 지연이 주기의 2배 이상이다 (' + NET.interpMs + ' ≥ ' + NET.tickMs * 2 + ') — 패킷 하나 빠져도 안 멈춘다');
+ok(NET.interpMs <= NET.tickMs * 3,
+  '   그렇다고 과하지도 않다 (' + NET.interpMs + ' ≤ ' + NET.tickMs * 3 + ') — 남이 너무 늦게 보이면 답답하다');
 
 
 head('[I] 🧹 손님 체력 — 때려서 쫓아내기');
