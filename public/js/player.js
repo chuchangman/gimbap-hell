@@ -7,7 +7,7 @@ import { COMBAT, QUEUE_Z, slotX } from './config.js';
 import {
   camera, interactables, solids, bumpHand, setSwingProgress, setArmBob
 } from './world.js';
-import { S, emit, myHand, isPlaying } from './net.js';
+import { S, emit, myHand, isPlaying, remotePositions } from './net.js';
 import { resolveAction, dropHand, swingBroom } from './kitchen.js';
 
 const keys = Object.create(null);
@@ -117,9 +117,8 @@ function pickTarget() {
     if (d < bestD) { bestD = d; best = { id, kind }; }
   };
 
-  for (const o of S.positions) {
-    if (o.id === S.meId) continue;
-    consider(o.id, 'player', o.x, o.z);
+  for (const o of remotePositions()) {
+    consider(o.id, 'player', o.x, o.z);   // 화면에 보이는 자리로 조준한다
   }
   // 카운터 손님도 때릴 수 있다
   const w = S.state && S.state.wave;
@@ -183,8 +182,7 @@ function interact() {
 /** 동료를 통과할 수 없다 (원-원) */
 function collidePlayers(pos) {
   const MIN = RADIUS * 2;
-  for (const other of S.positions) {
-    if (other.id === S.meId) continue;
+  for (const other of remotePositions()) {
     const dx = pos.x - other.x;
     const dz = pos.z - other.z;
     const d = Math.hypot(dx, dz);
@@ -305,9 +303,9 @@ export function updatePlayer(dt) {
   state.target = obj;
   state.prompt = obj ? resolveAction(obj.userData.station) : null;
 
-  // 위치 동기화 (10Hz)
+  // 위치 동기화 (20Hz) — 받는 쪽이 보간하므로 이 주기가 부드러움의 상한이다
   const t = performance.now();
-  if (state.enabled && t - lastSent > 100) {
+  if (state.enabled && t - lastSent > 50) {
     lastSent = t;
     emit('player:move', { x: camera.position.x, z: camera.position.z, y: height, ry: yaw });
   }

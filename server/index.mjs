@@ -223,11 +223,16 @@ setInterval(() => {
   }
 }, 200);
 
+/* 위치 브로드캐스트 (20Hz) — 클라이언트가 이 t 를 기준으로 보간한다.
+   시각을 안 실어주면 받은 시각으로 보간해야 하는데, 네트워크가 한 번
+   막혔다 몰아 오면 아바타가 순간이동한다. */
 setInterval(() => {
   for (const room of rooms.values()) {
-    if (room.phase === 'playing') io.to(room.code).emit('positions', room.positions());
+    if (room.phase === 'playing') {
+      io.to(room.code).emit('positions', { t: Date.now(), list: room.positions() });
+    }
   }
-}, 100);
+}, 50);
 
 /* ──────────────── 시작 ──────────────── */
 function lanAddress() {

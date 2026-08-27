@@ -2,6 +2,7 @@
    소켓 + 공유 상태
    서버가 보내주는 스냅샷을 S 에 담아두고, 나머지 모듈은 여기서 읽는다.
    ──────────────────────────────────────────────────────────── */
+import { samplePath } from './config.js';
 
 const listeners = new Map();
 
@@ -28,6 +29,41 @@ function fire(evt, data) {
 
 /** 서버 기준 현재 시각 (ms) */
 export const serverNow = () => Date.now() + S.offset;
+
+/* ── 원격 플레이어 위치 보간 ──────────────────────────────
+   S.positions 는 "방금 받은 값" 그대로다 (내 위치를 찾는 데 쓴다).
+   화면에 그릴 남들의 위치는 remotePositions() 로 받는다 — 표본을
+   쌓아두고 INTERP_MS 만큼 과거를 재생해 등속으로 흐르게 한다.
+   ──────────────────────────────────────────────────────── */
+const INTERP_MS = 100;      // 보내는 주기(50ms)의 2배 — 한 번 빠져도 버틴다
+const KEEP_MS = 1000;       // 이보다 오래된 표본은 버린다
+const snaps = new Map();    // id → [{ t, x, z, y, ry }, ...] 시간순
+
+function pushSnapshot(t, list) {
+  const seen = new Set();
+  for (const p of list) {
+    seen.add(p.id);
+    let buf = snaps.get(p.id);
+    if (!buf) snaps.set(p.id, (buf = []));
+    const last = buf[buf.length - 1];
+    if (last && t <= last.t) continue;        // 뒤늦게 온 패킷은 버린다
+    buf.push({ t, x: p.x, z: p.z, y: p.y || 0, ry: p.ry });
+    while (buf.length > 2 && buf[1].t < t - KEEP_MS) buf.shift();
+  }
+  for (const id of [...snaps.keys()]) if (!seen.has(id)) snaps.delete(id);
+}
+
+/** 지금 화면에 그릴 남들의 위치 (나는 뺀다) */
+export function remotePositions() {
+  const at = serverNow() - INTERP_MS;
+  const out = [];
+  for (const [id, buf] of snaps) {
+    if (id === S.meId) continue;
+    const s = samplePath(buf, at);
+    if (s) out.push({ id, x: s.x, z: s.z, y: s.y || 0, ry: s.ry });
+  }
+  return out;
+}
 
 /** 내가 지금 손에 들고 있는 것 */
 export function myHand() {
@@ -79,7 +115,12 @@ export function connect() {
     fire('kitchen', k);
   });
 
-  socket.on('positions', (list) => { S.positions = list; fire('positions', list); });
+  socket.on('positions', (d) => {
+    const list = d.list || d;                 // 옛 형식(배열)도 받아준다
+    S.positions = list;
+    pushSnapshot(typeof d.t === 'number' ? d.t : serverNow(), list);
+    fire('positions', list);
+  });
   socket.on('toast', (d) => fire('toast', d));
   socket.on('waveEnd', (d) => fire('waveEnd', d));
   socket.on('swing', (d) => fire('swing', d));

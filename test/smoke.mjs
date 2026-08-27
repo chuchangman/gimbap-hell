@@ -7,7 +7,8 @@ import {
   BASE_FILLINGS, EXTRA_FILLINGS, ALL_FILLINGS, UNLOCKS, unlockedExtras, unlockAt,
   FRIDGE_ITEMS, KIND, SPECIAL_PATIENCE, SPECIAL_RATIO, QUEUE_SLOTS,
   matchScore, servedQuality, grumbleFor, scaleCount,
-  CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint
+  CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
+  samplePath, shortestTurn
 } from '../public/js/config.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -491,6 +492,50 @@ ok(handHint({ id: 'gimbap', stage: 'done' }) === null, '완성된 김밥은 지�
 const noHint = ALL_FILLINGS.filter((id) => !handHint({ id, stage: 'raw' }));
 ok(noHint.length === 0, '속재료 ' + ALL_FILLINGS.length + '종 모두 지시문이 있다' +
   (noHint.length ? ' — 빠짐: ' + noHint.join(', ') : ''));
+
+/* ═════════════════════════════════════════════ */
+head('[H4] 🏃 원격 플레이어 위치 보간');
+
+const ipNear = (a, b, eps) => Math.abs(a - b) < (eps || 1e-6);
+
+ok(ipNear(shortestTurn(0, Math.PI / 2), Math.PI / 2), '0 → π/2 는 +π/2');
+ok(ipNear(shortestTurn(3.0, -3.0), 0.2831853, 1e-5),
+  'π 근처를 넘어갈 때 한 바퀴 돌지 않는다 (' + shortestTurn(3.0, -3.0).toFixed(3) + ')');
+ok(Math.abs(shortestTurn(-3.0, 3.0)) < Math.PI, '   반대 방향도 마찬가지');
+ok(ipNear(shortestTurn(1, 1), 0), '같은 각이면 0');
+
+const ipBuf = [
+  { t: 1000, x: 0,  z: 0,  y: 0, ry: 0 },
+  { t: 1050, x: 1,  z: 2,  y: 0, ry: 1 },
+  { t: 1100, x: 2,  z: 4,  y: 1, ry: 2 }
+];
+
+ok(samplePath(null, 1000) === null, '표본이 없으면 null');
+ok(samplePath([], 1000) === null, '빈 배열도 null');
+ok(samplePath(ipBuf, 900).x === 0, '첫 표본보다 이르면 첫 값 (외삽하지 않는다)');
+ok(samplePath(ipBuf, 9999).x === 2, '마지막 표본보다 늦으면 마지막 값에서 멈춘다');
+
+const ipMid = samplePath(ipBuf, 1025);
+ok(ipNear(ipMid.x, 0.5) && ipNear(ipMid.z, 1), '두 표본 한가운데는 정확히 절반 (' + ipMid.x + ', ' + ipMid.z + ')');
+ok(ipNear(ipMid.ry, 0.5), '   각도도 절반');
+
+const ipQ = samplePath(ipBuf, 1075);
+ok(ipNear(ipQ.x, 1.5) && ipNear(ipQ.z, 3), '뒤쪽 구간도 맞게 고른다 (' + ipQ.x + ', ' + ipQ.z + ')');
+ok(ipNear(ipQ.y, 0.5), '   점프 높이도 보간된다');
+
+ok(ipNear(samplePath(ipBuf, 1050).x, 1), '표본 시각과 정확히 같으면 그 값');
+
+/* 등속으로 움직이는 표본이면, 화면 갱신 간격이 달라도 이동량이 일정해야 한다 */
+const ipSteps = [];
+for (let at = 1000; at <= 1100; at += 7) ipSteps.push(samplePath(ipBuf, at).x);
+const ipDeltas = ipSteps.slice(1).map((v, i) => v - ipSteps[i]);
+const ipSpread = Math.max(...ipDeltas) - Math.min(...ipDeltas);
+ok(ipSpread < 1e-9, '등속 구간에서는 프레임마다 이동량이 같다 (편차 ' + ipSpread.toExponential(1) + ')');
+
+/* 각도가 ±π 를 넘는 표본 */
+const ipWrap = [{ t: 0, x: 0, z: 0, y: 0, ry: 3.0 }, { t: 100, x: 0, z: 0, y: 0, ry: -3.0 }];
+const ipW50 = samplePath(ipWrap, 50).ry;
+ok(Math.abs(ipW50) > 3.0, '±π 를 넘는 회전은 짧은 쪽으로 지나간다 (' + ipW50.toFixed(2) + ')');
 
 
 head('[I] 🧹 손님 체력 — 때려서 쫓아내기');

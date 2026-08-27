@@ -12,7 +12,7 @@ import {
   QUEUE_SLOTS, WALK_IN_MS, WALK_OUT_MS, KIND, grumbleFor,
   QUEUE_Z, slotX, CUSTOMER_HP
 } from './config.js';
-import { S, serverNow, myHand, handOf } from './net.js';
+import { S, serverNow, myHand, handOf, remotePositions } from './net.js';
 import {
   burnerInfo, boardInfo, cookerAt, cookerProgress, rollProgress,
   matAt, sinkAt, broomTaken, unlockedFills, focusNow
@@ -1549,8 +1549,7 @@ function updateRemotes() {
   const seen = new Set();
   const players = (S.state && S.state.players) || [];
 
-  for (const pos of S.positions) {
-    if (pos.id === S.meId) continue;
+  for (const pos of remotePositions()) {
     seen.add(pos.id);
     const info = players.find((p) => p.id === pos.id);
     let av = D.remotes.get(pos.id);
@@ -1558,14 +1557,10 @@ function updateRemotes() {
       av = makeAvatar(info ? info.name : '알바', info ? info.color : '#f5b942');
       D.remotes.set(pos.id, av);
     }
-    av.position.x += (pos.x - av.position.x) * 0.25;
-    av.position.z += (pos.z - av.position.z) * 0.25;
-    av.position.y += ((pos.y || 0) - av.position.y) * 0.3;
-
-    let dd = (pos.ry + Math.PI) - av.rotation.y;
-    while (dd > Math.PI) dd -= Math.PI * 2;
-    while (dd < -Math.PI) dd += Math.PI * 2;
-    av.rotation.y += dd * 0.25;
+    /* 보간이 이미 부드러우므로 그대로 놓는다.
+       여기서 또 감쇠를 걸면 두 번 늦어지고 방향 전환이 뭉개진다. */
+    av.position.set(pos.x, pos.y || 0, pos.z);
+    av.rotation.y = pos.ry + Math.PI;
 
     const holding = handOf(pos.id);
     const key = holding ? holding.uid : 'none';
