@@ -225,11 +225,17 @@ setInterval(() => {
 
 /* 위치 브로드캐스트 (20Hz) — 클라이언트가 이 t 를 기준으로 보간한다.
    시각을 안 실어주면 받은 시각으로 보간해야 하는데, 네트워크가 한 번
-   막혔다 몰아 오면 아바타가 순간이동한다. */
+   막혔다 몰아 오면 아바타가 순간이동한다.
+
+   volatile 로 보낸다: 소켓 버퍼가 밀려 있으면 큐에 쌓지 말고 버리라는 뜻이다.
+   위치는 50ms 뒤 새 값이 덮어쓰므로 밀린 옛 좌표는 가치가 없고, 오히려
+   느린 클라이언트 하나가 서버 메모리와 이벤트 루프를 붙잡는 걸 막는다.
+   토스트·상태·웨이브 종료처럼 한 번 놓치면 복구가 안 되는 것들은
+   그대로 신뢰성 있게 보낸다. */
 setInterval(() => {
   for (const room of rooms.values()) {
     if (room.phase === 'playing') {
-      io.to(room.code).emit('positions', { t: Date.now(), list: room.positions() });
+      io.to(room.code).volatile.emit('positions', { t: Date.now(), list: room.positions() });
     }
   }
 }, 50);
