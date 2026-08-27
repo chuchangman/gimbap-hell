@@ -44,11 +44,19 @@ export class Room {
   }
 
   /* ──────────────── 플레이어 ──────────────── */
+  /** 안 쓰는 가장 작은 자리 번호 — 나간 자리는 다음 사람이 물려받는다 */
+  freeSlot() {
+    const used = new Set([...this.players.values()].map((p) => p.slot));
+    for (let i = 0; i < 6; i++) if (!used.has(i)) return i;
+    return this.players.size;
+  }
+
   addPlayer(id, name) {
-    const i = this.players.size;
+    const i = this.freeSlot();
     const spawn = SPAWNS[i % SPAWNS.length];
     this.players.set(id, {
       id,
+      slot: i,
       name: (name || '').trim().slice(0, 12) || ('알바' + (i + 1)),
       color: COLORS[i % COLORS.length],
       x: spawn.x, z: spawn.z, y: 0, ry: 0,
@@ -221,8 +229,19 @@ export class Room {
     if (typeof d.ry === 'number') p.ry = d.ry;
   }
 
+  /* 위치 패킷 — [자리번호, x, z, y, ry] 배열.
+     20Hz 로 나가는 유일한 패킷이라 크기가 곧 대역폭이다. socket.id 문자열
+     20자와 소수점 15자리를 그대로 실으면 6인 방 한 번에 586B 인데,
+     자리 번호와 반올림한 좌표만 남기면 145B 다 (-75%).
+     자리 번호 → socket.id 는 상태 스냅샷의 players[].slot 이 알려준다. */
   positions() {
-    return [...this.players.values()].map((p) => ({ id: p.id, x: p.x, z: p.z, y: p.y, ry: p.ry }));
+    return [...this.players.values()].map((p) => [
+      p.slot,
+      Math.round(p.x * 100) / 100,      // 1cm — 플레이어 반지름이 0.3m 다
+      Math.round(p.z * 100) / 100,
+      Math.round(p.y * 100) / 100,
+      Math.round(p.ry * 1000) / 1000    // 0.001rad ≈ 0.06°
+    ]);
   }
 
   /* ──────────────── 스냅샷 ──────────────── */
@@ -233,7 +252,7 @@ export class Room {
       shop: this.shop,
       phase: this.phase,
       hostId: this.hostId,
-      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color })),
+      players: [...this.players.values()].map((p) => ({ id: p.id, slot: p.slot, name: p.name, color: p.color })),
       wave: this.waves ? this.waves.snapshot() : null,
       result: this.result,
       history: this.history

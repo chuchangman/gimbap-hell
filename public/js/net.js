@@ -37,28 +37,53 @@ export const serverNow = () => Date.now() + S.offset;
    ──────────────────────────────────────────────────────── */
 const INTERP_MS = 100;      // 보내는 주기(50ms)의 2배 — 한 번 빠져도 버틴다
 const KEEP_MS = 1000;       // 이보다 오래된 표본은 버린다
-const snaps = new Map();    // id → [{ t, x, z, y, ry }, ...] 시간순
+const snaps = new Map();    // 자리번호 → [{ t, x, z, y, ry }, ...] 시간순
+const owner = new Map();    // 자리번호 → 표본을 쌓을 때의 주인 id
+
+/** 위치 항목은 [자리번호, x, z, y, ry] 배열로 온다 (옛 객체 형식도 받아준다) */
+function unpack(e) {
+  return Array.isArray(e)
+    ? { slot: e[0], x: e[1], z: e[2], y: e[3] || 0, ry: e[4] }
+    : { slot: e.slot, x: e.x, z: e.z, y: e.y || 0, ry: e.ry };
+}
+
+/** 자리번호 → socket.id — 상태 스냅샷의 players[].slot 이 알려준다 */
+function idOfSlot(slot) {
+  const list = (S.state && S.state.players) || [];
+  const p = list.find((x) => x.slot === slot);
+  return p ? p.id : null;
+}
 
 function pushSnapshot(t, list) {
   const seen = new Set();
-  for (const p of list) {
-    seen.add(p.id);
-    let buf = snaps.get(p.id);
-    if (!buf) snaps.set(p.id, (buf = []));
+  for (const e of list) {
+    const p = unpack(e);
+    seen.add(p.slot);
+    /* 나간 자리를 새 사람이 물려받으면, 옛 좌표와 섞여 미끄러져 온다 */
+    const who = idOfSlot(p.slot);
+    if (who && owner.get(p.slot) !== who) {
+      owner.set(p.slot, who);
+      snaps.set(p.slot, []);
+    }
+    let buf = snaps.get(p.slot);
+    if (!buf) snaps.set(p.slot, (buf = []));
     const last = buf[buf.length - 1];
     if (last && t <= last.t) continue;        // 뒤늦게 온 패킷은 버린다
-    buf.push({ t, x: p.x, z: p.z, y: p.y || 0, ry: p.ry });
+    buf.push({ t, x: p.x, z: p.z, y: p.y, ry: p.ry });
     while (buf.length > 2 && buf[1].t < t - KEEP_MS) buf.shift();
   }
-  for (const id of [...snaps.keys()]) if (!seen.has(id)) snaps.delete(id);
+  for (const slot of [...snaps.keys()]) {
+    if (!seen.has(slot)) { snaps.delete(slot); owner.delete(slot); }
+  }
 }
 
 /** 지금 화면에 그릴 남들의 위치 (나는 뺀다) */
 export function remotePositions() {
   const at = serverNow() - INTERP_MS;
   const out = [];
-  for (const [id, buf] of snaps) {
-    if (id === S.meId) continue;
+  for (const [slot, buf] of snaps) {
+    const id = idOfSlot(slot);
+    if (!id || id === S.meId) continue;       // 아직 누군지 모르면 그리지 않는다
     const s = samplePath(buf, at);
     if (s) out.push({ id, x: s.x, z: s.z, y: s.y || 0, ry: s.ry });
   }
@@ -116,10 +141,12 @@ export function connect() {
   });
 
   socket.on('positions', (d) => {
-    const list = d.list || d;                 // 옛 형식(배열)도 받아준다
-    S.positions = list;
-    pushSnapshot(typeof d.t === 'number' ? d.t : serverNow(), list);
-    fire('positions', list);
+    const raw = d.list || d;
+    const t = typeof d.t === 'number' ? d.t : serverNow();
+    pushSnapshot(t, raw);
+    /* S.positions 는 예전처럼 id 가 붙은 객체로 둔다 — 내 스폰 자리를 찾는 데 쓴다 */
+    S.positions = raw.map(unpack).map((e) => ({ id: idOfSlot(e.slot), ...e }));
+    fire('positions', S.positions);
   });
   socket.on('toast', (d) => fire('toast', d));
   socket.on('waveEnd', (d) => fire('waveEnd', d));

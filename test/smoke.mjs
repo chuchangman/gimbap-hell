@@ -537,6 +537,47 @@ const ipWrap = [{ t: 0, x: 0, z: 0, y: 0, ry: 3.0 }, { t: 100, x: 0, z: 0, y: 0,
 const ipW50 = samplePath(ipWrap, 50).ry;
 ok(Math.abs(ipW50) > 3.0, '±π 를 넘는 회전은 짧은 쪽으로 지나간다 (' + ipW50.toFixed(2) + ')');
 
+/* ═════════════════════════════════════════════ */
+head('[H5] 📦 위치 패킷 슬리밍 — 자리번호 + 반올림');
+
+const pk = new Room('PACK', '패킷집');
+pk.addPlayer('a', '가');
+pk.addPlayer('b', '나');
+pk.addPlayer('c', '다');
+
+const pkRows = pk.positions();
+ok(Array.isArray(pkRows[0]), '위치 항목이 배열이다 — 키 이름을 매번 안 싣는다');
+ok(pkRows[0].length === 5, '   [자리번호, x, z, y, ry] 다섯 칸');
+ok(pkRows.map((r) => r[0]).join(',') === '0,1,2', '   자리번호가 0부터 순서대로 (' + pkRows.map((r) => r[0]).join(',') + ')');
+
+ok(pk.publicState().players.every((p) => typeof p.slot === 'number'),
+  '상태 스냅샷이 자리번호를 알려준다 — 클라가 이걸로 누구인지 찾는다');
+ok(pk.publicState().players.find((p) => p.id === 'b').slot === 1, '   b 는 1번 자리');
+
+/* 나간 자리를 다음 사람이 물려받는다 */
+pk.removePlayer('b');
+pk.addPlayer('d', '라');
+ok(pk.players.get('d').slot === 1, '나간 자리(1번)를 새 사람이 물려받는다');
+ok(new Set([...pk.players.values()].map((p) => p.slot)).size === pk.players.size,
+  '   자리번호가 겹치지 않는다');
+
+/* 좌표는 반올림해서 나간다 */
+const pkMe = pk.players.get('a');
+pkMe.x = 1.23456789; pkMe.z = -4.98765432; pkMe.y = 0.111111; pkMe.ry = 1.2345678;
+const pkRow = pk.positions().find((r) => r[0] === 0);
+ok(pkRow[1] === 1.23 && pkRow[2] === -4.99, '좌표는 소수 2자리로 (' + pkRow[1] + ', ' + pkRow[2] + ')');
+ok(pkRow[4] === 1.235, '각도는 소수 3자리로 (' + pkRow[4] + ')');
+
+/* 실제로 줄었는지 — 예전 형식과 바이트 수를 비교한다 */
+const pk6 = new Room('SIZE', '크기집');
+for (let i = 0; i < 6; i++) pk6.addPlayer('sock_' + 'x'.repeat(14) + i, '봇' + i);
+for (const p of pk6.players.values()) { p.x = Math.sin(p.slot) * 3.123456789; p.z = Math.cos(p.slot) * 3.987654321; p.ry = p.slot * 0.7013456789; }
+const nowBytes = Buffer.byteLength(JSON.stringify({ t: Date.now(), list: pk6.positions() }));
+const oldBytes = Buffer.byteLength(JSON.stringify({ t: Date.now(), list:
+  [...pk6.players.values()].map((p) => ({ id: p.id, x: p.x, z: p.z, y: p.y, ry: p.ry })) }));
+const cut = Math.round((1 - nowBytes / oldBytes) * 100);
+ok(cut >= 60, '6인 방 위치 패킷이 ' + oldBytes + 'B → ' + nowBytes + 'B (-' + cut + '%)');
+
 
 head('[I] 🧹 손님 체력 — 때려서 쫓아내기');
 
