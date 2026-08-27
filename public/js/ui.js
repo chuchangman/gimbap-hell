@@ -7,7 +7,7 @@ import {
 import { S, emit, on, myHand, isHost, serverNow, wave as waveOf } from './net.js';
 import { focusNow, bapReady } from './kitchen.js';
 import { state as P, releaseLock, resetPose } from './player.js';
-import { currentZone, camera } from './world.js';
+import { camera } from './world.js';
 
 export const $ = (s, r) => (r || document).querySelector(s);
 export const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -152,15 +152,6 @@ export function renderHUD(force) {
   const hint = h && itemUnlockWave(h.id) === curWave ? handHint(h) : null;
   if (setHTML('#hand-hint', 'handHint', hint ? esc(hint) : '')) {
     el('#hand-hint').classList.toggle('hidden', !hint);
-  }
-
-  /* 구역 */
-  const zone = currentZone(camera.position.x, camera.position.z);
-  if (cache.zone !== zone.id) {
-    cache.zone = zone.id;
-    el('#location-name').textContent = zone.name;
-    el('#location-help').textContent = zone.help;
-    el('#location').className = 'location ' + zone.id;
   }
 
   /* 웨이브 · 타이머 */

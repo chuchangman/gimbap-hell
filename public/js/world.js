@@ -541,14 +541,14 @@ function buildRoom() {
 }
 
 /* ──────────────── 바닥 구역 ──────────────── */
+/* 바닥 색으로만 구역을 나눈다 — 글로 된 구역 안내는 없앴다.
+   그 자리(화면 아래 가운데)는 이제 손에 든 재료의 지시문이 쓴다. */
 export const ZONES = [
-  { id: 'prep', name: '🟢 재료·밥 구역', help: '냉장고 · 싱크대 · 밥솥 2대', color: 0x58c07a, rects: [[-7.9, -6.4, -4.4, 8.4]] },
-  { id: 'fire', name: '🔴 화구 구역', help: '가스렌지 5구 — 냄비 2 · 팬 3', color: 0xe05252, rects: [[4.4, -5.2, 7.9, 2.6]] },
-  { id: 'work', name: '🔵 조리대 구역', help: '도마 3 · 조립대 3', color: 0x63a8e8, rects: [[-3.5, -3.0, 3.5, 4.4]] },
-  { id: 'pass', name: '🟡 서빙 구역', help: '완성된 김밥을 주문에 맞춰 내보내기', color: 0xf5b942, rects: [[-3.5, -6.3, 3.5, -4.6]] }
+  { id: 'prep', color: 0x58c07a, rects: [[-7.9, -6.4, -4.4, 8.4]] },
+  { id: 'fire', color: 0xe05252, rects: [[4.4, -5.2, 7.9, 2.6]] },
+  { id: 'work', color: 0x63a8e8, rects: [[-3.5, -3.0, 3.5, 4.4]] },
+  { id: 'pass', color: 0xf5b942, rects: [[-3.5, -6.3, 3.5, -4.6]] }
 ];
-
-const HALL_ZONE = { id: 'hall', name: '🚶 주방 통로', help: '재료 구역 · 화구 · 조리대로 이동하세요' };
 
 function buildZones() {
   for (const zone of ZONES) {
@@ -573,16 +573,6 @@ function buildZones() {
       ));
     }
   }
-}
-
-export function currentZone(x, z) {
-  for (const zone of ZONES) {
-    for (const [x1, z1, x2, z2] of zone.rects) {
-      if (x >= Math.min(x1, x2) && x <= Math.max(x1, x2) &&
-          z >= Math.min(z1, z2) && z <= Math.max(z1, z2)) return zone;
-    }
-  }
-  return HALL_ZONE;
 }
 
 function counterTop(x, z, w, d, color) {
