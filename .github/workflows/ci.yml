@@ -1,0 +1,45 @@
+# 푸시마다 테스트를 돌린다.
+#
+# 지금은 Render 의 autoDeploy 가 켜져 있어서, 테스트가 깨져도 배포는 나간다.
+# 테스트가 배포를 "막게" 하려면 두 가지를 하면 된다.
+#   1. Render → 서비스 → Settings → Deploy Hook URL 복사해서
+#      GitHub 저장소 Secrets 에 RENDER_DEPLOY_HOOK 으로 등록
+#   2. render.yaml 의 autoDeploy 를 false 로
+# 그러면 아래 deploy 잡이 테스트 통과 후에만 배포를 요청한다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: 스모크 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    name: Render 배포
+    needs: test                    # 테스트가 깨지면 여기까지 안 온다
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 배포 훅 호출 (설정돼 있을 때만)
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK 이 없습니다 — Render 의 autoDeploy 에 맡깁니다."
+            echo "테스트가 배포를 막게 하려면 이 파일 맨 위 주석을 보세요."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "배포를 요청했습니다."

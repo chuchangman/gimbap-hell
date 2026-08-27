@@ -14,10 +14,16 @@ services:
       - key: NODE_VERSION
         value: "20.20.2"
 
-      # 가게 랭킹 저장소 — 무료 플랜은 파일 시스템이 휘발성이라 Upstash 에 둔다.
+      # ── 가게 랭킹 저장소 ─────────────────────────────────────
+      # 무료 플랜은 파일 시스템이 휘발성이라 Upstash 에 둔다.
+      # URL·토큰을 비워두면 서버는 파일 모드로 돌아가고, 잠들 때마다 초기화된다.
       # sync: false 는 "값을 blueprint 에 적지 말고 대시보드에서 받아라" 라는 뜻.
-      # 둘 다 비워두면 서버는 파일 모드로 돌아가고, 잠들 때마다 랭킹이 초기화된다.
       - key: UPSTASH_REDIS_REST_URL
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
+
+      # 랭킹을 비우려면 뒤 번호를 올린다 (v2 → v3 …).
+      # 지우는 게 아니라 새 키로 옮겨가는 것이라, 값을 되돌리면 옛 기록도 돌아온다.
+      - key: GIMBAP_LEADERBOARD_KEY
+        value: gimbap:leaderboard:v2
