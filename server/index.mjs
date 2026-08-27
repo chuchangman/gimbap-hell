@@ -2,7 +2,7 @@
    정적 파일 서버 + Socket.IO 멀티플레이
      · 방 만들기 / 방 코드로 입장
      · 5Hz 로 방 상태(웨이브·손님·주방)를 뿌린다
-     · 10Hz 로 플레이어 위치를 뿌린다
+     · 20Hz 로 플레이어 위치를 뿌린다 (volatile)
    ──────────────────────────────────────────────────────────── */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -10,6 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 import { Room, nameError } from './room.mjs';
 import * as leaderboard from './leaderboard.mjs';
@@ -18,6 +19,11 @@ import { WAVES } from '../public/js/config.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', 'public');
 const PORT = Number(process.env.PORT) || 3211;
+
+/* 이벤트 루프가 밀리는지 재둔다 — /health 로 밖에서 확인한다.
+   CPU 가 모자라면 여기부터 티가 난다 (숫자가 커지면 응답이 늦다는 뜻). */
+const loopLag = monitorEventLoopDelay({ resolution: 10 });
+loopLag.enable();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -40,13 +46,23 @@ function send(res, code, body, type) {
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
-  if (urlPath === '/health') return send(res, 200, JSON.stringify({
-    ok: true,
-    rooms: rooms.size,
-    store: store.mode,              // 'file' | 'redis' — 배포가 어느 저장소를 쓰는지 밖에서 확인용
-    entries: leaderboard.size(),
-    storeError: store.error || undefined
-  }), MIME['.json']);
+  if (urlPath === '/health') {
+    /* HTTP 코드는 문제가 있어도 200 을 유지한다 — Render 가 이 경로를
+       헬스체크로 쓰기 때문이다. 랭킹 저장소가 죽었다고 서비스를 내리면
+       게임은 멀쩡한데 다 같이 못 하게 된다. 대신 본문의 ok 를 false 로
+       내리니, 외부 모니터는 '"ok":true' 키워드로 감시하면 된다. */
+    return send(res, 200, JSON.stringify({
+      ok: !store.error,
+      uptimeSec: Math.round(process.uptime()),
+      rooms: rooms.size,
+      players: io.engine.clientsCount,
+      rssMB: Math.round(process.memoryUsage().rss / 1048576),
+      lagP99ms: Math.round(loopLag.percentile(99) / 1e5) / 10,   // 이벤트 루프 지연
+      store: store.mode,              // 'file' | 'redis' — 어느 저장소를 쓰는지
+      entries: leaderboard.size(),
+      storeError: store.error || undefined
+    }), MIME['.json']);
+  }
   if (urlPath === '/leaderboard.json') return send(res, 200, JSON.stringify(leaderboard.publicTop(50)), MIME['.json']);
 
   // 경로 탈출 방지 — '..' 과 '.' 을 아예 걸러낸다
