@@ -2,7 +2,7 @@
    DOM UI — 입장 · 대기실 · HUD(웨이브/손님/평판) · 결과 · 토스트
    ──────────────────────────────────────────────────────────── */
 import {
-  ITEMS, TIME, REPUTATION_MAX, KIND
+  ITEMS, TIME, REPUTATION_MAX, KIND, itemUnlockWave, handHint
 } from './config.js';
 import { S, emit, on, myHand, isHost, serverNow, wave as waveOf } from './net.js';
 import { focusNow, bapReady } from './kitchen.js';
@@ -144,6 +144,14 @@ export function renderHUD(force) {
     const handEl = el('#hand');
     handEl.classList.toggle('has', !!h);
     handEl.classList.toggle('spoiled', !!h && h.stage === 'burnt');
+  }
+
+  /* 뭘 해야 하는지 한 줄 — 그 재료가 풀리는 웨이브에만 띄운다.
+     계속 띄우면 잔소리가 되고, 처음 보는 재료일 때가 제일 아쉽다. */
+  const curWave = w.phase === 'prep' ? Math.min(w.wave + 1, w.totalWaves) : w.wave;
+  const hint = h && itemUnlockWave(h.id) === curWave ? handHint(h) : null;
+  if (setHTML('#hand-hint', 'handHint', hint ? esc(hint) : '')) {
+    el('#hand-hint').classList.toggle('hidden', !hint);
   }
 
   /* 구역 */

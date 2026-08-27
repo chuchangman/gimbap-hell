@@ -7,7 +7,7 @@ import {
   BASE_FILLINGS, EXTRA_FILLINGS, ALL_FILLINGS, UNLOCKS, unlockedExtras, unlockAt,
   FRIDGE_ITEMS, KIND, SPECIAL_PATIENCE, SPECIAL_RATIO, QUEUE_SLOTS,
   matchScore, servedQuality, grumbleFor, scaleCount,
-  CUSTOMER_HP, QUEUE_Z, slotX, focusPick
+  CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint
 } from '../public/js/config.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -461,6 +461,36 @@ ok(nameError('  가  ') !== null, '공백을 빼고 한 글자면 거절한다')
 ok(nameError('김밥') === null, NAME_MIN + '글자면 통과한다');
 ok(nameError('가'.repeat(NAME_MAX)) === null, NAME_MAX + '글자까지 통과한다');
 ok(nameError('가'.repeat(NAME_MAX + 1)) !== null, NAME_MAX + '글자를 넘으면 거절한다');
+
+/* ═════════════════════════════════════════════ */
+head('[H3] 🧭 재료를 들었을 때의 지시 · 해금 웨이브');
+
+ok(itemUnlockWave('ham') === 1, '기본 재료(햄)는 1웨이브');
+ok(itemUnlockWave('danmuji') === 1 && itemUnlockWave('spinach') === 1, '   단무지·시금치도 1웨이브');
+ok(itemUnlockWave('gim') === 1 && itemUnlockWave('rice') === 1, '   김·쌀도 1웨이브');
+for (const [wave, id] of Object.entries(UNLOCKS)) {
+  ok(itemUnlockWave(id) === Number(wave), '   ' + ITEMS[id].name + ' 은 ' + wave + '웨이브');
+}
+
+ok(handHint({ id: 'ham', stage: 'raw' }).includes('프라이팬'), '햄을 들면 프라이팬으로 보낸다');
+ok(handHint({ id: 'spinach', stage: 'raw' }).includes('냄비'), '시금치는 냄비로');
+ok(handHint({ id: 'danmuji', stage: 'raw' }).includes('도마'), '단무지는 도마로');
+ok(handHint({ id: 'cucumber', stage: 'raw' }).includes('도마'), '오이도 도마로');
+ok(handHint({ id: 'crab', stage: 'raw' }).includes('김밥'), '맛살은 손질 없이 김밥으로 (' + handHint({ id: 'crab', stage: 'raw' }) + ')');
+ok(handHint({ id: 'ham', stage: 'done' }).includes('김밥'), '다 익힌 재료는 김밥으로');
+ok(handHint({ id: 'rice', stage: 'raw' }).includes('싱크대'), '쌀은 싱크대로');
+ok(handHint({ id: 'rice', stage: 'washed' }).includes('밥솥'), '씻은 쌀은 밥솥으로');
+ok(handHint({ id: 'bap', stage: 'done' }).includes('조립대'), '밥은 조립대로');
+ok(handHint({ id: 'gim', stage: 'raw' }).includes('조립대'), '김은 조립대로');
+ok(handHint({ id: 'ham', stage: 'burnt' }).includes('음쓰통'), '탄 재료는 음쓰통으로');
+ok(handHint({ id: 'broom' }) === null, '빗자루는 지시가 없다');
+ok(handHint(null) === null, '빈손이면 지시가 없다');
+ok(handHint({ id: 'gimbap', stage: 'done' }) === null, '완성된 김밥은 지시가 없다 (서빙 안내는 주문서가 한다)');
+
+/* 해금되는 모든 재료가 지시문을 갖고 있어야 한다 — 재료를 늘렸을 때 빠뜨리지 않도록 */
+const noHint = ALL_FILLINGS.filter((id) => !handHint({ id, stage: 'raw' }));
+ok(noHint.length === 0, '속재료 ' + ALL_FILLINGS.length + '종 모두 지시문이 있다' +
+  (noHint.length ? ' — 빠짐: ' + noHint.join(', ') : ''));
 
 
 head('[I] 🧹 손님 체력 — 때려서 쫓아내기');

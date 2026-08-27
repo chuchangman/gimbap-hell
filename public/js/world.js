@@ -591,31 +591,65 @@ function counterTop(x, z, w, d, color) {
   addSolid(x, z, w, d);
 }
 
-/* ──────────────── 🧊 냉장고 (2단 · 10칸) ──────────────── */
+/* ──────────────── 🧊 냉장고 (2단 · 10칸) ────────────────
+   칸마다 진짜로 파인 홈을 만든다. 예전엔 평평한 앞판에 얇은 받침만 대고
+   재료를 얹었더니 벽과 재료가 같은 밝기라, 어느 칸에 뭐가 있는지 구분이
+   안 됐다. 뒤를 어둡게 깔고 칸막이·선반으로 격자를 세워 칸을 따로 떼어
+   보이게 하고, 이름표는 칸 아래 선반 앞면에 붙인다 (진열대 가격표처럼). */
 function buildFridge() {
   const X = -7.05, Z = -3.1;
-  box(1.15, 2.6, 5.9, C.fridge, X, 1.3, Z);
-  box(0.06, 2.35, 5.6, 0xcfd6dc, X + 0.56, 1.3, Z);
+
+  const DEPTH = 0.55;                    // 홈이 파인 깊이 (재료가 앞으로 안 튀어나올 만큼)
+  const CUB_H = 0.80;                    // 홈 높이
+  const BOARD = 0.12;                    // 선반 두께
+  const WALL  = 0.09;                    // 칸막이 두께
+  const front = X + 0.575;               // 냉장고 앞면
+  const back  = front - DEPTH;           // 홈 안쪽 끝
+  const inX   = (front + back) / 2;      // 홈 한가운데
+
+  /* 재료는 각 칸 바닥에 얹힌다 */
+  const rows = [
+    { ids: FRIDGE_ROW_A, floorY: 1.02 },
+    { ids: FRIDGE_ROW_B, floorY: 1.94 }
+  ];
+  const topY = rows[1].floorY + CUB_H;   // 홈 위끝
+  const H    = topY + 0.16;              // 몸통 높이
+
+  /* 몸통 — 홈이 들어갈 자리는 비워두고 뒤·아래·위만 채운다 */
+  const backW = 1.15 - DEPTH;
+  box(backW, H, 5.9, C.fridge, back - backW / 2, H / 2, Z);              // 뒤판
+  box(1.15, rows[0].floorY, 5.9, C.fridge, X, rows[0].floorY / 2, Z);    // 아래 몸통
+  box(1.15, H - topY, 5.9, C.fridge, X, (H + topY) / 2, Z);              // 윗단
+  box(DEPTH, BOARD, 5.9, C.fridgeEdge, inX, rows[1].floorY - BOARD / 2, Z);  // 가운데 선반
   addSolid(X, Z, 1.15, 5.9);
 
-  const row = (ids, y, labelY) => ids.forEach((id, i) => {
+  /* 세로 칸막이 6개 — 다섯 칸을 갈라준다 */
+  for (let i = 0; i <= 5; i++) {
+    box(DEPTH, topY - rows[0].floorY, WALL, C.fridgeEdge,
+      inX, (topY + rows[0].floorY) / 2, Z - 2.875 + i * 1.15);
+  }
+
+  rows.forEach((r) => r.ids.forEach((id, i) => {
     const z = Z - 2.3 + i * 1.15;
+    const y = r.floorY + 0.12;
     const def = ITEMS[id];
-    box(0.5, 0.05, 0.95, 0xf7fafb, X + 0.42, y - 0.12, z);
+
+    /* 홈 안쪽 벽 — 어두워야 재료가 도드라진다 */
+    box(0.03, CUB_H, 1.15 - WALL, C.fridgeIn, back + 0.02, r.floorY + CUB_H / 2, z);
+
     const sample = makeItemMesh({ id, stage: 'raw' });
-    sample.position.set(X + 0.44, y, z);
-    sample.scale.setScalar(0.7);
+    sample.position.set(inX + 0.03, y, z);
+    sample.rotation.y = Math.PI / 2;   // 긴 쪽을 칸 면에 나란히 — 앞으로 찌르지 않게
+    sample.scale.setScalar(1.45);
     scene.add(sample);
     hitProxy(X + 0.55, y + 0.1, z, 0.9, 0.82, 1.1, { kind: 'fridge', item: id });
+
     const p = wallLabel(def.emoji + ' ' + def.name, 0.17,
-      X + 0.62, labelY, z, Math.PI / 2, '#fff');
+      front + 0.05, r.floorY - BOARD / 2 - 0.01, z, Math.PI / 2, '#fff');
     D.fridge.push({ id, sample, label: p });
-  });
+  }));
 
-  row(FRIDGE_ROW_A, 1.14, 1.6);
-  row(FRIDGE_ROW_B, 2.06, 2.52);
-
-  wallLabel('🧊 냉장고', 0.30, X + 0.62, 3.02, Z, Math.PI / 2, '#a8e6ff');
+  wallLabel('🧊 냉장고', 0.30, front + 0.05, H + 0.22, Z, Math.PI / 2, '#a8e6ff');
 }
 
 /* 해금 안 된 재료는 흐릿하게 */

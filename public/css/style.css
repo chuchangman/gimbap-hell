@@ -153,6 +153,14 @@ h3 { font-size: 12px; color: var(--dim); letter-spacing: .08em; text-transform: 
 .hand .q { font-size: 11px; color: var(--gold); margin-left: auto; }
 .hand .q.bad { color: var(--red); }
 
+/* 손에 든 것으로 뭘 해야 하는지 — 그 재료가 풀리는 웨이브에만 뜬다 */
+.hand-hint {
+  margin: 8px 0 0 auto; max-width: 250px;
+  background: rgba(18,16,14,.88); border: 1px solid var(--gold);
+  border-radius: 10px; padding: 8px 12px;
+  font-size: 12.5px; line-height: 1.5; color: var(--gold); text-align: right;
+}
+
 .location {
   position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px;

@@ -131,6 +131,12 @@ export function unlockedExtras(wave) {
 /** 이 웨이브에서 새로 풀리는 재료 (없으면 null) */
 export function unlockAt(wave) { return UNLOCKS[wave] || null; }
 
+/** 이 재료가 풀리는 웨이브 — 기본 재료와 김·쌀은 1 */
+export function itemUnlockWave(id) {
+  const w = Object.keys(UNLOCKS).find((k) => UNLOCKS[k] === id);
+  return w ? Number(w) : 1;
+}
+
 /* ────────────────────────────────────────────────────────────
    주방 설비 — 늘리면 3D 배치도 따라간다
    ──────────────────────────────────────────────────────────── */
@@ -352,6 +358,34 @@ export function servedQuality(orderFills, rollFills) {
   return Math.round(cookAverage(rollFills) * matchScore(orderFills, rollFills));
 }
 
+/**
+ * 지금 손에 든 것으로 다음에 뭘 해야 하는지 한 줄. 없으면 null.
+ * 재료마다 문구를 따로 적지 않고 station 에서 끌어낸다 —
+ * 재료를 추가해도 여기 손댈 일이 없도록.
+ */
+export function handHint(item) {
+  if (!item || item.id === 'broom') return null;
+  const def = ITEMS[item.id];
+  if (!def) return null;
+
+  if (item.stage === 'burnt') return '🗑 못 쓰게 됐습니다 — 음쓰통에 버리세요';
+  if (item.id === 'rice') {
+    return item.stage === 'washed' ? '🍚 밥솥에 넣어 밥을 지어주세요'
+                                   : '🚰 싱크대에서 씻어주세요';
+  }
+  if (item.id === 'bap') return '🍙 조립대에서 김 위에 밥을 펴주세요';
+  if (item.id === 'gim') return '🍙 조립대에 김을 깔아주세요';
+  if (!def.fill) return null;                       // 만 김밥·완성 김밥 등
+  if (item.stage === 'done') return '🍙 조립대의 김밥에 올려주세요';
+
+  switch (def.station) {
+    case 'pan':   return '🔥 프라이팬에 올려 구워주세요';
+    case 'pot':   return '🔥 냄비에 넣어 데쳐주세요';
+    case 'board': return '🔪 도마에서 썰어주세요';
+    default:      return '🍙 손질 없이 바로 김밥에 올려주세요';
+  }
+}
+
 /* ──────────────── 색 ──────────────── */
 export const C = {
   gim: 0x1f3a26, gimEdge: 0x2c5236,
@@ -366,6 +400,6 @@ export const C = {
   fishcake: 0xe8d8b8, fishcakeDone: 0xd8b98a,
   wood: 0xd8ad74, steel: 0xb9bec4, steelDark: 0x7e858c,
   counter: 0xd9d4c6, counterTop: 0xf1ece1,
-  fridge: 0xe6eaee, fire: 0xff8a3d, water: 0x74c0e8,
+  fridge: 0xe6eaee, fridgeIn: 0x4d5760, fridgeEdge: 0xd2d9df, fire: 0xff8a3d, water: 0x74c0e8,
   broomStick: 0xb98b46, broomHead: 0xd9b45a
 };
