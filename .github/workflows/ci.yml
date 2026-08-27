@@ -1,11 +1,11 @@
-# 푸시마다 테스트를 돌린다.
+# 테스트를 통과해야 배포된다.
 #
-# 지금은 Render 의 autoDeploy 가 켜져 있어서, 테스트가 깨져도 배포는 나간다.
-# 테스트가 배포를 "막게" 하려면 두 가지를 하면 된다.
-#   1. Render → 서비스 → Settings → Deploy Hook URL 복사해서
-#      GitHub 저장소 Secrets 에 RENDER_DEPLOY_HOOK 으로 등록
-#   2. render.yaml 의 autoDeploy 를 false 로
-# 그러면 아래 deploy 잡이 테스트 통과 후에만 배포를 요청한다.
+# render.yaml 의 autoDeploy 가 false 라서 푸시만으로는 배포가 안 나간다.
+# 아래 deploy 잡이 RENDER_DEPLOY_HOOK 을 호출해야 비로소 배포된다.
+# test 잡이 깨지면 needs 때문에 deploy 잡은 아예 실행되지 않는다.
+#
+# 되돌리려면 render.yaml 의 autoDeploy 를 true 로 하면 된다
+# (그때는 이 워크플로가 알림 역할만 한다).
 name: CI
 
 on:
@@ -32,14 +32,13 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: 배포 훅 호출 (설정돼 있을 때만)
+      - name: Render 배포 훅 호출
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -z "$HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK 이 없습니다 — Render 의 autoDeploy 에 맡깁니다."
-            echo "테스트가 배포를 막게 하려면 이 파일 맨 위 주석을 보세요."
-            exit 0
+            echo "::error::RENDER_DEPLOY_HOOK 시크릿이 없습니다. autoDeploy 도 꺼져 있어 배포가 안 나갑니다."
+            exit 1
           fi
           curl -fsS -X POST "$HOOK" > /dev/null
           echo "배포를 요청했습니다."

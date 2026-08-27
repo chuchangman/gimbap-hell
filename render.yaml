@@ -9,7 +9,10 @@ services:
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health   # server/index.mjs 가 이미 제공하는 엔드포인트
-    autoDeploy: true           # main 에 푸시하면 자동 재배포
+    # 푸시만으로 배포하지 않는다. GitHub Actions 가 테스트를 통과시킨 뒤
+    # Deploy Hook 을 호출해야 배포된다 (.github/workflows/ci.yml).
+    # 깨진 커밋이 프로덕션에 나가는 걸 막는 게 목적이다.
+    autoDeploy: false
     envVars:
       - key: NODE_VERSION
         value: "20.20.2"
