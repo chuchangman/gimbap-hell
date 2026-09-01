@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server/index.mjs",
     "dev": "node server/index.mjs",
-    "test": "node test/smoke.mjs"
+    "test": "node test/smoke.mjs",
+    "assets:food": "node tools/generate-low-poly-food-assets.mjs"
   },
   "engines": {
     "node": ">=18"

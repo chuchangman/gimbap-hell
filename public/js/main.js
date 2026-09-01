@@ -6,6 +6,7 @@ import {
 } from './player.js';
 import { initUI, renderHUD, route, toast, wavePop } from './ui.js';
 import { resolveAction } from './kitchen.js';
+import { preloadAssets } from './assets.js';
 
 let last = performance.now();
 
@@ -24,6 +25,9 @@ function loop() {
 
 async function boot() {
   const canvas = document.getElementById('gl');
+
+  // 직접 만든 모델이 있으면 먼저 받아둔다. 없으면 그냥 지나간다 (전부 코드로 만든다)
+  await preloadAssets();
 
   try {
     initWorld(canvas);

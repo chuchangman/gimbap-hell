@@ -440,19 +440,106 @@ export function samplePath(buf, at) {
 }
 
 /* ──────────────── 색 ──────────────── */
+/* 속재료 색은 눈대중이 아니라 CIEDE2000 으로 벌려 놓은 값이다.
+   예전 팔레트는 햄↔맛살 ΔE 4.8, 단무지↔계란 ΔE 6.1 로 사실상 같은 색이었다.
+   지금은 최소 ΔE 13.2 — 손대기 전에 거리부터 다시 재 볼 것.
+   ※ 그래도 적록색약에서는 8종이 한 대역에 몰려 색으로는 안 갈린다.
+     실제 구분은 world.js 의 fillPiece 가 형태로 한다. */
 export const C = {
   gim: 0x1f3a26, gimEdge: 0x2c5236,
   riceRaw: 0xefe7d2, riceWashed: 0xf7f2e4, bap: 0xfbf7ec,
-  danmuji: 0xf0c53a, danmujiCut: 0xf5d451,
-  hamRaw: 0xe89a97, hamDone: 0xd4685f, burnt: 0x30231a,
-  spinachRaw: 0x4f8f38, spinachDone: 0x3f7a2c,
-  crab: 0xf2f0ea, crabRed: 0xe0574a,
-  cucumber: 0x5aa03c, cucumberSkin: 0x2f6b28,
-  eggWhite: 0xfaf6e6, eggYolk: 0xf2c03a,
-  carrot: 0xe8802f,
-  fishcake: 0xe8d8b8, fishcakeDone: 0xd8b98a,
+  danmuji: 0xf5d020, danmujiCut: 0xf5d020,
+  hamRaw: 0xf3c0c2, hamDone: 0xf09a9e, burnt: 0x30231a,
+  spinachRaw: 0x3f8f38, spinachDone: 0x1f6b3a,
+  crab: 0xf7f3ec, crabRed: 0xdc3c26,
+  cucumber: 0x8cc63f, cucumberSkin: 0x2b6b26,
+  eggWhite: 0xfdf6e4, eggYolk: 0xf7a815,
+  carrot: 0xe2661a,
+  fishcake: 0xe8d8b8, fishcakeDone: 0xa77762,
   wood: 0xd8ad74, steel: 0xb9bec4, steelDark: 0x7e858c,
-  counter: 0xd9d4c6, counterTop: 0xf1ece1,
-  fridge: 0xe6eaee, fridgeIn: 0x4d5760, fridgeEdge: 0xd2d9df, fire: 0xff8a3d, water: 0x74c0e8,
+  counter: 0xcfc7b0, counterTop: 0xf5f0e2,
+  fridge: 0xd6e6f2, fridgeIn: 0x4d5760, fridgeEdge: 0xd2d9df, fire: 0xff8a3d, water: 0x74c0e8,
   broomStick: 0xb98b46, broomHead: 0xd9b45a
 };
+
+/* ────────────────────────────────────────────────────────────
+   캐릭터 파츠 — 머리카락 · 얼굴 · 상의
+
+   플레이어가 고른 조합을 서버가 그대로 들고 있다가 모두에게 뿌린다.
+   손님은 따로 보내지 않는다 — 이미 있는 seed 로 뽑는다.
+   조합을 네트워크에 실으면 손님 한 명당 5바이트가 늘어나는데,
+   seed 만 있으면 양쪽이 같은 값을 계산해 낼 수 있어서 0바이트다.
+
+   고른 값은 인덱스로만 주고받는다 (h, hc, f, t, tc — 작은 정수 다섯 개).
+   ──────────────────────────────────────────────────────────── */
+/* 플레이어 눈높이(m).
+   캐릭터 몸도 이 값에 눈을 맞춘다 — 서로 마주 봤을 때 눈높이가 어긋나면
+   한쪽이 상대를 내려다보게 되어 어색하다.
+   player.js 가 카메라 높이로, world.js 가 몸 배율로 쓴다. */
+export const EYE = 1.82;
+
+export const PARTS = {
+  hair: [
+    { id: 'short', name: '짧은 머리' },
+    { id: 'bob',   name: '단발' },
+    { id: 'bun',   name: '쪽머리' },
+    { id: 'spiky', name: '삐죽머리' },
+    { id: 'long',  name: '긴 머리' },
+    { id: 'bald',  name: '민머리' }
+  ],
+  face: [
+    { id: 'plain',   name: '기본' },
+    { id: 'glasses', name: '안경' },
+    { id: 'freckle', name: '주근깨' },
+    { id: 'beard',   name: '수염' },
+    { id: 'blush',   name: '볼터치' }
+  ],
+  top: [
+    { id: 'tee',    name: '티셔츠' },
+    { id: 'apron',  name: '앞치마' },
+    { id: 'stripe', name: '줄무늬' },
+    { id: 'hoodie', name: '후드' },
+    { id: 'vest',   name: '조끼' }
+  ]
+};
+
+export const PART_COLORS = {
+  hair: [0x2a2320, 0x4a3128, 0x8a6a3a, 0xe4e0da, 0xa8442f, 0x3d4a6b],
+  top:  [0x4a6fa5, 0xc4763a, 0xb5548a, 0x5b5f6b, 0x4f8f58, 0xd96a6a, 0x3f8f8a, 0x9a6ad0]
+};
+
+export const DEFAULT_LOOK = { h: 0, hc: 0, f: 0, t: 0, tc: 0 };
+
+/** 범위를 벗어난 값은 잘라낸다. 클라이언트가 보낸 값은 믿지 않는다 */
+export function sanitizeLook(look) {
+  const pick = (v, n) => {
+    const i = Math.floor(Number(v));
+    return Number.isFinite(i) && i >= 0 && i < n ? i : 0;
+  };
+  const L = look || {};
+  return {
+    h:  pick(L.h,  PARTS.hair.length),
+    hc: pick(L.hc, PART_COLORS.hair.length),
+    f:  pick(L.f,  PARTS.face.length),
+    t:  pick(L.t,  PARTS.top.length),
+    tc: pick(L.tc, PART_COLORS.top.length)
+  };
+}
+
+/**
+ * 손님 조합 — seed 하나에서 결정적으로 뽑는다.
+ * 서버와 클라이언트가 같은 값을 얻으므로 네트워크로 보낼 필요가 없다.
+ */
+export function lookFromSeed(seed) {
+  const r = (n) => {
+    const x = Math.sin((seed + 1) * 12.9898 + n * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  return {
+    h:  Math.floor(r(1) * PARTS.hair.length),
+    hc: Math.floor(r(2) * PART_COLORS.hair.length),
+    f:  Math.floor(r(3) * PARTS.face.length),
+    t:  Math.floor(r(4) * PARTS.top.length),
+    tc: Math.floor(r(5) * PART_COLORS.top.length)
+  };
+}

@@ -3,7 +3,7 @@
    위치는 NET.tickMs 마다 서버에 보내고, 다른 사람은 서버가 알려준 위치로 그린다.
    ──────────────────────────────────────────────────────────── */
 import * as THREE from '/vendor/three.module.min.js';
-import { COMBAT, QUEUE_Z, slotX, NET } from './config.js';
+import { COMBAT, QUEUE_Z, slotX, NET , EYE } from './config.js';
 import {
   camera, interactables, solids, bumpHand, setSwingProgress, setArmBob
 } from './world.js';
@@ -12,7 +12,7 @@ import { resolveAction, dropHand, swingBroom } from './kitchen.js';
 
 const keys = Object.create(null);
 const RADIUS = 0.34;      // 플레이어 반지름 (충돌)
-const EYE = 1.62;         // 눈높이
+
 const SPEED = 3.6;
 const RUN = 6.2;
 const REACH = 2.9;        // 상호작용 사거리

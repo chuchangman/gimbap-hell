@@ -58,6 +58,33 @@
     <label class="field"><span>이름 <em>(2~12글자)</em></span>
       <input id="input-name" minlength="2" maxlength="12" placeholder="예: 김알바" autocomplete="off" /></label>
 
+    <div class="customize">
+      <div class="cz-preview"><canvas id="cz-canvas"></canvas></div>
+      <div class="cz-rows">
+        <div class="cz-row" data-part="hair">
+          <span class="cz-label">머리</span>
+          <button class="cz-arrow" data-d="-1">◀</button>
+          <b class="cz-name"></b>
+          <button class="cz-arrow" data-d="1">▶</button>
+        </div>
+        <div class="cz-swatches" data-swatch="hair"></div>
+        <div class="cz-row" data-part="face">
+          <span class="cz-label">얼굴</span>
+          <button class="cz-arrow" data-d="-1">◀</button>
+          <b class="cz-name"></b>
+          <button class="cz-arrow" data-d="1">▶</button>
+        </div>
+        <div class="cz-row" data-part="top">
+          <span class="cz-label">상의</span>
+          <button class="cz-arrow" data-d="-1">◀</button>
+          <b class="cz-name"></b>
+          <button class="cz-arrow" data-d="1">▶</button>
+        </div>
+        <div class="cz-swatches" data-swatch="top"></div>
+        <button id="cz-random" class="btn tiny">🎲 아무거나</button>
+      </div>
+    </div>
+
     <label class="field"><span>가게 이름 <em>(새로 열 때만 · 비우면 「이름」의 가게)</em></span>
       <input id="input-shop" maxlength="16" placeholder="비워두면 「이름」의 가게" autocomplete="off" /></label>
 
@@ -222,6 +249,10 @@
 
 <div id="toast-area"></div>
 
+<!-- 벤더링한 GLTFLoader 가 "three" 를 bare specifier 로 부른다 -->
+<script type="importmap">
+{ "imports": { "three": "/vendor/three.module.min.js" } }
+</script>
 <script src="/socket.io/socket.io.js"></script>
 <script type="module" src="/js/main.js"></script>
 </body>

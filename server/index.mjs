@@ -106,7 +106,7 @@ io.on('connection', (socket) => {
     const code = makeCode();
     const room = new Room(code, d && d.shop);
     rooms.set(code, room);
-    room.addPlayer(socket.id, d && d.name);
+    room.addPlayer(socket.id, d && d.name, d && d.look);
     room.resolveShop();                 // 이름을 안 정했으면 "방장닉의 가게"
     socket.join(code);
     socketRoom.set(socket.id, code);
@@ -122,7 +122,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(code);
     if (!room) return cb && cb({ ok: false, err: '그런 방이 없습니다.' });
     if (room.size >= 6) return cb && cb({ ok: false, err: '방이 가득 찼습니다. (최대 6명)' });
-    room.addPlayer(socket.id, d && d.name);
+    room.addPlayer(socket.id, d && d.name, d && d.look);
     socket.join(code);
     socketRoom.set(socket.id, code);
     if (cb) cb({ ok: true, code, youId: socket.id });

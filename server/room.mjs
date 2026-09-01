@@ -3,7 +3,7 @@
    판정은 전부 여기(서버)에서 한다. 클라이언트를 고쳐도 뚫리지 않는다.
    ──────────────────────────────────────────────────────────── */
 import {
-  COMBAT, SCORE, REPUTATION_MAX, QUEUE_Z, slotX
+  COMBAT, SCORE, REPUTATION_MAX, QUEUE_Z, slotX, sanitizeLook, DEFAULT_LOOK
 } from '../public/js/config.js';
 import { Kitchen, nowMs } from './kitchen.mjs';
 import { WaveRunner } from './waves.mjs';
@@ -51,7 +51,7 @@ export class Room {
     return this.players.size;
   }
 
-  addPlayer(id, name) {
+  addPlayer(id, name, look) {
     const i = this.freeSlot();
     const spawn = SPAWNS[i % SPAWNS.length];
     this.players.set(id, {
@@ -59,6 +59,8 @@ export class Room {
       slot: i,
       name: (name || '').trim().slice(0, 12) || ('알바' + (i + 1)),
       color: COLORS[i % COLORS.length],
+      // 클라이언트가 보낸 값은 그대로 믿지 않는다 — 범위를 벗어나면 잘라낸다
+      look: sanitizeLook(look || DEFAULT_LOOK),
       x: spawn.x, z: spawn.z, y: 0, ry: 0,
       lastSwing: 0
     });
@@ -252,7 +254,9 @@ export class Room {
       shop: this.shop,
       phase: this.phase,
       hostId: this.hostId,
-      players: [...this.players.values()].map((p) => ({ id: p.id, slot: p.slot, name: p.name, color: p.color })),
+      players: [...this.players.values()].map((p) => ({
+        id: p.id, slot: p.slot, name: p.name, color: p.color, look: p.look
+      })),
       wave: this.waves ? this.waves.snapshot() : null,
       result: this.result,
       history: this.history

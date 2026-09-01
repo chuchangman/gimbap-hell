@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>김밥지옥 · 저폴리 에셋</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background:#eee8dc; color:#27251f; }
+    body { margin:0; padding:32px; }
+    h1 { margin:0 0 6px; font-size:28px; }
+    p { margin:0 0 24px; color:#706a5e; }
+    #grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; }
+    article { overflow:hidden; border:1px solid #d5cdbd; border-radius:16px; background:#faf7f0; box-shadow:0 8px 24px #5f4d2920; }
+    canvas { display:block; width:100%; aspect-ratio:4/3; background:#e9e1d2; }
+    h2 { margin:12px 14px 3px; font-size:15px; }
+    small { display:block; margin:0 14px 14px; color:#877d6d; }
+  </style>
+  <script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script>
+</head>
+<body>
+  <h1>저폴리 김밥·주방 에셋 세트</h1>
+  <p>김밥 재료와 주방 설비·도구 GLB 28개</p>
+  <main id="grid"></main>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from '/vendor/loaders/GLTFLoader.js';
+
+    const labels = {
+      'fill/danmuji':'단무지 · 손질 후','fill/ham':'햄 · 손질 후','fill/egg':'계란 · 손질 후',
+      'fill/crab':'맛살 · 손질 후','fill/cucumber':'오이 · 손질 후','fill/spinach':'시금치 · 손질 후',
+      'fill/carrot':'당근 · 손질 후','fill/fishcake':'어묵 · 손질 후','raw/danmuji':'단무지 · 원물',
+      'raw/ham':'햄 · 원물','raw/egg':'계란 · 원물','raw/cucumber':'오이 · 원물',
+      'raw/spinach':'시금치 · 원물','raw/carrot':'당근 · 원물','raw/fishcake':'어묵 · 원물',
+      'item/gim':'김','item/rice':'쌀','item/bap':'밥','item/broom':'빗자루',
+      'item/knife':'칼','station/counter':'공용 조리대 받침대','station/fridge':'냉장 재료 선반',
+      'station/board':'도마','station/mat':'김밥말이','station/pot':'냄비','station/pan':'프라이팬',
+      'station/cooker':'밥솥','station/bin':'음쓰통'
+    };
+    const manifest = await fetch('/assets/manifest.json').then(r => r.json());
+    const loader = new GLTFLoader();
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(420,315,false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    const camera = new THREE.PerspectiveCamera(32,4/3,.01,100);
+    camera.position.set(2.5,1.8,3.2); camera.lookAt(0,0,0);
+    const grid = document.querySelector('#grid');
+
+    for (const [name,file] of Object.entries(manifest)) {
+      const scene = new THREE.Scene(); scene.background = new THREE.Color(0xe9e1d2);
+      scene.add(new THREE.AmbientLight(0xffffff,.90));
+      const key = new THREE.DirectionalLight(0xfff7e9,1.45); key.position.set(3,5,4); scene.add(key);
+      const fill = new THREE.DirectionalLight(0xddeeff,.42); fill.position.set(-4,3,-3); scene.add(fill);
+      const bounce = new THREE.DirectionalLight(0xfff1d6,.18); bounce.position.set(-1,-3,2); scene.add(bounce);
+      const root = (await loader.loadAsync('/assets/'+file)).scene;
+      const bounds = new THREE.Box3().setFromObject(root), size = bounds.getSize(new THREE.Vector3());
+      root.position.sub(bounds.getCenter(new THREE.Vector3()));
+      root.scale.setScalar(1.65 / Math.max(size.x,size.y,size.z));
+      root.rotation.set(-.18,-.55,.05); scene.add(root);
+      renderer.render(scene,camera);
+      const card = document.createElement('article');
+      const canvas = document.createElement('canvas'); canvas.width=420; canvas.height=315;
+      canvas.getContext('2d').drawImage(renderer.domElement,0,0);
+      const title = document.createElement('h2'); title.textContent=labels[name] || name;
+      const path = document.createElement('small'); path.textContent=name+'.glb';
+      card.append(canvas,title,path); grid.append(card);
+    }
+    document.body.dataset.ready = 'true';
+  </script>
+</body>
+</html>

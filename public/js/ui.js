@@ -8,6 +8,7 @@ import { S, emit, on, myHand, isHost, serverNow, wave as waveOf } from './net.js
 import { focusNow, bapReady } from './kitchen.js';
 import { state as P, releaseLock, resetPose } from './player.js';
 import { camera } from './world.js';
+import { initCustomizer, currentLook, stopCustomizer } from './customize.js';
 
 export const $ = (s, r) => (r || document).querySelector(s);
 export const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -404,7 +405,7 @@ export function initUI() {
   syncShopHint();
   $('#btn-create').addEventListener('click', () => {
     if (!nameOk()) return;
-    emit('room:create', { name: nameOf(), shop: shopOf() }, (res) => {
+    emit('room:create', { name: nameOf(), shop: shopOf(), look: currentLook() }, (res) => {
       if (!res || !res.ok) return ($('#join-err').textContent = (res && res.err) || '실패');
       S.meId = res.youId;
       location.hash = res.code;
@@ -414,7 +415,7 @@ export function initUI() {
     if (!nameOk()) return;
     const code = $('#input-code').value.trim().toUpperCase();
     if (code.length !== 4) return ($('#join-err').textContent = '방 코드 4글자를 입력하세요.');
-    emit('room:join', { code, name: nameOf() }, (res) => {
+    emit('room:join', { code, name: nameOf(), look: currentLook() }, (res) => {
       if (!res || !res.ok) return ($('#join-err').textContent = (res && res.err) || '실패');
       S.meId = res.youId;
       location.hash = res.code;
@@ -462,4 +463,7 @@ export function initUI() {
     }
   });
   on('toast', (d) => toast(d.msg, d.kind));
+
+  // 입장 화면의 캐릭터 꾸미기 — 미리보기 캔버스와 파츠 버튼을 켠다
+  initCustomizer();
 }
