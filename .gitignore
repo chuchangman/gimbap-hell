@@ -14,3 +14,11 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 외부 에셋 팩 원본 (49MB · .blend/.fbx/.rar)
+# 게임이 쓰는 건 여기서 뽑아낸 public/assets/**.glb 다. 원본까지 공개
+# 저장소에 재배포하면 용량도 문제고, 팩마다 재배포 허용 여부가 다르다.
+assets-src/
+
+# 에셋 미리보기 스냅샷 (작업용 산출물)
+/food-*-preview.png

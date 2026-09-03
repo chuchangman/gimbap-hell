@@ -207,9 +207,39 @@ function ownMat(obj) {
   return obj;
 }
 
+/**
+ * GLB 한 벌에서 고른 재질만 이 인스턴스의 색으로 바꾼다.
+ * 텍스처가 있는 원본 의상은 흰색에 가까운 틴트를 써서 무늬를 보존한다.
+ */
+function tintAssetMaterials(root, color, match) {
+  if (!root) return root;
+  ownMat(root);
+  root.traverse((o) => {
+    if (!o.material) return;
+    const materials = Array.isArray(o.material) ? o.material : [o.material];
+    materials.forEach((m) => {
+      if (m.color && (!match || match(o, m))) m.color.set(color);
+    });
+  });
+  return root;
+}
+
 function box(w, h, d, color, x, y, z, parent) {
   const m = new THREE.Mesh(
     sharedGeo("b" + w + "_" + h + "_" + d, () => bevelBoxGeometry(w, h, d)),
+    mat(color)
+  );
+  m.position.set(x, y, z);
+  (parent || scene).add(m);
+  return m;
+}
+
+function cap(r, h, color, x, y, z, parent, seg) {
+  /* 캡슐은 끝이 이미 둥글어서 팔다리 끝에 공을 따로 붙이지 않아도 된다.
+     분할은 cyl 과 같은 이유로 낮춰 각을 남긴다. */
+  const sg = Math.min(seg || 10, 10);
+  const m = new THREE.Mesh(
+    sharedGeo("k" + r + "_" + h + "_" + sg, () => new THREE.CapsuleGeometry(r, h, 3, sg)),
     mat(color)
   );
   m.position.set(x, y, z);
@@ -644,7 +674,16 @@ export function makeItemMesh(item) {
   /* 김·밥·쌀·빗자루도 이름만 맞으면 대체된다 */
   if (['gim', 'bap', 'rice', 'broom'].includes(id)) {
     const m = asset('item/' + id, () => null);
-    if (m) { g.add(m); return g; }
+    if (m) {
+      // 쌀 모델의 물 표면은 씻은 상태에서만 보인다. GLB에는 런타임에서
+      // 재사용할 수 있도록 water 노드를 남기되 마른쌀을 파랗게 덮지 않는다.
+      if (id === 'rice') {
+        const water = partOf(m, 'water');
+        if (water) water.visible = st === 'washed';
+      }
+      g.add(m);
+      return g;
+    }
   }
 
   if (id === 'gim') {
@@ -787,46 +826,40 @@ function buildRoom() {
   bounce.position.set(-2, -6, 3);
   scene.add(bounce);
 
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(16, 20),
-    new THREE.MeshLambertMaterial({ map: tileTexture('#e2ecf1', '#c9d9e3', '#adc2d1', 16, 20) })
-  );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.z = -1;
-  scene.add(floor);
+  const floorModel = asset('room/floor', () => null);
+  if (floorModel) {
+    floorModel.position.set(0, -.05, -1);
+    scene.add(floorModel);
+  } else {
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 20), mat(0xdce8ee));
+    floor.rotation.x = -Math.PI / 2; floor.position.z = -1; scene.add(floor);
+  }
 
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(16, 20), mat(0xf8f6f0));
-  ceil.rotation.x = Math.PI / 2;
-  ceil.position.set(0, 3.4, -1);
-  scene.add(ceil);
+  const ceilingModel = asset('room/ceiling', () => null);
+  if (ceilingModel) {
+    ceilingModel.position.set(0, 3.45, -1);
+    scene.add(ceilingModel);
+  } else {
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(16, 20), mat(0xf8f6f0));
+    ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, 3.4, -1); scene.add(ceiling);
+  }
 
-  const wall = (w, x, z, ry, color) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 3.4), mat(color));
-    m.position.set(x, 1.7, z); m.rotation.y = ry; scene.add(m);
-  };
-  wall(16, 0, 9, Math.PI, 0xf2e2c4);          // 주방 뒤 — 따뜻한 크림
-  wall(16, 0, -11, 0, 0xf6ead0);              // 손님 쪽 — 더 밝게
-  wall(20, -8, -1, Math.PI / 2, 0xcbe6da);    // 준비 구역 — 민트
-  wall(20, 8, -1, -Math.PI / 2, 0xe9d9c8);    // 불 구역 — 따뜻한 모래색
-
-  /* 걸레받이 — 예전엔 민색 판이었다. 주방 벽이니 타일을 붙인다 */
-  const skirt = (w, x, z, ry, rx) => {
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, 1.2),
-      new THREE.MeshLambertMaterial({ map: tileTexture('#bce5d3', '#a2d6be', '#7ab89f', rx, 3) })
-    );
-    m.position.set(x, 0.6, z); m.rotation.y = ry; scene.add(m);
-  };
-  skirt(15.9, 0, 8.96, Math.PI, 20);
-  skirt(15.9, 0, -10.96, 0, 20);
-  skirt(19.9, -7.96, -1, Math.PI / 2, 25);
-  skirt(19.9, 7.96, -1, -Math.PI / 2, 25);
-
-  /* 타일이 끝나는 자리에 마감 몰딩 — 벽이 두 겹으로 읽힌다 */
-  box(15.9, 0.07, 0.05, 0xeef5f1, 0, 1.21, 8.92);
-  box(15.9, 0.07, 0.05, 0xeef5f1, 0, 1.21, -10.92);
-  box(0.05, 0.07, 19.9, 0xeef5f1, -7.92, 1.21, -1);
-  box(0.05, 0.07, 19.9, 0xeef5f1, 7.92, 1.21, -1);
+  const roomWalls = [
+    ['room/wall-back',  0, 1.7,   9, 16, 0, 9, Math.PI, 0xf2e2c4],
+    ['room/wall-front', 0, 1.7, -11, 16, 0,-11, 0,       0xf6ead0],
+    ['room/wall-left', -8, 1.7,  -1, 20,-8, -1, Math.PI/2, 0xcbe6da],
+    ['room/wall-right', 8, 1.7,  -1, 20, 8, -1,-Math.PI/2, 0xe9d9c8]
+  ];
+  for (const [name,x,y,z,w,fx,fz,ry,color] of roomWalls) {
+    const model = asset(name, () => null);
+    if (model) {
+      model.position.set(x,y,z);
+      scene.add(model);
+    } else {
+      const fallback = new THREE.Mesh(new THREE.PlaneGeometry(w,3.4), mat(color));
+      fallback.position.set(fx,1.7,fz); fallback.rotation.y=ry; scene.add(fallback);
+    }
+  }
 
   addSolid(0, 9.4, 18, 0.8);
   addSolid(0, -11.4, 18, 0.8);
@@ -882,41 +915,6 @@ function buildRoom() {
   });
 }
 
-/* ──────────────── 바닥 구역 ──────────────── */
-/* 바닥 색으로만 구역을 나눈다 — 글로 된 구역 안내는 없앴다.
-   그 자리(화면 아래 가운데)는 이제 손에 든 재료의 지시문이 쓴다. */
-export const ZONES = [
-  { id: 'prep', color: 0x58c07a, rects: [[-7.9, -6.4, -4.4, 8.4]] },
-  { id: 'fire', color: 0xe05252, rects: [[4.4, -5.2, 7.9, 2.6]] },
-  { id: 'work', color: 0x63a8e8, rects: [[-3.5, -3.0, 3.5, 4.4]] },
-  { id: 'pass', color: 0xf5b942, rects: [[-3.5, -6.3, 3.5, -4.6]] }
-];
-
-function buildZones() {
-  for (const zone of ZONES) {
-    for (const [x1, z1, x2, z2] of zone.rects) {
-      const w = Math.abs(x2 - x1), d = Math.abs(z2 - z1);
-      const fill = new THREE.Mesh(
-        new THREE.PlaneGeometry(w, d),
-        new THREE.MeshBasicMaterial({ color: zone.color, transparent: true, opacity: 0.13, depthWrite: false })
-      );
-      fill.rotation.x = -Math.PI / 2;
-      fill.position.set((x1 + x2) / 2, 0.012, (z1 + z2) / 2);
-      scene.add(fill);
-
-      const pts = [
-        new THREE.Vector3(x1, 0.02, z1), new THREE.Vector3(x2, 0.02, z1),
-        new THREE.Vector3(x2, 0.02, z2), new THREE.Vector3(x1, 0.02, z2),
-        new THREE.Vector3(x1, 0.02, z1)
-      ];
-      scene.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.6 })
-      ));
-    }
-  }
-}
-
 /**
  * 조리대 한 짝 — 싱크대·밥솥·가스렌지·도마·조립대·서빙대가 전부 이걸 쓴다.
  *
@@ -931,8 +929,42 @@ function buildZones() {
  * 재료를 올리는 높이가 여기 맞춰져 있어서 건드리면 안 된다.
  */
 function counterTop(x, z, w, d, color) {
-  counterBody(x, z, w, d, color, scene);
+  /* 도마대·조립대·서빙대는 각각 KitchenTable 한 개를 전체 길이에 맞춰 쓴다.
+     같은 테이블을 여러 개 붙였을 때 생기던 상판 이음매와 과한 다리를 없앤다. */
+  const table = asset('station/table', () => null);
+  if (table) {
+    table.scale.set(w / 1.00, 1.04 / 0.67, d / 1.50);
+    table.position.set(x, 0, z);
+    scene.add(table);
+  } else {
+    counterBody(x, z, w, d, color, scene);
+  }
   addSolid(x, z, w, d);
+}
+
+/** 자연 크기의 가구를 긴 방향으로 반복해 지정한 받침대 영역을 채운다. */
+function tiledStation(name, natural, x, z, w, d, height, parent) {
+  const first = asset(name, () => null);
+  if (!first) return false;
+
+  const alongX = w >= d;
+  const span = alongX ? w : d;
+  const nativeSpan = alongX ? natural[0] : natural[2];
+  const count = Math.max(1, Math.round(span / nativeSpan));
+  const segment = span / count;
+
+  for (let i = 0; i < count; i++) {
+    const model = i === 0 ? first : asset(name, () => null);
+    model.scale.set(
+      (alongX ? segment : w) / natural[0],
+      height / natural[1],
+      (alongX ? d : segment) / natural[2]
+    );
+    const offset = -span / 2 + segment * (i + 0.5);
+    model.position.set(x + (alongX ? offset : 0), 0, z + (alongX ? 0 : offset));
+    parent.add(model);
+  }
+  return true;
 }
 
 /**
@@ -942,6 +974,11 @@ function counterTop(x, z, w, d, color) {
 function counterBody(x, z, w, d, color, parent) {
   const col = color || C.counter;
   const KICK = 0.13;                                                  // 굽도리 높이
+
+  /* 밥솥대와 긴 가스렌지 아래는 Cabinet3을 반복한다. 문짝 한 개를 길게
+     늘이지 않아 각 수납장 폭과 손잡이 비율이 유지된다. */
+  if (tiledStation('station/cabinet', [0.90, 0.67, 1.00], x, z, w, d, 1.04, parent))
+    return;
 
   /* 같은 받침대 모델을 모든 조리대가 공유하고 몸통 색만 바꾼다.
      파일 하나를 고치면 싱크대·밥솥대·렌지대·도마대·조립대·서빙대가 함께 바뀐다. */
@@ -984,21 +1021,6 @@ function counterBody(x, z, w, d, color, parent) {
       else        box(0.028, 0.036, len, grip, x + s * off, 0.80, z + t, parent);
     }
   }
-}
-
-/** 격자무늬 캔버스 텍스처 — 바닥 타일과 벽 타일이 같이 쓴다 */
-function tileTexture(bg, alt, line, rx, ry) {
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = 64;
-  const cx = cv.getContext('2d');
-  cx.fillStyle = bg; cx.fillRect(0, 0, 64, 64);
-  cx.fillStyle = alt; cx.fillRect(0, 0, 32, 32); cx.fillRect(32, 32, 32, 32);
-  cx.strokeStyle = line; cx.lineWidth = 2; cx.strokeRect(0, 0, 64, 64);
-  const tex = new THREE.CanvasTexture(cv);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(rx, ry);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
 }
 
 /* ──────────────── 🧊 냉장고 (2단 · 10칸) ────────────────
@@ -1331,7 +1353,7 @@ function buildMats() {
     const X = -1.6 + i * 1.6;
 
     /* 대나무 발 — 조립대 세 대가 상판 하나를 나눠 쓰므로
-       교체 단위는 상판이 아니라 발 한 장이다 */
+       교체 단위는 상판이 아니라 발 한 장이다. 발만 90° 돌린다. */
     const group = asset('station/mat', () => {
       const g = new THREE.Group();
       for (let s = 0; s < 12; s++) {
@@ -1341,6 +1363,7 @@ function buildMats() {
       return g;
     });
     group.position.set(X, 1.05, Z);
+    group.rotation.y = Math.PI / 2;
     scene.add(group);
 
     const gim = box(0.62, 0.016, 0.5, C.gim, X, 1.08, Z);
@@ -1819,11 +1842,70 @@ const PANTS = 0x3f4550;
    플레이어 카메라는 EYE 높이에 있으므로, 그대로 두면 서로 눈높이가 어긋나
    상대를 내려다보게 된다. 몸 전체를 이 배율로 키워 눈을 맞춘다.
    ⚠ 이름표·체력바·말풍선은 같이 커지면 안 된다 — 배율 그룹 바깥에 둔다. */
-const BODY_EYE = 1.302;
-const BODY_SCALE = EYE / BODY_EYE;
+/**
+ * 몸의 기준점 — 머리카락·상의·소품·테두리가 전부 이 표를 보고 자리를 잡는다.
+ *
+ * PEAK처럼 머리가 크고 무게중심이 낮은 2등신이다. 머리 지름이 전체 키의
+ * 40%쯤 되고, 몸과 팔다리는 짧고 묵직하게 이어진다.
+ * 얼굴이 화면에서 크게 잡히므로 눈·눈썹만으로도 표정이 멀리서 읽힌다 —
+ * 이게 이 비율을 고른 이유다.
+ *
+ * 예전 몸은 작게 세운 뒤 rig 를 통째로 1.398 배 키워 눈을 EYE 에 맞췄다.
+ * 지금은 처음부터 실제 크기로 세운다. 소품 좌표를 그대로 눈으로 읽을 수 있고,
+ * 배율이 끼어들지 않아 "여기 붙였는데 왜 저기 있지" 가 없어진다.
+ */
+const BODY = {
+  /* 눈은 EYE(1.82)에 고정이다 — 카메라가 거기 있으니 못 옮긴다.
+     그래서 머리를 얼마나 높이 두느냐가 곧 "눈이 얼굴의 어디쯤 오는가" 다.
+     머리 중심을 눈보다 살짝 위(1.84)에 두면 눈이 얼굴 한가운데에 오고,
+     이마에 머리카락과 모자가 들어갈 자리가 생긴다. 1.70 이면 눈이 얼굴 위쪽에
+     붙어서 머리카락을 얹을 데가 없어진다 — 한 번 그렇게 만들어 봤다. */
+  headY: 1.76, headR: 0.43, headFlat: 0.94,
+  faceZ: 0.370,                                // 눈·눈썹·입이 놓이는 얼굴 앞면
+  browUp: 0.125, mouthDown: 0.175,             // 눈 기준 위아래 간격
+  torsoY: 1.05, torsoR: 0.295, torsoH: 0.32,
+  shoulderY: 1.32, shoulderX: 0.33,
+  armR: 0.088, upperArmH: 0.14, forearmR: 0.066, forearmH: 0.17,
+  hipY: 0.70, hipX: 0.145,
+  thighR: 0.098, thighH: 0.10, calfR: 0.074, calfH: 0.13,
+  shoeR: 0.115
+};
+const HEAD_TOP = BODY.headY + BODY.headR * 0.98;   // 모자·머리카락이 얹히는 꼭대기
+const EYE_LOCAL = EYE - BODY.headY;                // 얼굴 그룹 안에서의 눈 높이
 
 /** 표정 기본값 — setFace 의 표가 비어 있을 때 쓰는 값 */
 const FACE_NEUTRAL = [-0.06, 0.125, 1.0, Math.PI, 0.75, 0.35];
+
+/**
+ * 얼굴 한 벌 = [눈썹 안쪽 기울기, 눈썹 높이, 눈 세로배율, 입 뒤집기, 입 가로배율, 입 세로배율]
+ *
+ * 부호 규칙 — 잘못 넣으면 만족이 분노로 보인다. 한 번 데였다.
+ *   눈썹 기울기 +  : 안쪽 끝이 내려간다 (화남)
+ *   눈썹 기울기 −  : 안쪽 끝이 올라간다 (순함·놀람)
+ *   입 뒤집기 π    : ∪ 웃는 입
+ *   입 뒤집기 0    : ∩ 찡그린 입
+ *   ⚠ 입 뒤집기는 0 또는 π 만 쓴다 — setFace 가 이 값으로 입 높이를 보정한다.
+ *
+ * 손님의 감정(neutral·annoyed·angry·happy·shocked)과 유저가 고르는 표정이
+ * 같은 표를 쓴다. 손님은 상태가 바뀔 때마다 갈아끼우고, 내 캐릭터는 고른 것을
+ * 그대로 둔다 — 그래서 표를 나눌 이유가 없다. 키는 config.js PARTS.expression 의 id.
+ *
+ * ⚠ Hodaart 캐릭터는 입이 메시에 칠해져 있어 뒤 세 칸(입)이 아무 일도 하지 않는다.
+ *   앞 세 칸만으로 여덟 표정이 서로 구별돼야 한다. 코드로 세운 몸은 여섯 칸을 다 쓴다.
+ */
+const FACE_POSE = {
+  neutral: FACE_NEUTRAL,
+  smile:   [-0.20, 0.132, 0.86, Math.PI, 1.05, 0.62],  // 눈은 그대로, 입만 살짝 올라간다
+  happy:   [-0.34, 0.140, 0.55, Math.PI, 1.30, 1.10],  // 웃는 눈, 활짝 올라간 입
+  smug:    [ 0.26, 0.158, 0.46, Math.PI, 0.58, 0.42],  // 눈썹은 올리고 안쪽은 내려 내려다본다
+  annoyed: [ 0.30, 0.108, 0.85, 0,       0.80, 0.55],  // 눈썹 안쪽이 내려오고 입이 살짝 굳는다
+  angry:   [ 0.62, 0.095, 0.60, 0,       0.95, 1.00],  // 눈을 부라리고 입이 확 뒤집힌다
+  shocked: [-0.10, 0.170, 1.30, Math.PI, 0.55, 1.80],  // 눈썹이 뜨고 입이 벌어진다
+  sleepy:  [ 0.14, 0.104, 0.24, 0,       0.66, 0.30]   // 눈이 거의 감기고 눈썹이 처진다
+};
+
+/** 고른 표정의 이름. sanitizeLook 을 거친 값만 들어오므로 범위는 이미 안전하다 */
+const characterMood = (index) => PARTS.expression[index].id;
 
 /**
  * 사람 한 명.
@@ -1832,63 +1914,105 @@ const FACE_NEUTRAL = [-0.06, 0.125, 1.0, Math.PI, 0.75, 0.35];
 function makeBody(color, opts) {
   const o = opts || {};
 
-  /* 직접 만든 사람 모델이 있으면 그것을 쓴다.
-     단 걷기·표정은 코드가 노드를 직접 돌리므로 이름이 맞아야 한다.
-     이름이 하나라도 없으면 assets.js 가 콘솔에 찍어준다. */
-  const model = asset(o.assetName || 'char/customer', () => null);
+  /* Blender 베이스가 있으면 몸·옷·간단 리그를 통째로 사용한다.
+     파일을 못 읽는 환경에서는 아래 코드 모델이 그대로 비상 대체가 된다. */
+  const model = asset('char/base', () => null);
   if (model) {
-    const P2 = (n) => partOf(model, n);
-    const legs = [P2('legL'), P2('legR')].filter(Boolean);
-    const arms = [P2('armL'), P2('armR')].filter(Boolean);
-    const gm = new THREE.Group();
-    gm.add(model);
-    if (o.build && o.build !== 1) model.scale.setScalar(o.build);
-    return {
-      group: gm, rig: gm, torso: P2('torso') || model, head: P2('head') || model,
-      legs: legs.length === 2 ? legs : [new THREE.Group(), new THREE.Group()],
-      arms: arms.length === 2 ? arms : [new THREE.Group(), new THREE.Group()],
-      fromAsset: true
-    };
+    ownMat(model);
+    const g = new THREE.Group();
+    g.add(model);
+    const w = o.build || 1;
+    model.scale.set(w, 1, w);
+
+    const rig = partOf(model, 'rig') || model;
+    const torso = partOf(model, 'body') || partOf(model, 'torso') || model;
+    const head = partOf(model, 'head') || model;
+    const skinColor = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.12);
+    tintAssetMaterials(model, skinColor,
+      (part) => /^(body|head|skinArm[LR]|skinHand[LR])$/i.test(String(part.name || '')));
+    const legs = [partOf(model, 'legL'), partOf(model, 'legR')].filter(Boolean);
+    const arms = [partOf(model, 'armL'), partOf(model, 'armR')].filter(Boolean);
+    return { group: g, rig, torso, head, legs, arms,
+      legRest: legs.map((bone) => bone.quaternion.clone()),
+      armRest: arms.map((bone) => bone.quaternion.clone()),
+      fromAsset: true, baseModel: model };
   }
 
-  /* 바깥(g)에는 이름표처럼 크기가 고정돼야 하는 것,
-     안쪽(rig)에는 몸. rig 만 눈높이에 맞춰 키운다. */
+  /* 바깥(g)에는 이름표·체력바처럼 크기가 고정돼야 하는 것, 안쪽(rig)에는 몸.
+     소품과 옷은 rig 에 들어가므로 덩치 배율을 함께 받는다. */
   const g = new THREE.Group();
   const rig = new THREE.Group();
-  rig.scale.setScalar(BODY_SCALE);
   g.add(rig);
   const w = o.build || 1;                    // 덩치 배율
 
-  const torso = cyl(0.27 * w, 0.72, color, 0, 0.62, 0, rig, 14);
   // 소매는 몸통보다 한 톤 어둡게 — 같은 색이면 팔이 몸통에 묻혀 안 보인다
   const sleeve = new THREE.Color(color).multiplyScalar(0.82).getHex();
-  cyl(0.10, 0.12, SKIN, 0, 1.03, 0, rig, 8);   // 목
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 7), mat(SKIN));
-  head.position.y = 1.26;
+  const torso = cap(BODY.torsoR * w, BODY.torsoH, color, 0, BODY.torsoY, 0, rig);
+
+  /* 목은 없다. 2등신에서 목을 넣으면 머리가 떠 보이고, 머리 구가 몸통 위쪽을
+     충분히 덮어서 이음매도 안 보인다. */
+  const head = new THREE.Mesh(
+    sharedGeo('head_sphere', () => new THREE.SphereGeometry(BODY.headR, 16, 12)),
+    mat(SKIN)
+  );
+  head.position.y = BODY.headY;
+  head.scale.set(1, 0.98, BODY.headFlat);
   rig.add(head);
+
+  /* 큰 머리와 짧은 몸 사이가 비어 보이지 않게 작은 칼라/목을 숨겨 넣는다.
+     정면에서는 거의 안 보이지만 옆으로 돌 때 머리가 공중에 뜨는 느낌을 없앤다. */
+  cap(0.105 * w, 0.10, SKIN, 0, 1.40, -0.015, rig, 9);
 
   const legs = [], arms = [];
   for (const s of [-1, 1]) {
-    // 다리 — 엉덩이(y 0.30)에 매달아 앞뒤로 돌린다
+    // 다리 — 반바지, 종아리, 신발을 한 피벗에 묶어 함께 걷는다.
     const hip = new THREE.Group();
-    hip.position.set(s * 0.125, 0.30, 0);
-    cyl(0.093, 0.30, o.pants || PANTS, 0, -0.15, 0, hip, 8);
+    hip.position.set(s * BODY.hipX, BODY.hipY, 0);
+    const thighTotal = BODY.thighH + BODY.thighR * 2;
+    const calfTotal = BODY.calfH + BODY.calfR * 2;
+    cap(BODY.thighR * w, BODY.thighH, o.pants || PANTS,
+      0, -thighTotal / 2, 0, hip);
+    const calfTop = -thighTotal + 0.04;
+    cap(BODY.calfR * w, BODY.calfH, SKIN,
+      0, calfTop - calfTotal / 2, 0.005, hip);
+
+    /* PEAK 실루엣의 핵심인 넓은 신발. 앞쪽(+z)으로 살짝 내밀어 서 있을 때도
+       발 방향이 읽히며, 걷는 중에는 다리 피벗과 함께 자연스럽게 따라간다. */
+    const shoe = new THREE.Mesh(
+      sharedGeo('character_shoe', () => new THREE.SphereGeometry(BODY.shoeR, 9, 6)),
+      mat(new THREE.Color(o.pants || PANTS).multiplyScalar(0.64).getHex())
+    );
+    shoe.position.set(0, calfTop - calfTotal + 0.035, 0.055);
+    shoe.scale.set(1.05 * w, 0.68, 1.48);
+    hip.add(shoe);
     rig.add(hip);
     legs.push(hip);
 
-    // 팔 — 어깨(y 0.94). 몸통(0.27) 바깥으로 빼야 실제로 보인다
+    // 팔 — 소매에서 맨팔로 가늘어졌다가 손에서 다시 둥글어지는 형태다.
     const sh = new THREE.Group();
-    sh.position.set(s * 0.30 * w, 0.94, 0);
-    cyl(0.05, 0.40, sleeve, 0, -0.20, 0, sh, 8);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.062, 6, 4), mat(SKIN));
-    hand.position.y = -0.40;
+    sh.position.set(s * BODY.shoulderX * w, BODY.shoulderY, 0);
+    const upperR = BODY.armR * w;
+    const foreR = BODY.forearmR * w;
+    const upperTotal = BODY.upperArmH + upperR * 2;
+    const foreTotal = BODY.forearmH + foreR * 2;
+    cap(upperR, BODY.upperArmH, sleeve, 0, -upperTotal / 2, 0, sh);
+    const foreTop = -upperTotal + 0.035;
+    cap(foreR, BODY.forearmH, SKIN, 0, foreTop - foreTotal / 2, 0, sh);
+    const hand = new THREE.Mesh(
+      sharedGeo('character_hand', () => new THREE.SphereGeometry(0.092, 9, 6)),
+      mat(SKIN)
+    );
+    hand.position.set(0, foreTop - foreTotal + 0.052, 0.012);
+    hand.scale.set(0.98 * w, 1.08, 0.92);
     sh.add(hand);
     rig.add(sh);
     arms.push(sh);
   }
 
-  return { group: g, rig, torso, head, legs, arms };
+  return { group: g, rig, torso, head, legs, arms,
+    legRest: legs.map((part) => part.quaternion.clone()),
+    armRest: arms.map((part) => part.quaternion.clone()) };
 }
 
 /**
@@ -1898,43 +2022,54 @@ function makeBody(color, opts) {
  */
 function makeFace(parent, opts) {
   const o = opts || {};
+  /* 처음 지을 때의 표정. 손님은 안 넘겨서 neutral 로 시작하고 곧 상태가 덮어쓴다.
+     내 캐릭터·동료 아바타는 유저가 고른 것을 넘기고, 그대로 남는다. */
+  const mood = o.mood || 'neutral';
 
-  /* 사람 모델이 이미 눈·눈썹·입을 들고 있으면 그걸 그대로 쓴다 */
-  const eL = partOf(parent, 'eyeL'), eR = partOf(parent, 'eyeR');
-  const bL = partOf(parent, 'browL'), bR = partOf(parent, 'browR');
-  const mo = partOf(parent, 'mouth');
-  if (eL && eR && bL && bR && mo) {
-    bL.userData.side = -1; bR.userData.side = 1;
-    const face = { group: parent, eyes: [eL, eR], brows: [bL, bR], mouth: mo, mood: null };
-    setFace(face, 'neutral');
-    return face;
-  }
-
+  /* 얼굴 그룹은 머리 한가운데에 둔다. 아래 좌표는 전부 머리 중심 기준이라
+     BODY.headY 를 옮겨도 얼굴이 따라온다. */
   const f = new THREE.Group();
-  f.position.set(0, 1.26, 0);
+  f.position.set(0, BODY.headY, 0);
   parent.add(f);
 
   const eyes = [], brows = [];
   for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.038, 6, 5), mat(0x241f1c));
-    e.position.set(s * 0.092, 0.042, 0.232);
+    /* PEAK처럼 흰자와 동공을 분리한다. 검은 구 하나만 붙이면 멀리서 구멍처럼
+       보여서 표정이 죽는다. 눈 전체를 그룹으로 묶어 실눈/놀란 눈 변형은 유지한다. */
+    const e = new THREE.Group();
+    e.position.set(s * 0.15, EYE_LOCAL, BODY.faceZ);
+    const white = new THREE.Mesh(
+      sharedGeo('eye_white', () => new THREE.SphereGeometry(0.078, 10, 8)),
+      mat(0xf8f3e7)
+    );
+    white.scale.set(0.92, 1.08, 0.55);
+    e.add(white);
+    const pupil = new THREE.Mesh(
+      sharedGeo('eye_pupil', () => new THREE.SphereGeometry(0.037, 9, 7)),
+      mat(0x241f1c)
+    );
+    pupil.position.set(-s * 0.008, -0.003, 0.061);
+    pupil.scale.z = 0.72;
+    e.add(pupil);
     f.add(e); eyes.push(e);
 
-    const b = box(0.105, 0.024, 0.022, o.brow || 0x3a2f28, s * 0.098, 0.125, 0.232, f);
+    const b = box(0.13, 0.028, 0.03, o.brow || 0x3a2f28,
+      s * 0.15, EYE_LOCAL + BODY.browUp, BODY.faceZ + 0.010, f);
     b.userData.side = s;
     brows.push(b);
   }
 
   // 입은 반원 토러스 — z 로 뒤집으면 그대로 찡그린 입이 된다
   const mouth = new THREE.Mesh(
-    new THREE.TorusGeometry(0.062, 0.015, 5, 10, Math.PI),
+    sharedGeo('mouth_arc', () => new THREE.TorusGeometry(0.085, 0.017, 6, 14, Math.PI)),
     mat(0x8a4a44)
   );
-  mouth.position.set(0, -0.075, 0.222);
+  mouth.position.set(0, EYE_LOCAL - BODY.mouthDown, BODY.faceZ);
   f.add(mouth);
 
-  const face = { group: f, eyes, brows, mouth, mood: null };
-  setFace(face, 'neutral');
+  const face = { group: f, eyes, brows, mouth, mood: null,
+    browBaseY: brows[0].position.y, mouthBaseY: mouth.position.y };
+  setFace(face, mood);
   return face;
 }
 
@@ -1943,29 +2078,20 @@ function setFace(face, mood) {
   if (!face || face.mood === mood) return;   // 안 바뀌었으면 손대지 않는다
   face.mood = mood;
 
-  /* [눈썹 안쪽 기울기, 눈썹 높이, 눈 세로배율, 입 뒤집기, 입 가로배율, 입 세로배율] */
-  /* 부호 규칙 — 잘못 넣으면 만족이 분노로 보인다. 한 번 데였다.
-       눈썹 기울기 +  : 안쪽 끝이 내려간다 (화남)
-       눈썹 기울기 −  : 안쪽 끝이 올라간다 (순함·놀람)
-       입 뒤집기 π    : ∪ 웃는 입
-       입 뒤집기 0    : ∩ 찡그린 입 */
-  const TABLE = {
-    neutral: FACE_NEUTRAL,
-    annoyed: [ 0.30, 0.108, 0.85, 0,       0.80, 0.55],  // 눈썹 안쪽이 내려오고 입이 살짝 굳는다
-    angry:   [ 0.62, 0.095, 0.60, 0,       0.95, 1.00],  // 눈을 부라리고 입이 확 뒤집힌다
-    happy:   [-0.34, 0.140, 0.55, Math.PI, 1.30, 1.10],  // 웃는 눈, 활짝 올라간 입
-    shocked: [-0.10, 0.170, 1.30, Math.PI, 0.55, 1.80]   // 눈썹이 뜨고 입이 벌어진다
-  };
-  const [tilt, browY, eyeY, mRot, mX, mY] = TABLE[mood] || FACE_NEUTRAL;
+  const [tilt, browY, eyeY, mRot, mX, mY] = FACE_POSE[mood] || FACE_NEUTRAL;
 
+  /* 눈썹 높이는 표의 값을 그대로 쓰지 않고 기본값과의 차이만 더한다.
+     그래야 얼굴을 위아래로 옮겨도 표가 그대로 살아 있다. */
   face.brows.forEach((b) => {
     b.rotation.z = tilt * b.userData.side;
-    b.position.y = browY;
+    b.position.y = face.browBaseY + (browY - FACE_NEUTRAL[1]) * 1.15;
   });
-  face.eyes.forEach((e) => e.scale.set(1, eyeY, 1));
+  face.eyes.forEach((e) => e.scale.set(1, 1.08 * eyeY, 1));
+
   face.mouth.rotation.z = mRot;
   face.mouth.scale.set(mX, mY, 1);
-  face.mouth.position.y = mRot === 0 ? -0.095 : -0.062;
+  // 찡그린 입(∩)은 호가 위로 볼록해서, 같은 자리에 두면 웃는 입보다 높아 보인다
+  face.mouth.position.y = face.mouthBaseY + (mRot === 0 ? -0.028 : 0);
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -1979,38 +2105,62 @@ function setFace(face, mood) {
      닿는 순간 표정이 통째로 안 보인다. 그래서 앞쪽을 z −0.06 뒤로 물린다.
    ──────────────────────────────────────────────────────────── */
 
-/** 머리카락 — 머리(구 r0.26, y1.26) 위에 얹는다 */
+/** 머리카락 — 큰 머리 위에 얕은 돔처럼 얹는다 */
 function buildHair(kind, color, g) {
-  const cap = (r, sy, y, z) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat(color));
-    m.position.set(0, y, z || -0.055);
-    m.scale.set(1, sy, 0.94);
+  if (kind !== 'bald') {
+    const model = asset('char/hair/' + kind, () => null);
+    if (model) {
+      // 직접 만든 머리 파츠(custom)만 색을 바꾸고 원본 모자 텍스처는 유지한다.
+      tintAssetMaterials(model, color,
+        (o, m) => String(m.name || '').toLowerCase().includes('custom'));
+      g.add(model);
+      return model;
+    }
+  }
+
+  /* 앞머리가 눈썹에 닿으면 표정이 통째로 죽는다 — 둘 다 짙어서 붙는 순간 구분이
+     안 된다. 그래서 통짜 구가 아니라 위쪽만 남긴 돔을 쓴다. 돔의 아래 끝이
+     눈썹 위에서 끊기므로, 머리를 아무리 키워도 이마를 덮지 않는다.
+
+     ⚠ 돔 반지름은 반드시 머리보다 커야 한다. 작으면 머리 속에 들어가 한 올도
+     안 보인다 — 오류도 안 나고 그냥 대머리가 된다. */
+  const dome = (r, above, flat) => {
+    // above = 돔의 아래 끝이 머리 중심보다 몇 m 위인가. 이 값이 클수록 얕은 모자
+    const t = Math.acos(Math.max(-1, Math.min(1, above / (r * 0.98))));
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 14, 9, 0, Math.PI * 2, 0, t), mat(color)
+    );
+    m.position.set(0, BODY.headY, -0.012);
+    m.scale.set(1, 0.98, flat || 0.95);
     g.add(m);
     return m;
   };
+  const R = BODY.headR + 0.014;                       // 머리보다 조금 크게 씌운다
+  const CLEAR = EYE_LOCAL + BODY.browUp + 0.035;     // 눈썹 윗변보다 3.5cm 위에서 끊는다
+
   switch (kind) {
-    case 'short': cap(0.255, 0.52, 1.45); break;
+    case 'short': dome(R, CLEAR); break;
     case 'bob':
-      cap(0.262, 0.60, 1.42);
+      dome(R + 0.004, CLEAR);
       for (const s of [-1, 1])                                  // 귀 옆으로 내려오는 단
-        box(0.075, 0.26, 0.20, color, s * 0.215, 1.24, -0.045, g);
+        box(0.11, 0.34, 0.32, color, s * 0.415, 1.84, -0.04, g);
       break;
     case 'bun':
-      cap(0.252, 0.50, 1.45);
-      { const b = new THREE.Mesh(new THREE.SphereGeometry(0.105, 7, 5), mat(color));
-        b.position.set(0, 1.44, -0.235); g.add(b); }             // 뒤로 묶은 쪽
+      dome(R, CLEAR);
+      { const b = new THREE.Mesh(new THREE.SphereGeometry(0.145, 8, 6), mat(color));
+        b.position.set(0, 2.02, -0.36); g.add(b); }             // 뒤로 묶은 쪽
       break;
     case 'spiky':
-      cap(0.248, 0.44, 1.44);
+      dome(R, CLEAR + 0.02);
       for (let i = 0; i < 5; i++) {                              // 위로 삐죽삐죽
-        const p = cyl(0.055, 0.16, color, (i - 2) * 0.085, 1.60, -0.05, g, 5, 0.005);
-        p.rotation.z = (i - 2) * 0.18;
+        const p = cyl(0.072, 0.24, color, (i - 2) * 0.115, 2.30, -0.05, g, 5, 0.006);
+        p.rotation.z = (i - 2) * 0.20;
       }
       break;
     case 'long':
-      cap(0.262, 0.58, 1.43);
-      box(0.40, 0.46, 0.17, color, 0, 1.14, -0.19, g);           // 등까지 내려오는 머리
-      for (const s of [-1, 1]) box(0.085, 0.30, 0.19, color, s * 0.20, 1.22, -0.04, g);
+      dome(R + 0.004, CLEAR);
+      box(0.58, 0.64, 0.27, color, 0, 1.52, -0.30, g);           // 등까지 내려오는 머리
+      for (const s of [-1, 1]) box(0.12, 0.50, 0.30, color, s * 0.412, 1.78, -0.03, g);
       break;
     case 'bald': default: break;                                 // 아무것도 안 얹는다
   }
@@ -2018,58 +2168,72 @@ function buildHair(kind, color, g) {
 
 /** 얼굴 소품 — makeFace 가 만든 눈·눈썹·입 위에 더한다 */
 function buildFaceStyle(kind, g) {
+  const FZ = BODY.faceZ;
   switch (kind) {
     case 'glasses':
       for (const s of [-1, 1]) {
-        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.011, 5, 12), mat(0x2f2b26));
-        rim.position.set(s * 0.092, 1.302, 0.243);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.092, 0.014, 5, 14), mat(0x2f2b26));
+        rim.position.set(s * 0.145, EYE, FZ + 0.022);
         g.add(rim);
       }
-      box(0.09, 0.012, 0.012, 0x2f2b26, 0, 1.302, 0.245, g);     // 코걸이
+      box(0.11, 0.014, 0.014, 0x2f2b26, 0, EYE, FZ + 0.024, g);       // 코걸이
       break;
     case 'freckle':
       for (let i = 0; i < 6; i++) {
         const s = i < 3 ? -1 : 1, k = i % 3;
-        cyl(0.011, 0.006, 0xc98a6a, s * (0.10 + k * 0.035), 1.235 + (k % 2) * 0.022, 0.238, g, 5)
-          .rotation.x = Math.PI / 2;
+        cyl(0.015, 0.006, 0xc98a6a, s * (0.155 + k * 0.048), EYE - 0.085 + (k % 2) * 0.03,
+          FZ + 0.005, g, 5).rotation.x = Math.PI / 2;
       }
       break;
     case 'beard':
-      { const b = new THREE.Mesh(new THREE.SphereGeometry(0.20, 8, 5), mat(0x4a3a30));
-        b.position.set(0, 1.14, 0.085); b.scale.set(1, 0.80, 0.88); g.add(b); }
+      // 입 아래에서 시작해 턱을 감싼다. 더 키우면 입까지 먹어 표정이 죽는다
+      { const b = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 6), mat(0x4a3a30));
+        b.position.set(0, EYE - BODY.mouthDown - 0.16, 0.14);
+        b.scale.set(1, 0.52, 0.84); g.add(b); }
       break;
     case 'blush':
       for (const s of [-1, 1])
-        cyl(0.045, 0.008, 0xe8907f, s * 0.155, 1.215, 0.212, g, 10).rotation.x = Math.PI / 2;
+        cyl(0.062, 0.008, 0xe8907f, s * 0.245, EYE - 0.10, FZ - 0.075, g, 10)
+          .rotation.x = Math.PI / 2;
       break;
     case 'plain': default: break;
   }
 }
 
-/** 상의 — 몸통(반지름 0.27·y 0.26~0.98) 위에 덧입힌다 */
+/** 상의 — 짧고 둥근 몸통 위에 덧입힌다 */
 function buildTop(kind, color, g, w) {
-  const R = 0.272 * (w || 1);
+  const model = asset('char/top/' + kind, () => null);
+  if (model) {
+    // 앞치마의 흰 천은 유지하고 custom 재질로 만든 부분만 선택 색을 쓴다.
+    tintAssetMaterials(model, color,
+      (o, m) => String(m.name || '').toLowerCase().includes('custom'));
+    g.add(model);
+    return model;
+  }
+
+  const R = (BODY.torsoR + 0.006) * (w || 1);
+  const TOP = BODY.shoulderY + 0.025;              // 실제 어깨선
   switch (kind) {
     case 'apron':
-      box(0.40 * (w || 1), 0.52, 0.03, 0xf2eee4, 0, 0.60, R, g);       // 앞치마 천
-      box(0.44 * (w || 1), 0.035, 0.03, 0xd8d2c4, 0, 0.86, R, g);      // 목끈
+      box(0.34 * (w || 1), 0.52, 0.03, 0xf2eee4, 0, BODY.torsoY - 0.04, R, g);   // 앞치마 천
+      box(0.38 * (w || 1), 0.035, 0.03, 0xd8d2c4, 0, TOP - 0.03, R, g);          // 목끈
       break;
     case 'stripe':
-      for (let i = 0; i < 4; i++)
-        cyl(R + 0.004, 0.055, color, 0, 0.40 + i * 0.16, 0, g, 14);    // 가로 줄
+      for (let i = 0; i < 3; i++)
+        cyl(R, 0.06, color, 0, BODY.torsoY - 0.20 + i * 0.20, 0, g, 12);         // 가로 줄
       break;
     case 'hoodie':
-      { const hd = new THREE.Mesh(new THREE.SphereGeometry(0.23, 8, 5), mat(color));
-        hd.position.set(0, 0.99, -0.13); hd.scale.set(1, 0.62, 0.75); g.add(hd); }  // 목 뒤 후드
-      box(0.05, 0.30, 0.03, 0xe8e2d6, 0, 0.80, R, g);                  // 앞 끈
+      { const hd = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 5), mat(color));
+        hd.position.set(0, TOP - 0.02, -0.13); hd.scale.set(1, 0.62, 0.75); g.add(hd); }
+      box(0.05, 0.26, 0.03, 0xe8e2d6, 0, BODY.torsoY, R, g);                     // 앞 끈
       break;
     case 'vest':
-      for (const s of [-1, 1])                                          // 앞섶 두 짝
-        box(0.13, 0.56, 0.03, color, s * 0.12, 0.62, R, g);
-      cyl(R + 0.006, 0.05, color, 0, 0.93, 0, g, 14);                   // 어깨 선
+      for (const s of [-1, 1])                                                    // 앞섶 두 짝
+        box(0.11, 0.46, 0.03, color, s * 0.10, BODY.torsoY - 0.02, R, g);
+      cyl(R + 0.006, 0.05, color, 0, TOP - 0.04, 0, g, 12);                       // 어깨 선
       break;
     case 'tee': default:
-      cyl(R + 0.005, 0.06, color, 0, 0.95, 0, g, 14);                   // 목둘레
+      cyl(R + 0.005, 0.055, color, 0, TOP - 0.03, 0, g, 12);                      // 목둘레
       break;
   }
 }
@@ -2103,9 +2267,18 @@ function customerLook(emoji, seed) {
  * 머리카락·상의는 몸에, 얼굴 소품은 얼굴이 붙은 그룹에 얹는다.
  */
 function applyLook(b, look, build) {
-  if (!b || !look || b.fromAsset) return;   // 직접 만든 모델은 이미 다 입고 있다고 본다
+  if (!b || !look) return;
   const L = sanitizeLook(look);
   const into = b.rig || b.group;
+  if (b.baseModel) {
+    const white = new THREE.Color(0xffffff);
+    const topTint = new THREE.Color(PART_COLORS.top[L.tc]).lerp(white, 0.45);
+    const bottomTint = new THREE.Color(PART_COLORS.bottom[L.bc]).lerp(white, 0.28);
+    tintAssetMaterials(b.baseModel, topTint,
+      (o) => String(o.name || '').toLowerCase() === 'basetop');
+    tintAssetMaterials(b.baseModel, bottomTint,
+      (o) => String(o.name || '').toLowerCase() === 'basebottom');
+  }
   buildHair(PARTS.hair[L.h].id, PART_COLORS.hair[L.hc], into);
   buildTop(PARTS.top[L.t].id, PART_COLORS.top[L.tc], into, build || 1);
   buildFaceStyle(PARTS.face[L.f].id, into);
@@ -2119,10 +2292,10 @@ function applyLook(b, look, build) {
 function accessorize(emoji, b, color) {
   const g = b.rig || b.group;
   const cap = (c) => {
-    cyl(0.245, 0.11, c, 0, 1.42, 0, g, 14);
-    box(0.30, 0.03, 0.20, c, 0, 1.38, 0.24, g);
+    cyl(0.30, 0.13, c, 0, HEAD_TOP - 0.06, 0, g, 12);
+    box(0.38, 0.035, 0.26, c, 0, HEAD_TOP - 0.10, 0.30, g);          // 챙
   };
-  const pack = (c) => box(0.34, 0.40, 0.16, c, 0, 0.70, -0.30, g);
+  const pack = (c) => box(0.38, 0.42, 0.18, c, 0, 0.92, -0.30, g);
   const ball = (c, r, x, y, z, sy) => {
     const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat(c));
     m.position.set(x, y, z); if (sy) m.scale.set(1, sy, 1); g.add(m);
@@ -2132,27 +2305,27 @@ function accessorize(emoji, b, color) {
   switch (emoji) {
     /* ── 일반 손님 8종 ── */
     case '🎒': pack(0x8a4f3a); break;
-    case '📦': box(0.34, 0.28, 0.26, 0xc9a26b, 0, 0.86, 0.34, g); cap(0x3f6b8f); break;
-    case '👜': box(0.19, 0.16, 0.09, 0x7a4a6b, 0.30, 0.72, 0.06, g); break;
-    case '💼': box(0.09, 0.55, 0.02, 0x8a2f38, 0, 0.80, 0.30, g);          // 넥타이
-               box(0.22, 0.17, 0.07, 0x3a2f28, 0.31, 0.55, 0, g); break;   // 서류가방
+    case '📦': box(0.36, 0.30, 0.28, 0xc9a26b, 0, 1.16, 0.34, g); cap(0x3f6b8f); break;
+    case '👜': box(0.20, 0.17, 0.10, 0x7a4a6b, 0.34, 0.86, 0.06, g); break;
+    case '💼': box(0.09, 0.44, 0.02, 0x8a2f38, 0, 1.06, 0.24, g);          // 넥타이
+               box(0.23, 0.18, 0.08, 0x3a2f28, 0.34, 0.72, 0, g); break;   // 서류가방
     case '🥾': cap(0x4f8f58); pack(0x3f6b4a); break;
-    case '🎈': cyl(0.006, 0.62, 0xbbbbbb, 0.26, 1.30, 0.10, g, 4);         // 풍선 끈
-               ball(0xd96a6a, 0.13, 0.26, 1.72, 0.10, 1.2); break;
+    case '🎈': cyl(0.006, 0.70, 0xbbbbbb, 0.30, 1.30, 0.10, g, 4);         // 풍선 끈
+               ball(0xd96a6a, 0.15, 0.30, 1.78, 0.10, 1.2); break;
     case '🧃': cap(0x3f8f8a); break;                                       // 앞치마는 상의 파츠가 맡는다
-    case '🏋️': b.torso.scale.set(1.08, 1, 1.08); break;                    // 떡 벌어진 어깨
+    case '🏋️': b.torso.scale.set(1.10, 1, 1.10); break;                    // 떡 벌어진 어깨
 
     /* ── 카운터 진상 6종 ── */
-    case '🧔': ball(color, 0.30, 0, 0.62, 0.10, 0.9); break;               // 배 (수염은 얼굴 파츠)
+    case '🧔': ball(color, 0.26, 0, 0.80, 0.10, 0.9); break;               // 배 (수염은 얼굴 파츠)
     case '🕶️': break;                                                     // 선글라스는 얼굴 파츠가 맡는다
     case '👵': g.scale.setScalar(0.88); break;                             // 작은 키 (흰 쪽머리는 머리 파츠)
     case '🎥': cap(0x2f3540);
-               box(0.17, 0.13, 0.20, 0x2a2a2e, 0, 1.02, 0.42, g);          // 카메라
-               cyl(0.055, 0.06, 0x14141a, 0, 1.02, 0.53, g, 10); break;
-    case '⭐': ball(0xf0c53a, 0.075, 0.16, 0.86, 0.29);                    // 별 뱃지
-               box(0.11, 0.19, 0.02, 0x24242a, -0.22, 0.82, 0.28, g); break;  // 들고 있는 폰
-    case '🛵': ball(0xd8443c, 0.285, 0, 1.30, 0);                          // 헬멧
-               box(0.34, 0.13, 0.03, 0x1a1a20, 0, 1.28, 0.235, g); break;  // 바이저
+               box(0.19, 0.15, 0.22, 0x2a2a2e, 0, 1.30, 0.42, g);          // 카메라
+               cyl(0.06, 0.06, 0x14141a, 0, 1.30, 0.53, g, 10); break;
+    case '⭐': ball(0xf0c53a, 0.085, 0.19, 1.14, 0.24);                    // 별 뱃지
+               box(0.12, 0.20, 0.02, 0x24242a, -0.26, 0.98, 0.22, g); break;  // 들고 있는 폰
+    case '🛵': ball(0xd8443c, 0.448, 0, BODY.headY, 0);                    // 헬멧
+               box(0.48, 0.17, 0.03, 0x1a1a20, 0, EYE, BODY.faceZ + 0.03, g); break;
     default:  break;
   }
 }
@@ -2162,19 +2335,30 @@ function accessorize(emoji, b, color) {
  * 뭘 들고 있으면 팔은 앞으로 모아 둔다. 안 그러면 든 물건이 팔에서 떨어져 나간다.
  * 돌려주는 값은 걸을 때 몸이 들썩이는 높이다.
  */
+const LIMB_AXIS_X = new THREE.Vector3(1, 0, 0);
+const LIMB_DELTA = new THREE.Quaternion();
+
 function poseLimbs(b, phase, walking, holding) {
   if (!b) return 0;
   const sw = walking ? Math.sin(phase) * 0.62 : 0;
-  b.legs[0].rotation.x = sw;
-  b.legs[1].rotation.x = -sw;
+  /* GLB 뼈에는 Blender→glTF 축 변환용 기본 회전(현재 X축 180°)이 있다.
+     rotation.x를 바로 대입하면 그 보정이 사라져 다리가 몸통 안으로 접힌다.
+     원래 쿼터니언을 되살린 뒤 로컬 X축 보행 각도만 곱한다. */
+  const pose = (part, rest, angle) => {
+    if (!part) return;
+    if (rest) part.quaternion.copy(rest).multiply(LIMB_DELTA.setFromAxisAngle(LIMB_AXIS_X, angle));
+    else part.rotation.x = angle;
+  };
+  pose(b.legs[0], b.legRest && b.legRest[0], sw);
+  pose(b.legs[1], b.legRest && b.legRest[1], -sw);
   if (holding) {
-    b.arms[0].rotation.x = -0.95;
-    b.arms[1].rotation.x = -0.95;
+    pose(b.arms[0], b.armRest && b.armRest[0], -0.95);
+    pose(b.arms[1], b.armRest && b.armRest[1], -0.95);
   } else {
-    b.arms[0].rotation.x = -sw * 0.72;
-    b.arms[1].rotation.x = sw * 0.72;
+    pose(b.arms[0], b.armRest && b.armRest[0], -sw * 0.72);
+    pose(b.arms[1], b.armRest && b.armRest[1], sw * 0.72);
   }
-  return walking ? Math.abs(Math.sin(phase)) * 0.045 * BODY_SCALE : 0;
+  return walking ? Math.abs(Math.sin(phase)) * 0.063 : 0;
 }
 
 function makeOutline(parent, build) {
@@ -2187,12 +2371,13 @@ function makeOutline(parent, build) {
   const g = new THREE.Group();
 
   // 몸통·머리가 재질을 따로 갖는다 — 손님이 나갈 때 disposeObject 가 같은 걸 두 번 놓지 않게
-  const R = 0.36 * (build || 1);      // 팔 끝(0.30w + 0.05)까지 감싸는 크기
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 1.0, 14), skin());
-  body.position.y = 0.5;
+  const R = (BODY.shoulderX + BODY.armR + 0.055) * (build || 1);
+  const bodyH = BODY.shoulderY + 0.10;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R, bodyH, 14), skin());
+  body.position.y = bodyH / 2;
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 7), skin());
-  head.position.y = 1.26;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(BODY.headR + 0.035, 12, 8), skin());
+  head.position.y = BODY.headY;
 
   g.add(body, head);
   g.visible = false;
@@ -2243,14 +2428,15 @@ function paintHp(bar, hp) {
 
 function makeCustomer(info) {
   const counter = info.kind === KIND.COUNTER;
+  const look = customerLook(info.emoji, info.seed);
   // 진상은 덩치부터 다르게 — 색만 다르면 줄 서 있을 때 누가 진상인지 모른다
   const b = makeBody(info.color, { build: counter ? 1.12 : 1 });
   const g = b.group;
   /* 고른 조합 — 손님은 seed 에서 뽑는다. 네트워크로 오는 값이 아니다.
      소품(백팩·헬멧 등)은 그 위에 덧붙는다. */
-  applyLook(b, customerLook(info.emoji, info.seed), counter ? 1.12 : 1);
+  applyLook(b, look, counter ? 1.12 : 1);
   // 직접 만든 모델은 소품까지 들고 있다고 본다 — 코드가 또 붙이면 겹친다
-  if (!b.fromAsset) accessorize(info.emoji, b, info.color);
+  accessorize(info.emoji, b, info.color);
   const face = makeFace(b.rig, counter ? { brow: 0x5a2f28 } : null);
   // 아바타는 얼굴이 로컬 +z 를 향한다. 손님은 카운터(자기보다 +z 쪽)를 본다.
   g.rotation.y = 0;
@@ -2363,9 +2549,9 @@ function syncCustomers() {
       const o = c.id === focus.focusId ? glow : OUTLINE_TIE;
       d.outline.body.material.opacity = o;
       d.outline.head.material.opacity = o;
-      const bs = rimScale(kk, far, d.outline.r * BODY_SCALE, 1.40);
+      const bs = rimScale(kk, far, d.outline.r, 1.40);
       d.outline.body.scale.set(bs, 1.05, bs);    // y 는 1.05 고정 — 1.0 이면 어깨 테두리가 끊긴다
-      d.outline.head.scale.setScalar(rimScale(kk, far, 0.26 * BODY_SCALE, 1.28));
+      d.outline.head.scale.setScalar(rimScale(kk, far, BODY.headR, 1.28));
     }
 
     /* 체력바 — 기다리는 동안에만 보여준다 */
@@ -2443,11 +2629,11 @@ function syncCustomers() {
    동료 아바타
    ──────────────────────────────────────────────────────────── */
 function makeAvatar(name, color, look) {
-  const b = makeBody(new THREE.Color(color).getHex(), { assetName: 'char/avatar' });
+  const L = sanitizeLook(look);
+  const b = makeBody(new THREE.Color(color).getHex());
   const g = b.group;
   applyLook(b, look, 1);
-  cyl(0.28, 0.09, 0xffffff, 0, 1.46, 0, b.rig, 14);   // 조리모 — 머리와 같이 커진다
-  makeFace(g, null);
+  makeFace(g, { mood: characterMood(L.e) });
   const p = fittedPanel(name, 1.5, false);
   p.text(name, { color: "#fff" });
   p.sprite.position.y = 2.52;
@@ -2565,7 +2751,6 @@ export function initWorld(canvas) {
   scene.add(camera);
 
   buildRoom();
-  buildZones();
   buildFridge();
   buildSink();
   buildCookers();
@@ -2631,8 +2816,9 @@ export function stats() {
  * 여기서 보이는 모습이 실제로 보일 모습과 같다.
  */
 export function previewBody(look) {
-  const b = makeBody(0xc9c2b4, {});
-  makeFace(b.group, null);
+  const L = sanitizeLook(look);
+  const b = makeBody(0xc9c2b4);
+  makeFace(b.group, { mood: characterMood(L.e) });
   applyLook(b, look, 1);
   return b.group;
 }

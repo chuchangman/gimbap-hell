@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'public', 'assets');
+const ONLY = new Set(process.argv.slice(2));
+let generatedCount = 0;
 
 const C = {
   gim: '#0b1710', gimEdge: '#163021', riceRaw: '#efe7d2', rice: '#fbf7ec',
@@ -82,7 +84,30 @@ function uvSphere(rx, ry, rz, slices = 10, stacks = 5) {
   }
   for (let y = 0; y < stacks; y++) for (let x = 0; x < slices; x++) {
     const a = y * (slices + 1) + x, b = a + slices + 1;
-    i.push(a, b, a + 1, a + 1, b, b + 1);
+    i.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  return { positions: p, normals: n, indices: i };
+}
+
+/* 완벽한 타원 대신 둘레와 높이가 살짝 흔들리는 밥 덩어리.
+   실루엣은 low-poly로 유지하면서 '하얀 공'처럼 보이는 느낌을 줄인다. */
+function riceMound(rx, ry, rz, slices = 14, stacks = 7) {
+  const p = [], n = [], i = [];
+  for (let y = 0; y <= stacks; y++) {
+    const v = y / stacks, phi = v * Math.PI, sp = Math.sin(phi), cp = Math.cos(phi);
+    for (let x = 0; x <= slices; x++) {
+      const a = x / slices * Math.PI * 2;
+      const wobble = 1 + sp * (.035 * Math.sin(a * 3 + .4) + .022 * Math.cos(a * 5 - .7));
+      const px = sp * Math.cos(a) * wobble, pz = sp * Math.sin(a) * wobble;
+      const py = cp * (1 + .018 * Math.sin(a * 4) * sp);
+      p.push(px * rx, py * ry, pz * rz);
+      const nx = px / rx, ny = py / ry, nz = pz / rz, l = Math.hypot(nx, ny, nz);
+      n.push(nx / l, ny / l, nz / l);
+    }
+  }
+  for (let y = 0; y < stacks; y++) for (let x = 0; x < slices; x++) {
+    const a = y * (slices + 1) + x, b = a + slices + 1;
+    i.push(a, a + 1, b, a + 1, b + 1, b);
   }
   return { positions: p, normals: n, indices: i };
 }
@@ -103,7 +128,7 @@ function eggShape(rx = .13, height = .33, rz = .13, slices = 10, stacks = 7) {
   }
   for (let y = 0; y < stacks; y++) for (let x = 0; x < slices; x++) {
     const a = y * (slices + 1) + x, b = a + slices + 1;
-    i.push(a,b,a+1, a+1,b,b+1);
+    i.push(a,a+1,b, a+1,b+1,b);
   }
   return { positions:p, normals:n, indices:i };
 }
@@ -141,7 +166,7 @@ function extrudeY(points, height) {
     const base = p.length / 3;
     for (const [x,z] of points) { p.push(x,yy,z); n.push(0,ny,0); }
     for (let k = 1; k < count - 1; k++) {
-      if (reverse) i.push(base,base+k+1,base+k); else i.push(base,base+k,base+k+1);
+      if (reverse) i.push(base,base+k,base+k+1); else i.push(base,base+k+1,base+k);
     }
   }
   return { positions: p, normals: n, indices: i };
@@ -245,8 +270,10 @@ class Asset {
 
 const T = (g, t, r, s) => transform(g, { t, r, s });
 const save = (name, build) => {
+  if (ONLY.size && !ONLY.has(name)) return;
   const asset = new Asset(name); build(asset);
   asset.write(path.join(OUT, name + '.glb'));
+  generatedCount++;
   console.log(`${name}.glb`);
 };
 
@@ -286,66 +313,143 @@ save('fill/fishcake', a => {
 
 // 손질 전 원물.
 save('raw/danmuji', a => {
-  a.add('radish', T(cylinder(.075,.50,10),[0,0,0],[0,0,Math.PI/2]), C.danmuji);
-  a.add('cut_end', T(cylinder(.064,.006,10),[.253,0,0],[0,0,Math.PI/2]), '#ffe253');
+  // 완벽한 원통 대신 가운데가 살짝 굵고 양끝이 다른 절임무 형태.
+  const profile=[[0,-.25],[.057,-.25],[.069,-.235],[.076,-.15],[.074,-.04],
+    [.078,.07],[.071,.18],[.059,.25],[0,.25]];
+  a.add('radish_body', T(revolveProfile(profile,12),[0,0,0],[0,0,Math.PI/2]), '#efd226', { roughness:.94 });
+  a.add('cut_skin', T(cylinder(.060,.008,12),[.254,0,0],[0,0,Math.PI/2]), '#e7c621', { roughness:.96 });
+  a.add('cut_flesh', T(cylinder(.052,.010,12),[.259,0,0],[0,0,Math.PI/2]), '#ffe568', { roughness:.98 });
+  a.add('far_cut', T(cylinder(.053,.007,12),[-.254,0,0],[0,0,Math.PI/2]), '#f8dc4b', { roughness:.98 });
+  for(const [i,y,z] of [[0,.018,.010],[1,-.022,.022],[2,.006,-.027],[3,.035,-.016]])
+    a.add(`cut_pore_${i}`, T(uvSphere(.004,.006,.004,6,3),[.265,y,z]), '#d1ad1d', { roughness:1 });
+  for(const [i,x,r] of [[0,-.12,.073],[1,.02,.076],[2,.15,.066]])
+    a.add(`pickle_ridge_${i}`, T(cylinder(r,.008,12),[x,0,0],[0,0,Math.PI/2]), '#e2bf1e', { roughness:.98 });
 });
 save('raw/ham', a => {
-  a.add('ham_block', box(.34,.11,.24), C.hamRaw);
-  for (let k=-1;k<=1;k++) a.add(`ham_layer_${k+2}`, T(box(.342,.006,.242),[0,k*.035,0]), '#e9a9ad');
+  const hamOutline=[[-.17,-.082],[-.162,-.105],[-.135,-.12],[.135,-.12],[.162,-.105],[.17,-.082],
+    [.17,.082],[.158,.105],[.132,.12],[-.132,.12],[-.158,.105],[-.17,.082]];
+  const inner=hamOutline.map(([x,z])=>[x*.93,z*.88]);
+  // 얇고 짙은 염지층 안에 밝은 살코기가 들어간 통햄 단면.
+  a.add('ham_rind', extrudeY(hamOutline,.11), '#b96f76', { roughness:.91 });
+  a.add('ham_meat', T(extrudeY(inner,.094),[0,-.003,0]), '#e7a5aa', { roughness:.86 });
+  a.add('ham_cut_surface', T(extrudeY(inner,.008),[0,.052,0],[0,0,0],[.985,1,.985]), '#efb3b6', { roughness:.91 });
+  a.add('ham_bottom_seam', T(extrudeY(inner,.006),[0,-.053,0]), '#cc858b', { roughness:.94 });
+  // 지방 결은 직선 스티커 대신 작은 타원들을 이어 붙여 자연스럽게 굽힌다.
+  const veins=[
+    [[-.125,-.052],[-.096,-.047],[-.066,-.036],[-.038,-.019]],
+    [[-.018,.020],[.012,.010],[.040,-.006],[.067,-.020]],
+    [[.055,.070],[.083,.062],[.108,.048],[.132,.030]],
+    [[-.108,.070],[-.083,.077],[-.056,.073]],
+  ];
+  veins.forEach((points,v)=>points.forEach(([x,z],j)=>
+    a.add(`fat_marble_${v}_${j}`, T(uvSphere(.019-j*.001,.0034,.0075,7,3),[x,.059,z],[0,-.34+j*.17,0]),
+      (v+j)%2?'#f6d5d0':'#fae2dc', { roughness:.97 })));
+  // 큰 지방 알갱이와 염지 기공을 섞어 단면이 플라스틱처럼 매끈해 보이지 않게 한다.
+  for(const [i,x,z,rx,rz] of [[0,-.036,-.076,.012,.007],[1,.090,-.072,.009,.006],[2,.126,.078,.008,.005],
+    [3,-.136,.018,.007,.010],[4,.020,.079,.010,.006]])
+    a.add(`fat_fleck_${i}`, T(uvSphere(rx,.0032,rz,7,3),[x,.060,z],[0,i*.51,0]), '#f8d8d1', { roughness:.98 });
+  for(const [i,x,z,s] of [[0,-.12,.004,.004],[1,-.025,-.078,.0035],[2,.070,.082,.004],[3,.130,-.045,.0035],
+    [4,-.070,.035,.003],[5,.035,.045,.003]])
+    a.add(`cure_pore_${i}`, T(uvSphere(s,.0025,s,6,3),[x,.062,z]), '#a86168', { roughness:1 });
 });
 save('raw/egg', a => {
-  a.add('egg_shell', eggShape(.13,.33,.13,10,7), '#f4ead5', { roughness:.98 });
+  a.add('egg_shell', eggShape(.13,.33,.125,12,9), '#f2e5cd', { roughness:.97 });
+  // 눈에 띄지 않을 만큼만 껍질 반점을 올려 플라스틱 공처럼 보이지 않게 한다.
+  for(const [i,x,y,z,s] of [[0,.090,.040,.070,.006],[1,-.075,.070,.078,.005],
+    [2,.035,-.085,.110,.004],[3,-.105,-.020,.035,.004],[4,.060,.105,-.055,.004],
+    [5,-.040,.125,.030,.0035]])
+    a.add(`shell_speck_${i}`, T(uvSphere(s,s*.38,s,6,3),[x,y,z]), '#c8ad82', { roughness:1 });
 });
 save('raw/cucumber', a => {
-  a.add('skin', T(cylinder(.08,.50,10),[0,0,0],[0,0,Math.PI/2]), C.cucumberSkin);
-  a.add('cut_face', T(cylinder(.069,.008,10),[.254,0,0],[0,0,Math.PI/2]), C.cucumber);
-  a.add('seed', T(uvSphere(.012,.004,.005,6,3),[.259,.018,0],[0,0,Math.PI/2]), '#e4efad');
-  a.add('seed2', T(uvSphere(.012,.004,.005,6,3),[.259,-.012,.020],[0,0,Math.PI/2]), '#e4efad');
+  const profile=[[0,-.25],[.064,-.25],[.073,-.23],[.079,-.13],[.076,-.02],
+    [.081,.10],[.074,.22],[.064,.25],[0,.25]];
+  a.add('skin', T(revolveProfile(profile,12),[0,0,0],[0,0,Math.PI/2]), '#2f6f2d', { roughness:.93 });
+  for(let i=0;i<6;i++) {
+    const angle=i/6*Math.PI*2, y=Math.cos(angle)*.074, z=Math.sin(angle)*.074;
+    a.add(`skin_ridge_${i}`, T(box(.38,.008,.010),[0,y,z],[angle,0,0]), i%2?'#397d34':'#245e27', { roughness:.98 });
+  }
+  a.add('cut_rind', T(cylinder(.067,.010,12),[.254,0,0],[0,0,Math.PI/2]), '#77ad45', { roughness:.97 });
+  a.add('cut_face', T(cylinder(.057,.012,12),[.260,0,0],[0,0,Math.PI/2]), '#b8d96d', { roughness:.98 });
+  const seeds=[[.024,0],[-.018,.020],[-.018,-.020],[.004,.030],[.004,-.030]];
+  seeds.forEach(([y,z],i)=>a.add(`seed_${i}`,T(uvSphere(.004,.011,.005,6,3),[.268,y,z],[0,0,Math.PI/2]),'#e7efb5',{roughness:1}));
+  for(const [i,x,y,z] of [[0,-.14,.071,.018],[1,-.02,-.052,.052],[2,.13,.025,-.071]])
+    a.add(`skin_bump_${i}`, T(uvSphere(.007,.004,.006,6,3),[x,y,z]), '#4b8b3c', { roughness:1 });
 });
 save('raw/spinach', a => {
-  for (let k=0;k<5;k++) {
-    const z=(k-2)*.045, x=(k-2)*.085;
-    a.add(`stem_${k}`, T(cylinder(.012,.30,7),[x*.45,-.015,z],[0,0,Math.PI/2]), '#72a950');
-    a.add(`leaf_${k}`, T(uvSphere(.115,.028,.072,7,4),[x+.03,(k%2)*.025,z],[0,k*.7,(k-2)*.10]), k%2 ? C.spinachRaw : '#347d35');
+  const leaf=[[-.115,0],[-.075,-.045],[.015,-.072],[.115,-.046],[.165,0],
+    [.115,.046],[.015,.072],[-.075,.045]];
+  for (let k=0;k<6;k++) {
+    const z=(k-2.5)*.038, angle=(k-2.5)*.14, y=(k%3-1)*.018;
+    a.add(`stem_${k}`, T(cylinder(.010,.28,7),[-.125,y,z],[0,0,Math.PI/2]), k%2?'#78ad58':'#659c4c', { roughness:.98 });
+    a.add(`leaf_${k}`, T(extrudeY(leaf,.014),[.070,y+.008,z],[0,angle,(k-2.5)*.035]), k%2 ? '#3f8f38' : '#347d35', { roughness:.96 });
+    a.add(`vein_${k}`, T(cylinder(.006,.245,6),[.070,y+.018,z],[0,angle,Math.PI/2]), '#78a95a', { roughness:1 });
   }
+  a.add('stem_bundle', T(cylinder(.037,.09,8),[-.245,0,0],[0,0,Math.PI/2]), '#9bb96b', { roughness:.98 });
+  a.add('tie', T(cylinder(.044,.026,8),[-.205,0,0],[0,0,Math.PI/2]), '#d7b875', { roughness:.90 });
 });
 save('raw/carrot', a => {
-  a.add('carrot_root', T(cylinder(.085,.42,10,.025),[0,0,0],[0,0,-Math.PI/2]), C.carrot);
-  for (let k=-1;k<=1;k++) a.add(`carrot_leaf_${k}`, T(uvSphere(.070,.025,.035,7,3),[-.22,.045,k*.035],[0,k*.6,k*.22]), '#4f8f38');
+  const profile=[[0,-.235],[.014,-.235],[.026,-.19],[.040,-.10],[.057,.02],
+    [.076,.13],[.084,.195],[.066,.22],[0,.22]];
+  a.add('carrot_root', T(revolveProfile(profile,12),[0,0,0],[0,0,Math.PI/2]), '#dc641d', { roughness:.96 });
+  for(const [i,x,r] of [[0,-.12,.078],[1,-.035,.063],[2,.055,.050],[3,.135,.036]])
+    a.add(`root_groove_${i}`, T(cylinder(r,.009,12),[x,0,0],[0,0,Math.PI/2]), '#b94c19', { roughness:1 });
+  a.add('stem_cap', T(cylinder(.047,.028,10),[-.226,0,0],[0,0,Math.PI/2]), '#587c32', { roughness:.98 });
+  for (let k=-2;k<=2;k++) {
+    a.add(`carrot_stem_${k}`, T(cylinder(.009,.11,7),[-.275,.025,k*.020],[0,0,Math.PI/2]), '#568938', { roughness:.98 });
+    a.add(`carrot_leaf_${k}`, T(uvSphere(.060,.018,.025,7,3),[-.325,.045+(k%2)*.020,k*.028],[0,k*.35,k*.18]), k%2?'#4f8f38':'#3f7d32', { roughness:.98 });
+  }
 });
 save('raw/fishcake', a => {
-  for (let k=0;k<2;k++) {
-    const z=-.025+k*.05, rot=(k?-.08:.10);
-    a.add(`fishcake_sheet_${k}`, T(box(.40,.025,.29),[0,-.012+k*.028,z],[0,rot,0]), C.fishcake);
-    for (let d=-2;d<=2;d++) a.add(`toast_${k}_${d}`, T(box(.025,.001,.022),[d*.07,.001+k*.028,z+d%2*.018],[0,rot,0]), '#d9c39c');
+  const sheet=[[-.20,-.112],[-.178,-.132],[-.132,-.145],[-.073,-.137],[-.015,-.148],[.048,-.139],
+    [.112,-.146],[.168,-.132],[.20,-.108],[.198,.104],[.174,.126],[.120,.142],[.058,.135],
+    [-.004,.147],[-.070,.137],[-.137,.145],[-.182,.128],[-.20,.105]];
+  for (let k=0;k<3;k++) {
+    const y=-.025+k*.025, z=(k-1)*.022, rot=(k-1)*.065;
+    a.add(`fishcake_edge_${k}`, T(extrudeY(sheet,.026),[0,y,z],[0,rot,0]), k===2?'#a96f49':'#9d6847', { roughness:.96 });
+    a.add(`fishcake_surface_${k}`, T(extrudeY(sheet,.010),[0,y+.017,z],[0,rot,0],[.955,1,.92]), k%2?'#d9b184':'#e4bd8d', { roughness:.90 });
   }
+  // 맨 윗장에 눌린 주름, 기름 기포, 불규칙한 구운 반점을 따로 얹는다.
+  for(const [i,x,z,len,rot] of [[0,-.085,-.050,.13,.12],[1,.070,.018,.11,-.18],[2,-.010,.080,.085,.35],
+    [3,.115,.088,.060,-.42]])
+    a.add(`fishcake_crease_${i}`, T(box(len,.0025,.006),[x,.043,z+.022],[0,rot,0]), '#bc8b60', { roughness:.98 });
+  for (let d=0;d<18;d++) {
+    const x=-.162+(d%7)*.052+(d%2)*.008, z=-.100+((d*5)%7)*.032;
+    a.add(`toast_${d}`, T(uvSphere(.008+(d%3)*.002,.0022,.005+(d%2)*.002,6,3),[x,.046,z]), d%4?'#b77c50':'#ca9362', { roughness:1 });
+  }
+  for(const [i,x,z] of [[0,-.13,.095],[1,.118,-.072],[2,.020,-.105]])
+    a.add(`oil_blister_${i}`, T(uvSphere(.012,.003,.009,7,3),[x,.046,z]), '#efd0a4', { roughness:.78 });
 });
 
 // 김, 쌀, 밥.
 save('item/gim', a => {
-  a.add('gim_sheet', box(.64,.014,.52), C.gim, { doubleSided: true });
-  a.add('top_edge', T(box(.64,.004,.018),[0,.009,.251]), C.gimEdge);
-  a.add('bottom_edge', T(box(.64,.004,.018),[0,.009,-.251]), C.gimEdge);
-  for (let k=-2;k<=2;k++) a.add(`fiber_${k}`, T(box(.006,.002,.47),[k*.105,.008,0]), k%2 ? '#294c32' : '#355b3d');
+  a.add('gim_sheet', box(.64,.014,.52), '#101110', { doubleSided: true, roughness:.96 });
 });
 save('item/rice', a => {
-  const bowlProfile = [[0,-.070],[.10,-.070],[.145,-.052],[.180,-.016],[.205,.032],[.210,.058],
-    [.188,.058],[.180,.034],[.155,.004],[.120,-.023],[0,-.023]];
-  a.add('bowl', revolveProfile(bowlProfile,12), '#e8eee9', { roughness:.88 });
-  a.add('bowl_base', T(cylinder(.105,.012,12),[0,-.064,0]), '#b8c9c5', { roughness:.82 });
-  a.add('rice_surface', T(cylinder(.153,.020,12),[0,.027,0]), C.riceRaw);
-  for (let k=0;k<14;k++) {
-    const a0=k*2.399, rr=.030+.009*(k%4), x=Math.cos(a0)*rr*(1+k/18), z=Math.sin(a0)*rr*(1+k/18);
-    a.add(`grain_${k}`, T(uvSphere(.018,.007,.009,6,3),[x,.041+(k%3)*.002,z],[0,a0,k*.17]), k%3 ? C.riceRaw : '#faf5e8');
+  const bowlProfile = [[0,-.070],[.078,-.070],[.102,-.062],[.135,-.045],[.174,-.010],[.203,.036],[.212,.058],
+    [.211,.064],[.186,.064],[.176,.040],[.151,.008],[.120,-.018],[.088,-.031],[0,-.031]];
+  a.add('bowl', revolveProfile(bowlProfile,16), '#edf1eb', { roughness:.84 });
+  a.add('bowl_base', T(cylinder(.098,.012,14),[0,-.069,0]), '#aebfba', { roughness:.86 });
+  a.add('bowl_accent', T(cylinder(.146,.006,16),[0,-.031,0]), '#b8cfca', { roughness:.90 });
+  a.add('rice_shadow', T(cylinder(.168,.006,16),[0,.006,0]), '#bdb39f', { roughness:.98 });
+  a.add('rice_surface', T(riceMound(.166,.033,.166,16,4),[0,.026,0]), '#e9dfca', { roughness:.96 });
+  for (let k=0;k<52;k++) {
+    const a0=k*2.399, rr=.148*Math.sqrt((k+.55)/52), x=Math.cos(a0)*rr, z=Math.sin(a0)*rr;
+    const y=.054+.010*(1-rr/.148)+(k%4)*.0008;
+    const long=.0125+(k%4)*.0007, wide=.0052+(k%3)*.0004;
+    a.add(`grain_${k}`, T(uvSphere(long,.0042,wide,7,3),[x,y,z],[0,a0+(k%5)*.12,0]),
+      k%5 ? C.riceRaw : '#fffaf0', { roughness:.98 });
   }
-  a.add('water', T(cylinder(.158,.003,12),[0,.052,0]), C.water, { opacity:.14, roughness:.30 });
+  // 게임 코드가 washed 상태에서만 켠다. 노드 이름은 런타임 계약상 유지한다.
+  a.add('water', T(cylinder(.176,.002,16),[0,.066,0]), C.water, { opacity:.28, roughness:.34 });
 });
 save('item/bap', a => {
-  a.add('rice_mound', uvSphere(.20,.11,.17,10,6), C.rice);
-  for (let k=0;k<12;k++) {
-    const a0=k*2.4, rr=.025+.012*(k%5), x=Math.cos(a0)*rr*(1+k/10), z=Math.sin(a0)*rr*(1+k/10);
-    const y=.085*Math.sqrt(Math.max(0,1-(x*x/.04)-(z*z/.0289)));
-    a.add(`cooked_grain_${k}`, T(uvSphere(.020,.008,.010,6,3),[x,y+.012,z],[0,a0,k*.21]), k%2 ? '#ffffff' : '#f0eadb');
+  a.add('rice_mound', riceMound(.194,.104,.164,16,8), '#f4efe5', { roughness:.82 });
+  for (let k=0;k<46;k++) {
+    const a0=k*2.399, rr=.162*Math.sqrt((k+.4)/46), x=Math.cos(a0)*rr, z=Math.sin(a0)*rr*.84;
+    const y=.101*Math.sqrt(Math.max(0,1-(x*x/.039)-(z*z/.028)))+.008;
+    const long=.0135+(k%3)*.0008, wide=.0062+(k%2)*.0005;
+    a.add(`cooked_grain_${k}`, T(uvSphere(long,.0052,wide,7,3),[x,y,z],[0,a0+(k%4)*.18,0]),
+      k%4 ? '#fffdf8' : '#e8e0d3', { roughness:.78 });
   }
 });
 
@@ -436,6 +540,100 @@ save('station/cooker', a => {
   for(const s of [-1,1]) a.add(`cooker_handle_${s}`, T(box(.08,.055,.17),[.05+s*.39,1.27,0]), '#cbc6bd');
 });
 
+save('station/sink', a => {
+  // 청록색 업소용 받침대
+  a.add('counter_kick', T(box(1.15,.13,1.95),[0,.065,0]), '#3f5962');
+  a.add('counter_body', T(box(1.30,.82,2.10),[0,.54,0]), '#8fb4c4');
+  a.add('counter_trim', T(box(1.30,.024,2.10),[0,.945,0]), '#637f8b');
+  a.add('counter_top', T(box(1.30,.09,2.10),[0,.99,0]), '#d7dee2', { metallic:.24, roughness:.58 });
+
+  // 상자를 겹치지 않고 벽 네 장과 바닥으로 만들어 실제로 열린 개수대로 보이게 한다.
+  const rim='#b9c4c9', deep='#5d6870';
+  a.add('basin_left', T(box(.055,.20,1.36),[-.41,1.14,0]), rim, { metallic:.32, roughness:.48 });
+  a.add('basin_right', T(box(.055,.20,1.36),[.51,1.14,0]), rim, { metallic:.32, roughness:.48 });
+  a.add('basin_front', T(box(.975,.20,.055),[.05,1.14,-.68]), rim, { metallic:.32, roughness:.48 });
+  a.add('basin_back', T(box(.975,.20,.055),[.05,1.14,.68]), rim, { metallic:.32, roughness:.48 });
+  a.add('basin_floor', T(box(.92,.03,1.36),[.05,1.055,0]), deep, { metallic:.24, roughness:.62 });
+  a.add('drain', T(cylinder(.075,.016,10),[.05,1.074,0]), '#3f474d', { metallic:.45, roughness:.42 });
+
+  // 수도꼭지: 밑동, 높은 목, 앞으로 꺾인 관, 아래쪽 주둥이.
+  const steel='#b9c1c6';
+  a.add('faucet_base', T(cylinder(.055,.30,10),[-.44,1.19,0]), steel, { metallic:.55, roughness:.38 });
+  a.add('faucet_neck', T(cylinder(.043,.30,10),[-.44,1.46,0]), steel, { metallic:.55, roughness:.38 });
+  a.add('faucet_arm', T(cylinder(.040,.30,10),[-.30,1.60,0],[0,0,Math.PI/2]), steel, { metallic:.55, roughness:.38 });
+  a.add('faucet_spout', T(cylinder(.034,.16,10),[-.16,1.52,0]), steel, { metallic:.55, roughness:.38 });
+  for(const s of [-1,1]) {
+    a.add(`tap_${s}`, T(cylinder(.027,.14,8),[-.44,1.30,s*.15],[Math.PI/2,0,0]), '#d8dde1', { metallic:.30, roughness:.52 });
+    a.add(`tap_mark_${s}`, T(cylinder(.046,.020,10),[-.44,1.30,s*.225],[Math.PI/2,0,0]), s<0?'#4f8fd0':'#d06060');
+  }
+  a.add('water', cylinder(.032,.38,8), '#74c0e8', { opacity:.52, roughness:.20, nodeTranslation:[-.16,1.25,0] });
+});
+
+save('station/stove', a => {
+  a.add('counter_kick', T(box(1.15,.13,6.65),[0,.065,0]), '#181614');
+  a.add('counter_body', T(box(1.30,.82,6.80),[0,.54,0]), '#3a3734');
+  a.add('counter_trim', T(box(1.30,.024,6.80),[0,.945,0]), '#211f1d');
+  a.add('stove_top', T(box(1.20,.075,6.65),[0,1.005,0]), '#2d2a27', { metallic:.10, roughness:.82 });
+  const slots=[-2.6,-1.3,0,1.3,2.6];
+  slots.forEach((z,i) => {
+    a.add(`burner_ring_${i}`, T(cylinder(.23,.032,12),[-.05,1.063,z]), '#201d1b', { metallic:.18, roughness:.76 });
+    a.add(`burner_plate_${i}`, T(cylinder(.13,.042,10),[-.05,1.085,z]), '#403a35', { metallic:.12, roughness:.78 });
+    a.add(`burner_cap_${i}`, T(cylinder(.078,.036,10),[-.05,1.108,z]), '#171513', { metallic:.10, roughness:.84 });
+    for(let k=0;k<4;k++)
+      a.add(`grate_${i}_${k}`, T(box(.46,.026,.045),[-.05,1.105,z],[0,k*Math.PI/4,0]), '#24211e', { metallic:.12, roughness:.82 });
+    a.add(`knob_${i}`, T(cylinder(.064,.058,10),[-.68,.88,z],[0,0,Math.PI/2]), '#24211f', { roughness:.86 });
+    a.add(`knob_face_${i}`, T(cylinder(.043,.016,10),[-.714,.88,z],[0,0,Math.PI/2]), '#514a44', { roughness:.78 });
+    a.add(`knob_mark_${i}`, T(box(.012,.014,.052),[-.725,.88,z+.027]), '#e4ded2');
+  });
+});
+
+/* ── 방 — 중심 원점. 게임 코드가 기존 방 좌표에 통째로 놓는다. ── */
+save('room/floor', a => {
+  a.add('floor_slab', T(box(16,.10,20),[0,0,0]), '#dce8ee', { roughness:.94 });
+  // 작업 구역 색은 넣지 않고, 바닥 재질을 읽을 수 있는 얇은 타일 줄눈만 둔다.
+  const grout='#aebfca';
+  for(let x=-7;x<=7;x+=1)
+    a.add(`grout_x_${x+7}`, T(box(.018,.008,19.92),[x,.054,0]), grout, { roughness:.96 });
+  for(let z=-9;z<=9;z+=1)
+    a.add(`grout_z_${z+9}`, T(box(15.92,.008,.018),[0,.054,z]), grout, { roughness:.96 });
+});
+
+save('room/ceiling', a => {
+  a.add('ceiling_slab', T(box(16,.10,20),[0,0,0]), '#f8f6f0', { roughness:.96 });
+  // 긴 천장 면이 한 장의 종이처럼 보이지 않도록 아주 얕은 패널 이음만 만든다.
+  for(const x of [-4,4])
+    a.add(`ceiling_seam_x_${x}`, T(box(.025,.008,19.80),[x,-.054,0]), '#dddcd6', { roughness:.98 });
+  for(const z of [-6.6,0,6.6])
+    a.add(`ceiling_seam_z_${String(z).replace('.','_')}`, T(box(15.80,.008,.025),[0,-.054,z]), '#dddcd6', { roughness:.98 });
+});
+
+function roomWallX(a, baseColor, interiorSign) {
+  const faceZ=interiorSign*.064, trimZ=interiorSign*.080;
+  a.add('wall_shell', box(16,3.4,.10), baseColor, { roughness:.94 });
+  a.add('tile_skirt', T(box(15.90,1.16,.025),[0,-1.10,faceZ]), '#bce5d3', { roughness:.90 });
+  for(let x=-7.2,i=0;x<=7.2;x+=.8,i++)
+    a.add(`tile_joint_v_${i}`, T(box(.018,1.16,.010),[x,-1.10,trimZ]), '#78ad98', { roughness:.96 });
+  for(const [i,y] of [-1.30,-.90].entries())
+    a.add(`tile_joint_h_${i}`, T(box(15.90,.018,.010),[0,y,trimZ]), '#78ad98', { roughness:.96 });
+  a.add('molding', T(box(15.90,.07,.035),[0,-.49,trimZ]), '#eef5f1', { roughness:.88 });
+}
+
+function roomWallZ(a, baseColor, interiorSign) {
+  const faceX=interiorSign*.064, trimX=interiorSign*.080;
+  a.add('wall_shell', box(.10,3.4,20), baseColor, { roughness:.94 });
+  a.add('tile_skirt', T(box(.025,1.16,19.90),[faceX,-1.10,0]), '#bce5d3', { roughness:.90 });
+  for(let z=-9.6,i=0;z<=9.6;z+=.8,i++)
+    a.add(`tile_joint_v_${i}`, T(box(.010,1.16,.018),[trimX,-1.10,z]), '#78ad98', { roughness:.96 });
+  for(const [i,y] of [-1.30,-.90].entries())
+    a.add(`tile_joint_h_${i}`, T(box(.010,.018,19.90),[trimX,y,0]), '#78ad98', { roughness:.96 });
+  a.add('molding', T(box(.035,.07,19.90),[trimX,-.49,0]), '#eef5f1', { roughness:.88 });
+}
+
+save('room/wall-back', a => roomWallX(a, '#f2e2c4', -1));
+save('room/wall-front', a => roomWallX(a, '#f6ead0', 1));
+save('room/wall-left', a => roomWallZ(a, '#cbe6da', 1));
+save('room/wall-right', a => roomWallZ(a, '#e9d9c8', -1));
+
 save('station/bin', a => {
   a.add('bin_body', T(cylinder(.42,.86,12,.35),[0,.44,0]), '#3f7a4a');
   a.add('body_band', T(cylinder(.435,.055,12),[0,.62,0]), '#315f3b');
@@ -445,4 +643,4 @@ save('station/bin', a => {
   a.add('pedal_link', T(cylinder(.022,.82,6),[-.44,.46,0]), '#6b7178', { metallic:.28, roughness:.58 });
 });
 
-console.log('Generated 28 low-poly food and kitchen assets.');
+console.log(`Generated ${generatedCount} low-poly food, kitchen, and room assets.`);

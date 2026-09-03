@@ -18,8 +18,8 @@
   <script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script>
 </head>
 <body>
-  <h1>저폴리 김밥·주방 에셋 세트</h1>
-  <p>김밥 재료와 주방 설비·도구 GLB 28개</p>
+  <h1>저폴리 김밥·주방·매장 에셋 세트</h1>
+  <p>김밥 재료와 주방 설비·도구·벽·바닥·천장 GLB 36개</p>
   <main id="grid"></main>
   <script type="module">
     import * as THREE from 'three';
@@ -33,8 +33,11 @@
       'raw/spinach':'시금치 · 원물','raw/carrot':'당근 · 원물','raw/fishcake':'어묵 · 원물',
       'item/gim':'김','item/rice':'쌀','item/bap':'밥','item/broom':'빗자루',
       'item/knife':'칼','station/counter':'공용 조리대 받침대','station/fridge':'냉장 재료 선반',
+      'station/sink':'싱크대','station/stove':'가스렌지',
       'station/board':'도마','station/mat':'김밥말이','station/pot':'냄비','station/pan':'프라이팬',
-      'station/cooker':'밥솥','station/bin':'음쓰통'
+      'station/cooker':'밥솥','station/bin':'음쓰통','room/floor':'바닥','room/ceiling':'천장',
+      'room/wall-back':'주방 뒤 벽','room/wall-front':'손님 쪽 벽',
+      'room/wall-left':'왼쪽 벽','room/wall-right':'오른쪽 벽'
     };
     const manifest = await fetch('/assets/manifest.json').then(r => r.json());
     const loader = new GLTFLoader();

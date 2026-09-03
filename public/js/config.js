@@ -485,6 +485,9 @@ export const PARTS = {
     { id: 'bun',   name: '쪽머리' },
     { id: 'spiky', name: '삐죽머리' },
     { id: 'long',  name: '긴 머리' },
+    { id: 'chef',  name: '요리사 모자' },
+    { id: 'crab',  name: '게 후드' },
+    { id: 'cap',   name: '야구모자' },
     { id: 'bald',  name: '민머리' }
   ],
   face: [
@@ -494,21 +497,39 @@ export const PARTS = {
     { id: 'beard',   name: '수염' },
     { id: 'blush',   name: '볼터치' }
   ],
+  /* 표정 — 눈·눈썹·입을 어떤 각도와 배율로 둘지 고른다.
+     손님 얼굴은 상태에 따라 계속 바뀌지만(setFace) 내 캐릭터는 바뀔 일이 없어,
+     여기서 고른 표정이 그대로 남는다. id 는 world.js FACE_POSE 의 키다. */
+  expression: [
+    { id: 'neutral', name: '기본' },
+    { id: 'smile',   name: '미소' },
+    { id: 'happy',   name: '활짝' },
+    { id: 'smug',    name: '새침' },
+    { id: 'annoyed', name: '뚱함' },
+    { id: 'angry',   name: '매서움' },
+    { id: 'shocked', name: '놀람' },
+    { id: 'sleepy',  name: '졸림' }
+  ],
   top: [
     { id: 'tee',    name: '티셔츠' },
     { id: 'apron',  name: '앞치마' },
     { id: 'stripe', name: '줄무늬' },
     { id: 'hoodie', name: '후드' },
-    { id: 'vest',   name: '조끼' }
+    { id: 'vest',   name: '조끼' },
+    { id: 'scout',  name: '스카우트 장비' }
+  ],
+  bottom: [
+    { id: 'shorts', name: '반바지' }
   ]
 };
 
 export const PART_COLORS = {
   hair: [0x2a2320, 0x4a3128, 0x8a6a3a, 0xe4e0da, 0xa8442f, 0x3d4a6b],
-  top:  [0x4a6fa5, 0xc4763a, 0xb5548a, 0x5b5f6b, 0x4f8f58, 0xd96a6a, 0x3f8f8a, 0x9a6ad0]
+  top:  [0x4a6fa5, 0xc4763a, 0xb5548a, 0x5b5f6b, 0x4f8f58, 0xd96a6a, 0x3f8f8a, 0x9a6ad0],
+  bottom: [0x314b32, 0x3f4550, 0x4a6fa5, 0x8a4f3a, 0x7a4a6b, 0xd96a6a, 0x3f8f8a, 0x9a6ad0]
 };
 
-export const DEFAULT_LOOK = { h: 0, hc: 0, f: 0, t: 0, tc: 0 };
+export const DEFAULT_LOOK = { h: 0, hc: 0, f: 0, t: 0, tc: 0, b: 0, bc: 0, e: 0 };
 
 /** 범위를 벗어난 값은 잘라낸다. 클라이언트가 보낸 값은 믿지 않는다 */
 export function sanitizeLook(look) {
@@ -522,7 +543,11 @@ export function sanitizeLook(look) {
     hc: pick(L.hc, PART_COLORS.hair.length),
     f:  pick(L.f,  PARTS.face.length),
     t:  pick(L.t,  PARTS.top.length),
-    tc: pick(L.tc, PART_COLORS.top.length)
+    tc: pick(L.tc, PART_COLORS.top.length),
+    b:  pick(L.b,  PARTS.bottom.length),
+    bc: pick(L.bc, PART_COLORS.bottom.length),
+    // 표정은 나중에 생긴 항목이라, 저장해 둔 옛 조합에는 없다. pick 이 0 으로 떨군다.
+    e:  pick(L.e,  PARTS.expression.length)
   };
 }
 
@@ -540,6 +565,8 @@ export function lookFromSeed(seed) {
     hc: Math.floor(r(2) * PART_COLORS.hair.length),
     f:  Math.floor(r(3) * PARTS.face.length),
     t:  Math.floor(r(4) * PARTS.top.length),
-    tc: Math.floor(r(5) * PART_COLORS.top.length)
+    tc: Math.floor(r(5) * PART_COLORS.top.length),
+    b:  Math.floor(r(6) * PARTS.bottom.length),
+    bc: Math.floor(r(7) * PART_COLORS.bottom.length)
   };
 }

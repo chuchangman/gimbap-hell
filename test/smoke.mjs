@@ -8,10 +8,11 @@ import {
   FRIDGE_ITEMS, KIND, SPECIAL_PATIENCE, SPECIAL_RATIO, QUEUE_SLOTS,
   matchScore, servedQuality, grumbleFor, scaleCount,
   CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
-  samplePath, shortestTurn, NET
+  samplePath, shortestTurn, NET, PARTS
 } from '../public/js/config.js';
 import os from 'node:os';
 import path from 'node:path';
+import fs from 'node:fs';
 
 /* 랭킹 파일은 임시 경로로 — 실제 기록(data/leaderboard.json)을 건드리지 않는다.
    leaderboard 는 첫 호출 때 경로를 읽으므로 import 뒤에 정해도 된다. */
@@ -34,6 +35,34 @@ const rewind = (obj, key, s) => { if (obj) obj[key] -= s * 1000; };
 
 /* 조리 완료 상태의 속재료 */
 const done = (id, q) => ({ id, quality: q === undefined ? 100 : q });
+
+/* ═════════════════════════════════════════════ */
+head('[L] 모듈형 캐릭터 GLB');
+
+const assetRoot = path.resolve('public/assets');
+const manifest = JSON.parse(fs.readFileSync(path.join(assetRoot, 'manifest.json'), 'utf8'));
+const characterAssets = [
+  'char/base',
+  ...PARTS.hair.filter((p) => p.id !== 'bald').map((p) => 'char/hair/' + p.id),
+  ...PARTS.top.map((p) => 'char/top/' + p.id)
+];
+ok(characterAssets.every((name) => manifest[name]),
+  '베이스와 선택 가능한 머리·상의가 manifest에 모두 등록됐다');
+ok(characterAssets.every((name) => fs.existsSync(path.join(assetRoot, manifest[name] || 'missing'))),
+  'manifest의 캐릭터 GLB가 실제 파일로 존재한다');
+ok(PARTS.hair.some((p) => p.id === 'chef') && PARTS.hair.some((p) => p.id === 'crab')
+  && PARTS.hair.some((p) => p.id === 'cap'), '원본 모자 3종을 고를 수 있다');
+ok(PARTS.top.some((p) => p.id === 'scout'), '분리한 스카우트 장비를 고를 수 있다');
+ok(PARTS.bottom.some((p) => p.id === 'shorts'), '기본 하의를 독립 파츠로 고를 수 있다');
+const baseGlb = fs.readFileSync(path.join(assetRoot, manifest['char/base']));
+const baseJsonLength = baseGlb.readUInt32LE(12);
+const baseGltf = JSON.parse(baseGlb.toString('utf8', 20, 20 + baseJsonLength));
+const baseNodeNames = new Set((baseGltf.nodes || []).map((node) => node.name));
+ok(baseNodeNames.has('baseTop') && baseNodeNames.has('baseBottom') && !baseNodeNames.has('baseClothes'),
+  '베이스 GLB 안에서 상의와 하의 메시가 각각 분리됐다');
+const worldSource = fs.readFileSync(path.resolve('public/js/world.js'), 'utf8');
+ok(worldSource.includes('legRest: legs.map') && worldSource.includes('quaternion.copy(rest)'),
+  'GLB 다리 뼈의 기본 축 회전을 보존한 채 걷기 각도를 더한다');
 
 /* ═════════════════════════════════════════════ */
 head('[A] 재료 5종 추가 — 계란·당근·맛살·어묵·오이');

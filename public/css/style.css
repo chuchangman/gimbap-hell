@@ -553,7 +553,7 @@ input:focus { border-color: var(--gold); }
 
 /* ──────────────── 캐릭터 꾸미기 (입장 화면) ──────────────── */
 .customize { display:flex; gap:14px; align-items:stretch; margin:4px 0 14px; }
-.cz-preview { width:112px; flex:0 0 112px; border-radius:12px;
+.cz-preview { width:112px; height:150px; flex:0 0 112px; border-radius:12px;
   background:linear-gradient(180deg,#2c2722,#221e1a); border:1px solid #3d362e; }
 .cz-preview canvas { width:100%; height:100%; display:block; border-radius:12px; }
 .cz-rows { flex:1; display:flex; flex-direction:column; gap:6px; justify-content:center; }

@@ -1,7 +1,7 @@
 /* ────────────────────────────────────────────────────────────
    캐릭터 꾸미기 — 입장 화면
 
-   머리카락·얼굴·상의를 고른다. 고른 값은 인덱스 다섯 개뿐이라
+   캐릭터를 고른다. 고른 값은 작은 정수 인덱스뿐이라
    방에 들어갈 때 함께 보내고, 서버가 잘라낸 뒤 모두에게 뿌린다.
 
    미리보기는 게임과 다른 작은 캔버스에 따로 그린다.
@@ -46,17 +46,40 @@ function initPreview(canvas) {
   const b = new THREE.DirectionalLight(0xddeeff, 0.42); b.position.set(-4, 3, -3); scene.add(b);
   const c = new THREE.DirectionalLight(0xfff1d6, 0.18); c.position.set(-1, -3, 2); scene.add(c);
 
-  /* 얼굴이 잘 보이게 가슴 위쪽을 잡는다.
-     몸이 눈높이(1.82)에 맞춰 커졌으므로 프레임도 같이 올린다 — 안 그러면 머리가 잘린다. */
-  cam = new THREE.OrthographicCamera(-0.47, 0.47, 0.60, -0.55, 0.1, 20);
-  cam.position.set(0, 1.65, 4);
-  cam.lookAt(0, 1.65, 0);
+  /* PEAK 계열의 캐릭터는 머리뿐 아니라 짧은 팔다리와 큰 신발이 실루엣의
+     절반이다. 전신을 보여줘야 고른 상의와 몸 비율을 게임에 들어가기 전에
+     확인할 수 있다. */
+  cam = new THREE.OrthographicCamera(-0.66, 0.66, 1.25, -1.25, 0.1, 20);
+  cam.position.set(0, 1.22, 4);
+  cam.lookAt(0, 1.22, 0);
+}
+
+/** 큰 모자나 게 후드도 잘리지 않도록 현재 조합의 실제 크기로 카메라를 맞춘다. */
+function fitPreview() {
+  if (!model || !cam || !renderer) return;
+  model.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(model);
+  if (bounds.isEmpty()) return;
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const canvas = renderer.domElement;
+  const aspect = Math.max(0.4, (canvas.clientWidth || 112) / (canvas.clientHeight || 150));
+  // 기본 몸은 너무 작아지지 않게 하고, 큰 파츠가 붙었을 때만 필요한 만큼 물러난다.
+  const height = Math.max(2.34, size.y + 0.14, size.x / aspect + 0.14);
+  const halfH = height / 2;
+  const halfW = halfH * aspect;
+  cam.left = -halfW; cam.right = halfW;
+  cam.top = halfH; cam.bottom = -halfH;
+  cam.position.set(center.x, center.y, 4);
+  cam.lookAt(center.x, center.y, 0);
+  cam.updateProjectionMatrix();
 }
 
 function rebuild() {
   if (model) { scene.remove(model); model = null; }
   model = previewBody(look);
   scene.add(model);
+  fitPreview();
 }
 
 function loop() {
@@ -68,8 +91,8 @@ function loop() {
 
 /* ──────────────── 조작 ──────────────── */
 
-const KEY = { hair: 'h', face: 'f', top: 't' };
-const COLOR_KEY = { hair: 'hc', top: 'tc' };
+const KEY = { hair: 'h', face: 'f', top: 't', bottom: 'b', expression: 'e' };
+const COLOR_KEY = { hair: 'hc', top: 'tc', bottom: 'bc' };
 
 function paint(root) {
   for (const row of root.querySelectorAll('.cz-row')) {
@@ -95,7 +118,8 @@ function buildSwatches(root) {
       b.type = 'button';
       b.className = 'cz-sw';
       b.style.background = '#' + hex.toString(16).padStart(6, '0');
-      b.title = (part === 'hair' ? '머리색 ' : '상의색 ') + (i + 1);
+      const label = part === 'hair' ? '머리색 ' : part === 'bottom' ? '하의색 ' : '상의색 ';
+      b.title = label + (i + 1);
       b.addEventListener('click', () => { look[COLOR_KEY[part]] = i; paint(root); });
       box.appendChild(b);
     });
@@ -140,7 +164,9 @@ export function initCustomizer() {
       look = {
         h: pick(PARTS.hair.length), hc: pick(PART_COLORS.hair.length),
         f: pick(PARTS.face.length),
-        t: pick(PARTS.top.length),  tc: pick(PART_COLORS.top.length)
+        t: pick(PARTS.top.length),  tc: pick(PART_COLORS.top.length),
+        b: pick(PARTS.bottom.length), bc: pick(PART_COLORS.bottom.length),
+        e: pick(PARTS.expression.length)
       };
       paint(root);
     });
