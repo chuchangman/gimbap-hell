@@ -298,7 +298,16 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
         `customerLook` · `makeOutline` · `makeHpBar` 는 레거시가 export 하지 않아
         이 슬라이스에서 씬 대조로 함께 검증한다.
 - [ ] `features/player` — 1인칭 이동·충돌·조준 (`player.js`)
-- [ ] `features/kitchen` — 상호작용 해석 (`kitchen.js`)
+- [x] `features/kitchen` — `kitchen.js` 이식 (상호작용 해석 · 진행도 조회).
+      `world` 의 `sync*` 와 손님 슬라이스가 `focusNow` · `unlockedFills` 를
+      의존해서 순서를 앞으로 당겼다.
+      `StationRef` 를 판별 유니온으로 바꿨다 — 레거시는 필드가 전부 optional
+      이라 오타가 조용히 `undefined` 로 흘렀는데, 이제 `switch (st.kind)` 안에서
+      필요한 필드가 반드시 있다.
+      `resolveAction` 을 **주방 10상태 × 손 15가지 × 설비 21곳 = 3,150 조합**으로
+      훑어 레거시와 문구·키·disabled·danger 까지 대조했다. 조회 함수
+      (`bapReady` · `cookerProgress` · `rollProgress` · `burnerInfo` · `boardInfo` ·
+      `missingFills` · `serveTarget` · `focusNow`)도 같은 조합으로 대조했다.
 - [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
       CSS 는 Tailwind 로 다시 쓰지 않고 `style.css` 618줄을 그대로 옮긴다 —
       참고 프로젝트는 Tailwind 지만, 다시 쓰면 화면이 미묘하게 달라진다.

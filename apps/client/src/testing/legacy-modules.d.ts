@@ -40,3 +40,27 @@ declare module '@legacy/world.js' {
   export function render(swinging: boolean): void;
   export function stats(): Record<string, number> | null;
 }
+
+declare module '@legacy/net.js' {
+  /** 레거시 net.js 의 공유 상태. 동등성 테스트가 여기에 같은 스냅샷을 심는다. */
+  export const S: Record<string, unknown>;
+}
+
+declare module '@legacy/kitchen.js' {
+  export function resolveAction(st: unknown): Record<string, unknown> | null;
+  export function focusNow(): { focusId: string | null; outline: Set<string>; held: boolean };
+  export function serveTarget(): Record<string, unknown> | null;
+  export function targetMatch(target: unknown): number | null;
+  export function missingFills(i: number): string[];
+  export function unlockedFills(): string[];
+  export function bapReady(): { servings: number; cooking: number };
+  export function cookerProgress(i: number): number;
+  export function rollProgress(i: number): number;
+  export function burnerInfo(slot: number): Record<string, unknown> | null;
+  export function boardInfo(i: number): Record<string, unknown> | null;
+  export function broomTaken(rack: number): boolean;
+  export function matAt(i: number): Record<string, unknown> | null;
+  export function sinkAt(): Record<string, unknown> | null;
+  export function activeMat(): Record<string, unknown> | null;
+  export function activeMatIndex(): number;
+}
