@@ -262,3 +262,55 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
 `apps/server` 와 `apps/client` 만으로 지금 게임이 **똑같이** 돌아간다.
 README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있고,
 58개 시나리오에 해당하는 검증이 새 스택에서 통과한다.
+
+---
+
+## 다음 세션 시작점 (2026-09-10 17:50 중단)
+
+브랜치 `refactor/fe-be-split`, 커밋 9개, **푸시 안 함**. 워킹 트리 깨끗.
+중단 시점 검증: 레거시 58 + 동등성 12 + 서버 65 + 클라이언트 9 = **144개 통과**,
+build · typecheck · lint · prettier 전부 통과.
+
+### 다시 시작하는 방법
+
+```bash
+git switch refactor/fe-be-split
+npm install              # 워크스페이스 링크 (이미 되어 있으면 빨리 끝난다)
+npm test                 # 레거시 58 + 동등성 12
+npm run test:workspaces  # 서버 65 + 클라이언트 9 (turbo)
+```
+
+새 서버로 게임을 직접 띄워 보려면:
+
+```bash
+npm run build --workspace=@repo/server
+node apps/server/dist/main.js     # 저장소 루트에서 띄워야 data/·public/ 이 맞는다
+# → http://localhost:3211 에서 레거시 클라이언트가 새 백엔드로 돌아간다
+```
+
+### 바로 다음에 할 일 — 4단계 두 번째 슬라이스
+
+1. `features/assets` — `public/js/assets.js` (211줄) 이식.
+   GLB 매니페스트 로딩과 `asset()` · `partOf()` 조회. 에셋 161개가
+   `public/assets/manifest.json` 에 등록되어 있고 56개 항목의 파일 존재는
+   이미 확인된 상태다.
+2. `features/world` — `public/js/world.js` (2,975줄). 가장 큰 덩어리다.
+   충실한 이식(A)이므로 명령형 조형 코드를 `useMemo` 로 한 번 만들고
+   `<primitive object={...} />` 로 붙이는 방식이 기본이다.
+   덩어리별로 나눠 커밋할 것: 주방 설비 → 캐릭터/표정 → 재료/음식 → 손님.
+
+### 남은 순서
+
+`assets` → `world` → `player` → `kitchen` → `ui` → `customize` → 5단계
+(브라우저 QA · CI 잡 추가 · Render 설정 · 레거시 제거).
+
+### 잊지 말 것
+
+- 레거시 `server/` · `public/` 은 **아직 지우지 않는다.** 동등성 테스트가
+  그걸 읽어 대조한다. 지우는 건 5단계 마지막이다.
+- `apps/server/src/testing/legacy.ts` 의 인터페이스 목록이 "아직 레거시에
+  의존하는 표면" 이다. 5단계에서 이 파일이 비면 이식이 끝난 것이다.
+- Node 는 `>=22.12.0` 로 올려 뒀지만 `render.yaml` 은 아직 `20.20.2` 다.
+  CI 워크플로도 node 20 이다. 5단계에서 함께 올린다.
+- 랭킹 파일 경로: 레거시는 모듈 위치 기준, 새 서버는 **cwd 기준**이다.
+  저장소 루트에서 띄우면 같은 파일이고, 시작 로그에 실제 경로를 찍는다.
