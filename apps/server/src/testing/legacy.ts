@@ -25,6 +25,31 @@ export interface LegacyMovement {
   validateMove(p: MovablePlayer, d: unknown, now?: number): MoveResult;
 }
 
+export interface LegacyKitchenInstance {
+  uid: number;
+  hands: Map<string, unknown>;
+  mess: number;
+  wasted: number;
+  reset(): void;
+  shiftTime(ms: number): void;
+  join(id: string): void;
+  leave(id: string): void;
+  hand(id: string): unknown;
+  setHand(id: string, item: unknown): void;
+  hasBroom(id: string): boolean;
+  dropFor(id: string): unknown;
+  rollDone(m: unknown): boolean;
+  tick(): { msg: string; kind: string }[];
+  act(pid: string, action: string, p?: unknown): unknown;
+  takeGimbap(pid: string): unknown;
+  snapshot(): unknown;
+}
+
+export interface LegacyKitchen {
+  Kitchen: new () => LegacyKitchenInstance;
+  nowMs(): number;
+}
+
 export interface LegacyRankingPolicy {
   RANKING_POLICY: Record<string, number | string>;
   rankingRetryDelay(retryMs: number, consecutiveFailures: number): number;
@@ -33,6 +58,7 @@ export interface LegacyRankingPolicy {
 interface LegacyModules {
   'protocol.mjs': LegacyProtocol;
   'movement.mjs': LegacyMovement;
+  'kitchen.mjs': LegacyKitchen;
   'ranking-policy.mjs': LegacyRankingPolicy;
 }
 
