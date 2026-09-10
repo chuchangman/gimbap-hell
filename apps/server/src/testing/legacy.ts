@@ -50,6 +50,40 @@ export interface LegacyKitchen {
   nowMs(): number;
 }
 
+export interface LegacyWaveInstance {
+  uid: number;
+  wave: number;
+  phase: string;
+  phaseEndsAt: number;
+  active: { id: string; state: string; fills: string[]; done: number; need: number }[];
+  pending: unknown[];
+  reputation: number;
+  score: number;
+  happy: number;
+  angry: number;
+  kicked: number;
+  result: string | null;
+  reset(): void;
+  shiftTime(ms: number): void;
+  tick(): unknown[];
+  serve(rollFills: unknown, customerId?: string): unknown;
+  hit(id: string): unknown;
+  bestMatch(rollFills: unknown): unknown;
+  nextTarget(rollFills?: unknown): unknown;
+  waitingById(id: string): unknown;
+  snapshot(rollFills?: unknown): unknown;
+  buildWave(n: number): unknown;
+  startWave(n: number): unknown;
+  available(wave: number): string[];
+  kioskOrder(wave: number): string[];
+  counterOrder(wave: number): string[];
+  nextUnlock(): unknown;
+}
+
+export interface LegacyWaves {
+  WaveRunner: new (playerCount: number) => LegacyWaveInstance;
+}
+
 export interface LegacyRankingPolicy {
   RANKING_POLICY: Record<string, number | string>;
   rankingRetryDelay(retryMs: number, consecutiveFailures: number): number;
@@ -59,6 +93,7 @@ interface LegacyModules {
   'protocol.mjs': LegacyProtocol;
   'movement.mjs': LegacyMovement;
   'kitchen.mjs': LegacyKitchen;
+  'waves.mjs': LegacyWaves;
   'ranking-policy.mjs': LegacyRankingPolicy;
 }
 
