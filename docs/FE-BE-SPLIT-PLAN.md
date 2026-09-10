@@ -98,7 +98,11 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
       (`hello` `state` `kitchen` `positions` `toast` `waveEnd` `swing` `hit`
        `position:correct` `server:closing`)
 - [ ] 소켓 어댑터 — origin 검사 · connectionStateRecovery · 레이트 리밋
-- [ ] `LeaderboardService` + `RankingStore` (파일 / Upstash Redis)
+- [x] `LeaderboardService` + `RankingStore` (파일 / Upstash Redis).
+      `Room` 이 랭킹을 의존하므로 순서를 앞으로 당겼다.
+      저장소는 클로저 팩토리 형태를 그대로 유지했다 — 파일 원자성 · 저널 ·
+      재시도 타이머가 얽혀 있어 클래스로 재구성하면 순서를 놓치기 쉽다.
+      `RankingStore<T>` 로 제네릭화해 캐스팅 없이 `LeaderboardRow` 를 다룬다.
 - [ ] `HealthController` (`/health` `/ready` `/leaderboard.json`)
       — 레거시와 같은 필드를 채우려면 `LeaderboardService` 가 먼저 있어야 해서
       아직 열지 않았다. 반쪽짜리 `/health` 는 운영을 오히려 속인다.
@@ -141,6 +145,21 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
 **`Math` 전개 함정.** `vi.stubGlobal('Math', {...Math, random})` 는 안 된다.
 `Math` 의 메서드는 열거 불가라 전개로 복사되지 않아 `Math.max` 부터 사라진다.
 `vi.spyOn(Math, 'random')` 으로 필요한 것만 바꿔 끼운다.
+
+**테스트가 실제 랭킹을 건드리던 문제.** 동등성 spec 이 레거시
+`leaderboard.mjs` 의 `add()` 를 호출하는데, 그 모듈은 `GIMBAP_LEADERBOARD` 가
+없으면 저장소를 저장소 안 `data/leaderboard.json` 으로 잡고 매번 **실제로
+파일을 쓴다.** 저장소 인스턴스는 첫 호출에 메모이즈되므로,
+`src/testing/setup.ts` 를 vitest `setupFiles` 에 걸어 spec 보다 먼저 경로를
+임시 폴더로 돌리고 Upstash 자격증명도 비운다. 테스트 후 실제 파일이
+7,855바이트 · 29건 · mtime 그대로임을 확인했다.
+
+**저장소 시나리오 9개**는 차분 테스트로 묶지 않았다. 파일 원자성 · 재시도
+타이머 · 저널이 섞여 있어 두 인스턴스를 나란히 돌리면 같은 경로를 두 번 쓴다.
+대신 레거시 `test/ranking-store.test.mjs` 의 단정을 그대로 옮기고
+(깨진 파일을 덮지 않음 · 쓰기 직렬화 · 응답 유실 재시도 멱등성 · 저널로
+프로세스 재시작 생존 · 타임아웃 중단), 순수 `mergeRankings` 와 Lua 문자열만
+레거시와 대조한다.
 
 **레거시 대조 브리지.** `src/testing/legacy.ts` 가 `server/*.mjs` 를 읽는다.
 타입 선언이 없어 정적 import 는 strict 에서 TS7016 으로 막히므로 지정자를

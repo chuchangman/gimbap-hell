@@ -73,10 +73,15 @@ export interface HistoryEntry {
   at: number;
 }
 
+/** 랭킹 저장소 상태. /health 와 결과 화면이 같은 값을 읽는다. */
 export interface StorageStatus {
+  mode: 'file' | 'redis';
   ready: boolean;
-  error?: string | null;
-  [key: string]: unknown;
+  pending: number;
+  error: string | null;
+  lastReadAt: number | null;
+  lastWriteAt: number | null;
+  failures: number;
 }
 
 export interface LeaderboardRow {

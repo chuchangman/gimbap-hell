@@ -84,6 +84,35 @@ export interface LegacyWaves {
   WaveRunner: new (playerCount: number) => LegacyWaveInstance;
 }
 
+export interface LegacyLeaderboard {
+  cleanShopName(name: unknown, fallback?: string): string;
+  maskShop(name: unknown): string;
+  add(result: Record<string, unknown>): { rank: number | null; total: number; entry: unknown };
+  top(n?: number): unknown[];
+  size(): number;
+  publicTop(n?: number): unknown[];
+  board(highlightId?: string, n?: number): unknown;
+  publicBoard(highlightId?: string, n?: number): unknown;
+  status(): unknown;
+  init(): Promise<unknown>;
+  flush(): Promise<boolean>;
+  close(): void;
+  SHOP_MAX: number;
+}
+
+export interface LegacyRankingStore {
+  mergeRankings(...lists: unknown[]): { id: string }[];
+  MERGE_RANKINGS_LUA: string;
+  createRankingStore(options: Record<string, unknown>): {
+    init(): Promise<Record<string, unknown>>;
+    read(): { id: string }[];
+    add(row: unknown): void;
+    flush(): Promise<boolean>;
+    health(): Record<string, unknown>;
+    close(): void;
+  };
+}
+
 export interface LegacyRankingPolicy {
   RANKING_POLICY: Record<string, number | string>;
   rankingRetryDelay(retryMs: number, consecutiveFailures: number): number;
@@ -95,6 +124,8 @@ interface LegacyModules {
   'kitchen.mjs': LegacyKitchen;
   'waves.mjs': LegacyWaves;
   'ranking-policy.mjs': LegacyRankingPolicy;
+  'ranking-store.mjs': LegacyRankingStore;
+  'leaderboard.mjs': LegacyLeaderboard;
 }
 
 export async function loadLegacy<K extends keyof LegacyModules>(
