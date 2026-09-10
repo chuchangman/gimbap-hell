@@ -69,17 +69,47 @@ corepack 이 빠져 전역 설치가 필요하다. 게다가 Render 배포가 `n
 테스트가 스스로 빌드해야 하고, turbo 캐시가 있어 두 번째부터는 즉시 끝난다.
 turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필요해 함께 넣었다.
 
-### 3. 백엔드 `apps/server` — `상태: 대기`
-- [ ] NestJS 12 뼈대 (`main.ts` · `AppModule` · config)
-- [ ] `RoomsService`(Room) · `KitchenService` · `WaveService` · `MovementService`
+### 3. 백엔드 `apps/server` — `상태: 진행 중`
+
+순수 로직을 먼저 옮기고 Nest 배선을 뒤에 붙인다. 방마다 인스턴스가 하나씩
+필요한 `Room` · `Kitchen` · `WaveRunner` 는 Nest 프로바이더가 아니라 순수
+클래스로 둔다 (프로바이더는 기본이 싱글턴이다). 이들을 들고 있는
+`RoomsService` 만 `@Injectable()` 이다.
+
+- [x] NestJS 12 뼈대 — `main.ts` · `AppModule` · `ConfigModule` 에
+      `registerAs('runtime', …)` 로 운영 설정 주입. 실제로 뜨고 listen 한다.
+- [x] `config/runtime.config.ts` — `runtime-config.mjs` 이식. PORT 0 · 빈 문자열 ·
+      16진수 표기 · recovery 의 Number-or-default 순서를 spec 으로 고정했다.
+- [x] `common/protocol.ts` — `protocol.mjs` 이식 (와이어 검증 · 토큰 버킷 · origin).
+- [x] `domain/movement.ts` — `movement.mjs` 이식 (속도·공중시간·충돌 판정).
+- [x] `modules/leaderboard/ranking-policy.ts` — 재시도 정책 이식.
+- [x] 위 4개 모듈의 **레거시 대조 spec** 27개 통과. 값 비교가 아니라
+      "레거시와 같은 답을 내는가" 를 훑는다 (protocol 은 액션 21종 × 필드 7종 ×
+      값 21종, movement 는 점프·넉백·벽 통과·적립 시나리오를 프레임 단위로).
+- [ ] `domain/kitchen.ts` — `kitchen.mjs` 이식 (공정 상태 머신)
+- [ ] `domain/waves.ts` — `waves.mjs` 이식 (손님·주문·인내심)
+- [ ] `domain/room.ts` + `modules/game/rooms.service.ts` — `room.mjs` 이식
 - [ ] `GameGateway` — 지금과 **완전히 같은** 이벤트/페이로드
       (`hello` `state` `kitchen` `positions` `toast` `waveEnd` `swing` `hit`
        `position:correct` `server:closing`)
 - [ ] 소켓 어댑터 — origin 검사 · connectionStateRecovery · 레이트 리밋
 - [ ] `LeaderboardService` + `RankingStore` (파일 / Upstash Redis)
 - [ ] `HealthController` (`/health` `/ready` `/leaderboard.json`)
+      — 레거시와 같은 필드를 채우려면 `LeaderboardService` 가 먼저 있어야 해서
+      아직 열지 않았다. 반쪽짜리 `/health` 는 운영을 오히려 속인다.
 - [ ] 정적 서빙 — Vite 빌드 산출물 + 기존 CSP/ETag/압축 정책 유지
 - [ ] 레거시 `test/*.mjs` 시나리오를 vitest 로 이식 (58개 전부)
+
+**레거시 대조 브리지.** `src/testing/legacy.ts` 가 `server/*.mjs` 를 읽는다.
+타입 선언이 없어 정적 import 는 strict 에서 TS7016 으로 막히므로 지정자를
+변수로 넘긴다. 이 파일의 인터페이스 목록이 곧 "아직 이식하지 못한 레거시
+표면" 이다. 5단계에서 레거시와 함께 사라진다.
+
+**알려진 권고.** `@nestjs/platform-express@12.0.1` 이 `multer` 를 `2.2.0` 으로
+**정확히 고정**해 끌고 오는데, 이 버전에 DoS 권고 4건이 있다. 이 게임 서버에는
+멀티파트 업로드 라우트가 없어(`FileInterceptor` 를 쓰는 핸들러가 없다) 취약
+경로에 닿지 않는다. `overrides` 로 2.3.0 을 밀어넣어 봤지만 정확 고정과 충돌해
+`npm ls` 가 invalid 로 남아 되돌렸다. 프레임워크가 핀을 올릴 때 함께 올린다.
 
 ### 4. 프론트엔드 `apps/client` — `상태: 대기`
 - [ ] Vite + React 19 + TS 뼈대, `@/` alias
