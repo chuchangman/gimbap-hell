@@ -109,7 +109,7 @@ const PANTS = 0x3f4550;
  * 지금은 처음부터 실제 크기로 세운다. 소품 좌표를 그대로 눈으로 읽을 수 있고,
  * 배율이 끼어들지 않아 "여기 붙였는데 왜 저기 있지" 가 없어진다.
  */
-const BODY = {
+export const BODY = {
   /* 눈은 EYE(1.82)에 고정이다 — 카메라가 거기 있으니 못 옮긴다.
      그래서 머리를 얼마나 높이 두느냐가 곧 "눈이 얼굴의 어디쯤 오는가" 다.
      머리 중심을 눈보다 살짝 위(1.84)에 두면 눈이 얼굴 한가운데에 오고,
@@ -139,7 +139,7 @@ const BODY = {
   shoeR: 0.115,
 };
 // Must match the head/hair bake in build-clay-character-assets.py.
-const HEAD_SCALE = 0.875;
+export const HEAD_SCALE = 0.875;
 const HEAD_TOP = BODY.headY + BODY.headR * 0.98 * HEAD_SCALE;
 const EYE_LOCAL = EYE - BODY.headY; // 얼굴 그룹 안에서의 눈 높이
 

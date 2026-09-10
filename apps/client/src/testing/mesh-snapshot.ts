@@ -103,3 +103,33 @@ export function countMeshes(o: THREE.Object3D): number {
   });
   return n;
 }
+
+/** 두 값이 처음으로 갈리는 지점을 경로와 함께 알려준다.
+ *  씬 트리는 5만 줄이 넘어 vitest 의 diff 가 잘린다 — 어디가 다른지 짚어야 한다. */
+export function firstDifference(a: unknown, b: unknown, path = '$'): string | null {
+  if (Object.is(a, b)) return null;
+  if (typeof a !== typeof b) return path + ': 타입 ' + typeof a + ' vs ' + typeof b;
+  if (a === null || b === null || typeof a !== 'object')
+    return path + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b);
+
+  if (Array.isArray(a) !== Array.isArray(b)) return path + ': 배열 여부가 다르다';
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return path + ': 길이 ' + a.length + ' vs ' + b.length;
+    for (let i = 0; i < a.length; i++) {
+      const d = firstDifference(a[i], b[i], path + '[' + i + ']');
+      if (d) return d;
+    }
+    return null;
+  }
+
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const keys = [...new Set([...Object.keys(ao), ...Object.keys(bo)])].sort();
+  for (const k of keys) {
+    if (!(k in ao)) return path + '.' + k + ': 왼쪽에 없다';
+    if (!(k in bo)) return path + '.' + k + ': 오른쪽에 없다';
+    const d = firstDifference(ao[k], bo[k], path + '.' + k);
+    if (d) return d;
+  }
+  return null;
+}

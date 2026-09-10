@@ -1,4 +1,6 @@
-import { buildArm } from '@/features/world/hand';
+import { S, serverNow } from '@/features/net/net';
+import { syncCustomers, updateRemotes } from '@/features/world/customers';
+import { animateArm, animateHand, buildArm, updateHand } from '@/features/world/hand';
 import { buildRoom } from '@/features/world/room';
 import { camera, scene } from '@/features/world/scene';
 import {
@@ -12,6 +14,16 @@ import {
   buildSink,
   buildStove,
 } from '@/features/world/stations';
+import { animateStreet } from '@/features/world/street';
+import {
+  syncBoards,
+  syncBrooms,
+  syncBurners,
+  syncCookers,
+  syncFridge,
+  syncMats,
+  syncSink,
+} from '@/features/world/sync';
 import * as THREE from 'three';
 
 /**
@@ -42,4 +54,26 @@ export function buildWorld(): void {
     o.castShadow = false;
     o.receiveShadow = false;
   });
+}
+
+/**
+ * 한 프레임 갱신. 레거시 render 에서 **renderer.render 만 뺀** 것이다.
+ * 실제 그리기는 R3F 의 <Canvas> 가 useFrame 뒤에 알아서 한다.
+ */
+export function stepWorld(swinging: boolean): void {
+  animateStreet(serverNow());
+  updateHand();
+  animateHand(swinging);
+  animateArm(swinging);
+  if (S.kitchen) {
+    syncFridge();
+    syncSink();
+    syncCookers();
+    syncBurners();
+    syncBoards();
+    syncMats();
+    syncBrooms();
+  }
+  syncCustomers();
+  updateRemotes();
 }

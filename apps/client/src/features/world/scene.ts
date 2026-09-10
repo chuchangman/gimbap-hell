@@ -21,3 +21,12 @@ export const solids = WORLD_SOLIDS;
 export const DOOR = { x: -6, z: -10.4 };
 /** 빗자루에 맞고 움찔거리는 시간 */
 export const HIT_FLINCH_MS = 260;
+
+/* 손님 테두리 두께를 화면 픽셀 기준으로 맞추려면 캔버스 높이가 필요하다.
+   레거시는 renderer.domElement.clientHeight 를 읽었는데, 렌더러는 이제
+   R3F 의 <Canvas> 가 들고 있다. 캔버스가 붙을 때 여기에 알려준다. */
+let viewport = 900;
+export const viewportHeight = (): number => viewport;
+export function setViewportHeight(px: number): void {
+  viewport = px > 0 ? px : 900;
+}

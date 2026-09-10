@@ -242,6 +242,19 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
 `countMeshes` 로 "정말 뭔가 만들어졌는지" 도 함께 단정한다. 양쪽이 나란히
 빈 그룹을 내면 `toEqual` 은 그냥 통과하기 때문이다.
 
+**5만 줄 트리에서 차이를 찾는 법.** 씬 스냅샷이 55,000줄이라 vitest 의 diff 가
+잘려서 "어디가 다른지" 를 알 수 없었다. `firstDifference(a, b)` 를 만들어 처음
+갈리는 경로를 짚게 했다.
+
+첫 사용에서 바로 원인이 나왔다 —
+`$.children[304].children[0].children[12].children[0].scale[0]: 1.177185 vs null`.
+손님 테두리 배율이 레거시에서만 NaN 이었고, 범인은 이식본이 아니라 **내가 만든
+가짜 렌더러**였다. 레거시 `syncCustomers` 가
+`renderer.domElement.clientHeight` 로 화면 픽셀 기준 두께를 환산하는데,
+스텁의 `domElement` 가 비어 있어 `Math.max(1, undefined)` 가 NaN 이 됐다.
+스텁에 실제 값을 넣어 해결했다. 이식본 쪽은 `scene.setViewportHeight()` 로
+R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 있지 않기 때문이다.
+
 **클라이언트 쪽 레거시 대조 브리지.** 서버와 사정이 다르다. 서버는 지정자를
 변수로 넘겨 TS7016 을 피했지만, 클라이언트는 레거시 모듈이 동봉 vendor 사본을
 절대경로로 import 하므로 Vite 가 변환해 줘야 한다 — 동적 import 로는 별칭이
@@ -285,18 +298,23 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
         `room`(방·조명·안개·간판·조리대) · `stations`(냉장고·싱크대·밥솥·가스렌지·
         도마·조립대·음쓰통·빗자루·서빙대) · `hand`(1인칭 손·팔) · `registry`.
         **씬 전체(메시 300개 이상)를 레거시와 정점까지 대조**해 통과.
-  - [ ] 설비 동기화 (`syncFridge` · `syncSink` · `syncCookers` · `syncBurners` ·
-        `syncBoards` · `syncMats` · `syncBrooms`) — `kitchen.js` 이식이 먼저 필요하다
+  - [x] **설비 동기화** — `syncFridge` · `syncSink` · `syncCookers` · `syncBurners` ·
+        `syncBoards` · `syncMats` · `syncBrooms` + `tint`(render-utils 이식).
   - [x] **캐릭터/표정** — `makeBody` · `makeFace` · `setFace` · `buildHair` ·
         `buildFaceStyle` · `buildTop` · `customerLook` · `applyLook` ·
         `accessorize` · `poseLimbs` · `makeOutline` · `makeHpBar` · 미리보기.
         `previewBody` 로 **조합을 축별로 바꿔가며 레거시와 정점 대조** —
         머리 9 · 얼굴 5 · 표정 8 · 상의 6 · 하의 3 · 색 팔레트 전부,
         혼합 3종, 망가진 조합 4종, 걷기/들기 애니메이션 6시점 × 4모드.
-  - [ ] 손님 · 원격 플레이어 · 렌더 루프 (`makeCustomer` · `syncCustomers` ·
-        `updateRemotes` · `remoteSwing` · `render`).
-        `customerLook` · `makeOutline` · `makeHpBar` 는 레거시가 export 하지 않아
-        이 슬라이스에서 씬 대조로 함께 검증한다.
+  - [x] **손님 · 원격 플레이어 · 렌더 루프** — `makeCustomer` · `customerPos` ·
+        `syncCustomers` · `makeAvatar` · `updateRemotes` · `remoteSwing` ·
+        `stepWorld`(= 레거시 `render` 에서 `renderer.render` 만 뺀 것).
+        `customerLook` · `makeOutline` · `makeHpBar` 도 여기서 씬 대조로 검증됐다.
+
+**`world.js` 2,975줄 이식 완료.** 한 프레임 돌린 뒤 씬 전체를 비교한다 —
+손님 2명 + 설비 전부 + 손에 든 김밥이 있는 프레임을 3프레임 연속으로,
+손님 상태 5종(입장·대기·만족·화남·쫓겨남) 각각, 빗자루 스윙 on/off,
+손님이 사라진 뒤 정리까지.
 - [ ] `features/player` — 1인칭 이동·충돌·조준 (`player.js`)
 - [x] `features/kitchen` — `kitchen.js` 이식 (상호작용 해석 · 진행도 조회).
       `world` 의 `sync*` 와 손님 슬라이스가 `focusNow` · `unlockedFills` 를
