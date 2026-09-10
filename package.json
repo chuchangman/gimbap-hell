@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "김밥지옥 — 3D 1인칭 멀티플레이 김밥 웨이브 디펜스 (three.js + Socket.IO)",
   "type": "commonjs",
+  "private": true,
   "main": "server/index.mjs",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "start": "node server/index.mjs",
     "dev": "node server/index.mjs",
@@ -13,18 +17,31 @@
     "test:redis": "node --test test/redis.integration.test.mjs",
     "test:protocol": "node --test test/protocol.test.mjs test/server.integration.test.mjs",
     "test:qa-fixtures": "node --test test/qa-fixtures.test.mjs",
+    "test:workspaces": "turbo run test",
+    "verify": "npm test && npm run test:workspaces",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "qa:browser": "node tools/release-browser-qa.cjs",
     "qa:character": "node tools/character-preview-qa.cjs",
     "assets:food": "node tools/generate-low-poly-food-assets.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "license": "MIT",
   "dependencies": {
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "socket.io-client": "4.8.3"
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "eslint": "10.9.1",
+    "prettier": "3.9.6",
+    "socket.io-client": "4.8.3",
+    "turbo": "^2.10.12",
+    "typescript": "^6.0.2"
   }
 }

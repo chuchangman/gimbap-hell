@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.turbo/
+data/
+artifacts/
+package-lock.json
+
+# 레거시 스택 — 새 스택으로 옮기기 전까지는 형식을 건드리지 않는다.
+# 지금 포맷을 바꾸면 이식 diff 에서 실제 변경이 묻힌다.
+public/
+server/
+test/
+tools/
