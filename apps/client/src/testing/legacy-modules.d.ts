@@ -64,3 +64,25 @@ declare module '@legacy/kitchen.js' {
   export function activeMat(): Record<string, unknown> | null;
   export function activeMatIndex(): number;
 }
+
+declare module '@legacy/player.js' {
+  export const state: {
+    target: unknown;
+    prompt: { text?: string; disabled?: boolean; key?: string } | null;
+    canvas: unknown;
+    overlayOpen: boolean;
+    enabled: boolean;
+    onToggleHelp: () => void;
+    onCloseOverlay: () => void;
+  };
+  export function initPlayer(canvas: HTMLCanvasElement): void;
+  export function updatePlayer(dt: number): void;
+  export function resetPose(spawn?: unknown): void;
+  export function correctPose(pose: unknown): void;
+  export function setLook(y: number, p: number): void;
+  export function getPose(): { x: number; z: number; yaw: number; pitch: number };
+  export function applyKnockback(dirX: number, dirZ: number, power: number): void;
+  export function isSwinging(): boolean;
+  export function releaseLock(): void;
+  export function isLocked(): boolean;
+}
