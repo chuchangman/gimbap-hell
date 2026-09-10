@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadRuntimeConfig } from './runtime.config.js';
 
@@ -39,6 +40,27 @@ describe('loadRuntimeConfig', () => {
       expect(loadRuntimeConfig({ GIMBAP_RECOVERY_MS: value }).recoveryMs, String(value)).toBe(
         expected,
       );
+  });
+
+  it('랭킹 저장 경로와 Redis 설정을 환경에서 읽는다', () => {
+    const fromEnv = loadRuntimeConfig({
+      GIMBAP_LEADERBOARD: '/tmp/board.json',
+      UPSTASH_REDIS_REST_URL: 'https://example.invalid///',
+      UPSTASH_REDIS_REST_TOKEN: 'tok',
+      GIMBAP_LEADERBOARD_KEY: 'gimbap:leaderboard:v9',
+    });
+    expect(fromEnv.leaderboardFile).toBe('/tmp/board.json');
+    // 끝의 슬래시는 떼어낸다 — 레거시와 같은 처리다
+    expect(fromEnv.redis.url).toBe('https://example.invalid');
+    expect(fromEnv.redis.token).toBe('tok');
+    expect(fromEnv.redis.key).toBe('gimbap:leaderboard:v9');
+
+    /* 기본값은 cwd 기준이다. 레거시는 모듈 위치 기준(저장소 루트/data)이라
+       cwd 와 무관했다 — 저장소 루트에서 띄우면 같은 파일이고, 다른 데서
+       띄우면 다른 파일이 된다. main.ts 가 시작할 때 실제 경로를 찍는다. */
+    const fallback = loadRuntimeConfig({});
+    expect(fallback.leaderboardFile).toBe(path.join(process.cwd(), 'data', 'leaderboard.json'));
+    expect(fallback.redis).toEqual({ url: '', token: '', key: 'gimbap:leaderboard' });
   });
 
   it('운영 기본값이 그대로이고 주입한 환경을 변형하지 않는다', () => {

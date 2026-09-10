@@ -93,7 +93,10 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
 - [x] `domain/waves.ts` — `waves.mjs` 이식 (손님·주문·인내심). 시계와 **난수**를
       주입할 수 있게 했다. 난수 소비 **순서**가 곧 이식 정확도다 — 객체 리터럴에서
       `id` 가 uid 를 올린 뒤 `seed` 가 올라간 uid 를 읽는 순서까지 지켰다.
-- [ ] `domain/room.ts` + `modules/game/rooms.service.ts` — `room.mjs` 이식
+- [x] `domain/room.ts` + `modules/game/rooms.service.ts` — `room.mjs` 이식.
+      랭킹은 `RoomLeaderboard` 인터페이스로 역전시켜 주입한다 —
+      `LeaderboardService` 가 이 모양을 만족하고, 테스트는 레거시 모듈을 꽂는다.
+      시계와 난수도 주입 가능하다.
 - [ ] `GameGateway` — 지금과 **완전히 같은** 이벤트/페이로드
       (`hello` `state` `kitchen` `positions` `toast` `waveEnd` `swing` `hit`
        `position:correct` `server:closing`)
@@ -160,6 +163,28 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
 (깨진 파일을 덮지 않음 · 쓰기 직렬화 · 응답 유실 재시도 멱등성 · 저널로
 프로세스 재시작 생존 · 타임아웃 중단), 순수 `mergeRankings` 와 Lua 문자열만
 레거시와 대조한다.
+
+**Room 차분 테스트에서 잡은 것들.** Room 은 주방·웨이브·이동·전투·랭킹을
+묶는 조립점이라 조작 열을 흘리며 `publicState` · `kitchenState` · `positions` ·
+`stateSignature` 를 매 단계 전부 비교한다. 여기서 **테스트가 조용히 통과하던
+경로 두 개**를 찾았다.
+
+1. 스폰(-1.6, 5.6)에서 왼쪽 설비로 직진하면 **조립대 테이블**
+   (x -2.6..2.6, z 1.75..3.45)에 막힌다. 걷기가 도착하지 못했고 이후 모든
+   동작이 양쪽에서 나란히 "가까이 오세요" 로 거절되며 통과하고 있었다.
+   통로 `x=-4.5` 로 우회시키고, `walkTo` 가 **도착 자체를 단정**하게 했다.
+2. `performance.now` 를 상수로 스파이하니 `validateMove` 의 `elapsed` 가 항상
+   0이 되어 이동 토큰이 회복되지 않았다. 다섯 걸음(1.5m)에서 속도 제한에
+   걸려 멈췄는데, 역시 양쪽이 나란히 막혀 통과했다. 단조 시계를 가짜 타이머와
+   같은 양만큼 함께 전진시킨다.
+
+지금은 각 단계가 의도한 결과를 냈는지도 함께 못 박는다 — 쌀을 실제로 들었고,
+5번째 헹굼에 완료 문구가 뜨고, 취사가 5인분을 내고, 김 없이 밥을 올리면
+거절되고, 바닥에 버리면 `mess` 가 1이 된다.
+
+게임 오버 결과는 랭킹에서 온 값(`entryId` · `rank` · `board` · `storage`)을
+빼고 비교한다. 두 방이 각각 `add()` 를 호출해 UUID 가 달라지기 때문이다.
+점수 계산(`score = max(0, rawScore - mess×5)`)과 집계는 전부 단정한다.
 
 **레거시 대조 브리지.** `src/testing/legacy.ts` 가 `server/*.mjs` 를 읽는다.
 타입 선언이 없어 정적 import 는 strict 에서 TS7016 으로 막히므로 지정자를

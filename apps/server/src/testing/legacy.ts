@@ -84,6 +84,47 @@ export interface LegacyWaves {
   WaveRunner: new (playerCount: number) => LegacyWaveInstance;
 }
 
+export interface LegacyRoomInstance {
+  code: string;
+  shop: string;
+  hostId: string | null;
+  phase: string;
+  paused: boolean;
+  pausedAt: number;
+  players: Map<string, Record<string, unknown>>;
+  kitchen: { mess: number; hand(id: string): unknown; setHand(id: string, item: unknown): void };
+  waves: { active: { id: string; state: string; fills: string[] }[] } | null;
+  result: unknown;
+  history: unknown[];
+  readonly size: number;
+  isHost(id: string): boolean;
+  freeSlot(): number;
+  addPlayer(id: string, name: unknown, look?: unknown): unknown;
+  removePlayer(id: string): void;
+  resolveShop(): string;
+  start(): boolean;
+  toLobby(): void;
+  togglePause(pid: string): unknown;
+  tick(): unknown[];
+  act(pid: string, action: string, payload?: unknown): unknown;
+  canReach(pid: string, action: string, payload?: unknown, customer?: unknown): boolean;
+  serve(pid: string, customerId?: string): unknown;
+  swing(pid: string, targetId?: string | null, targetKind?: string | null): unknown;
+  move(pid: string, d: unknown): unknown;
+  positions(): number[][];
+  publicState(): Record<string, unknown>;
+  kitchenState(): unknown;
+  stateSignature(): string;
+  buildResult(kind: string): Record<string, unknown>;
+}
+
+export interface LegacyRoom {
+  Room: new (code: string, shopName?: unknown) => LegacyRoomInstance;
+  nameError(name: unknown): string | null;
+  NAME_MIN: number;
+  NAME_MAX: number;
+}
+
 export interface LegacyLeaderboard {
   cleanShopName(name: unknown, fallback?: string): string;
   maskShop(name: unknown): string;
@@ -126,6 +167,7 @@ interface LegacyModules {
   'ranking-policy.mjs': LegacyRankingPolicy;
   'ranking-store.mjs': LegacyRankingStore;
   'leaderboard.mjs': LegacyLeaderboard;
+  'room.mjs': LegacyRoom;
 }
 
 export async function loadLegacy<K extends keyof LegacyModules>(

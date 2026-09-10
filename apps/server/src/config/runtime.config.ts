@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { DEFAULT_RECOVERY_MS } from '@repo/game-core';
+import { RANKING_POLICY } from '../modules/leaderboard/ranking-policy.js';
 
 // 서버 전용 튜닝값. 클라이언트로 나가지 않고 공개 디렉터리에서 읽지도 않는다.
 const DEFAULTS = Object.freeze({
@@ -38,6 +40,12 @@ export interface RuntimeConfig {
   readonly port: number;
   readonly recoveryMs: number;
   readonly allowedOrigins: string;
+  /** 랭킹 저장 위치. 레거시는 모듈 위치 기준(= 저장소 루트/data)이라 cwd 와
+   *  무관했지만, 여기는 cwd 기준이다. 서버를 저장소 루트에서 띄우면 같은
+   *  파일이고, 다른 데서 띄우면 다른 파일이 된다 —
+   *  그래서 시작 로그에 실제 경로를 찍는다. GIMBAP_LEADERBOARD 로 고정할 수 있다. */
+  readonly leaderboardFile: string;
+  readonly redis: { readonly url: string; readonly token: string; readonly key: string };
 }
 
 /** 시작과 테스트가 함께 쓰는 순수 파싱. PORT 0 과 옛 recovery fallback 의미를 보존한다. */
@@ -53,5 +61,12 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     port,
     recoveryMs,
     allowedOrigins: env.GIMBAP_ALLOWED_ORIGINS || '',
+    leaderboardFile:
+      env.GIMBAP_LEADERBOARD || path.join(process.cwd(), 'data', 'leaderboard.json'),
+    redis: Object.freeze({
+      url: (env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, ''),
+      token: env.UPSTASH_REDIS_REST_TOKEN || '',
+      key: env.GIMBAP_LEADERBOARD_KEY || RANKING_POLICY.redisKey,
+    }),
   });
 }
