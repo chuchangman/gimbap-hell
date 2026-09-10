@@ -225,13 +225,28 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
 경로에 닿지 않는다. `overrides` 로 2.3.0 을 밀어넣어 봤지만 정확 고정과 충돌해
 `npm ls` 가 invalid 로 남아 되돌렸다. 프레임워크가 핀을 올릴 때 함께 올린다.
 
-### 4. 프론트엔드 `apps/client` — `상태: 대기`
-- [ ] Vite + React 19 + TS 뼈대, `@/` alias
-- [ ] `features/net` — 소켓 훅 (`net.js` 이식: 보간·시계 동기·복구)
+### 4. 프론트엔드 `apps/client` — `상태: 진행 중`
+
+**접근법: 충실한 이식(A).** 사용자 선택. `world.js` 의 GLB 로딩 · 저폴리 조형 ·
+표정 시스템 · 틴트를 R3F 안으로 1:1 옮긴다. 씬 그래프를 선언적 JSX 로 다시
+짜는 쪽(B)이 참고 프로젝트에 더 가깝지만, 조형 좌표가 미묘하게 달라져
+"화면이 그대로"를 보장할 수 없다. 발표에 쓰는 화면이라 A 로 간다.
+
+- [x] Vite 8 + React 19 + TS 뼈대, `@/` alias, dev proxy(소켓·/assets → 3211)
+- [x] `features/net` — `net.js` 이식. 공유 상태 `S` 는 모듈 싱글턴으로 남긴다 —
+      위치는 15Hz 로 들어오고 화면은 60Hz 이상이라 React state 로 두면
+      초당 수십 번 리렌더가 난다. UI 가 필요한 값만 따로 꺼내 간다.
+- [x] `features/net/interpolation.ts` — 레거시 net.js 안에서 모듈 전역이라
+      테스트가 닿지 못했던 보간 버퍼를 순수 모듈로 뺐다. 알고리즘은 그대로다.
+      눈에 잘 안 보이는 규칙 셋을 spec 으로 고정했다: 자리를 새 사람이
+      물려받으면 옛 표본 버리기 · 늦게 온 패킷 버리기 · 오래된 표본을 정리하되
+      앞뒤 두 개는 남기기(없는 미래를 지어내지 않도록). 9개 통과.
 - [ ] `features/world` — R3F 씬 (`world.js` 2,975줄 → 컴포넌트 분해)
 - [ ] `features/player` — 1인칭 이동·충돌·조준 (`player.js`)
 - [ ] `features/kitchen` — 상호작용 해석 (`kitchen.js`)
-- [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`)
+- [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
+      CSS 는 Tailwind 로 다시 쓰지 않고 `style.css` 618줄을 그대로 옮긴다 —
+      참고 프로젝트는 Tailwind 지만, 다시 쓰면 화면이 미묘하게 달라진다.
 - [ ] `features/customize` — 캐릭터 커스터마이즈 (`customize.js`)
 - [ ] `features/assets` — GLB 로더 (`assets.js`)
 
