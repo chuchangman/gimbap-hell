@@ -214,6 +214,20 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
 `HelloPayload` · `RoomAck` · `HealthResponse` 를 붙였다. 서버가 보내는 형태가
 바뀌면 이 테스트가 컴파일 단계에서 먼저 깨진다.
 
+**월드 이식의 검증 방법 — 눈이 아니라 정점으로 본다.**
+탐침으로 확인한 것: 레거시 `world.js` 는 jsdom 에서 그대로 import 되고
+`makeItemMesh` · `previewBody` 가 캔버스 없이 실행된다. 그래서 2,975줄을
+"화면을 봐서" 가 아니라 **같은 입력으로 만든 메시 트리를 통째로 비교**해
+검증할 수 있다.
+
+`src/testing/mesh-snapshot.ts` 가 그 도구다. 객체 트리를 좌표 · 회전 · 배율 ·
+지오메트리 정점(또는 파라미터) · 재질 색 · 투명도까지 뽑아 deepEqual 로 견준다.
+부동소수는 6자리에서 반올림한다 — 같은 식을 다른 순서로 계산하면 마지막
+비트가 갈릴 수 있는데 화면에서는 의미가 없다.
+
+`countMeshes` 로 "정말 뭔가 만들어졌는지" 도 함께 단정한다. 양쪽이 나란히
+빈 그룹을 내면 `toEqual` 은 그냥 통과하기 때문이다.
+
 **클라이언트 쪽 레거시 대조 브리지.** 서버와 사정이 다르다. 서버는 지정자를
 변수로 넘겨 TS7016 을 피했지만, 클라이언트는 레거시 모듈이 동봉 vendor 사본을
 절대경로로 import 하므로 Vite 가 변환해 줘야 한다 — 동적 import 로는 별칭이
@@ -248,7 +262,16 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
       눈에 잘 안 보이는 규칙 셋을 spec 으로 고정했다: 자리를 새 사람이
       물려받으면 옛 표본 버리기 · 늦게 온 패킷 버리기 · 오래된 표본을 정리하되
       앞뒤 두 개는 남기기(없는 미래를 지어내지 않도록). 9개 통과.
-- [ ] `features/world` — R3F 씬 (`world.js` 2,975줄 → 컴포넌트 분해)
+- [ ] `features/world` — `world.js` 2,975줄. 6개 슬라이스로 나눈다.
+  - [x] **기반** — `scene` · `geometry`(모서리 깎은 상자) · `materials`(공유 재질) ·
+        `primitives`(box/cap/cyl/dispose/station/hitProxy)
+  - [x] **음식/재료** — `fillPiece` · `fillLaid` · `rollFace` · `gimbapSlice` ·
+        `makeItemMesh`. 레거시와 **정점 단위로 대조**해 통과.
+  - [ ] 방/설비 (`buildRoom` · 냉장고 · 싱크대 · 밥솥 · 가스렌지 · 도마 · 조립대 ·
+        음쓰통 · 빗자루 · 서빙대 + 거리 풍경)
+  - [ ] 손/팔 (`updateHand` · `buildArm` · `animateArm`) + 설비 동기화 (`sync*`)
+  - [ ] 캐릭터/표정 (`makeBody` · `makeFace` · `buildHair` · `buildTop` · `applyLook`)
+  - [ ] 손님 · 원격 플레이어 · 윤곽선 · 렌더 루프 (`initWorld` · `render`)
 - [ ] `features/player` — 1인칭 이동·충돌·조준 (`player.js`)
 - [ ] `features/kitchen` — 상호작용 해석 (`kitchen.js`)
 - [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).

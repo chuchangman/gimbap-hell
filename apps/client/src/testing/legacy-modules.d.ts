@@ -21,3 +21,13 @@ declare module '@legacy/assets.js' {
   export function loadedAssets(): string[];
   export function preloadAssets(): Promise<void>;
 }
+
+declare module '@legacy/world.js' {
+  import type { Object3D, PerspectiveCamera, Scene } from 'three';
+  export const scene: Scene;
+  export const camera: PerspectiveCamera;
+  export const interactables: Object3D[];
+  export function makeItemMesh(item: unknown): Object3D;
+  export function previewBody(look: unknown): Object3D;
+  export function disposePreviewBody(group: Object3D): void;
+}
