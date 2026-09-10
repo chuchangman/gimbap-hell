@@ -52,12 +52,22 @@ corepack 이 빠져 전역 설치가 필요하다. 게다가 Render 배포가 `n
 - [x] `@repo/eslint-config` (base / react / nest-js / prettier-base)
 - [x] 레거시 `npm test` 가 그대로 통과하는지 확인
 
-### 2. 공용 계약 패키지 — `상태: 대기`
-- [ ] `@repo/game-core` — `config.js` · `game-rules.js` · `spatial.js` ·
-      `kitchen-layout.js` · `render-config.js` · `render-utils.js` 를 TS 로 이식
-- [ ] `@repo/types` — 소켓 와이어 타입 (`state` · `kitchen` · `positions` · 이벤트 페이로드)
-- [ ] `test/parity.test.mjs` — 레거시 JS 와 새 TS 의 값이 같음을 고정
-- [ ] 레거시 58 + 동등성 테스트 통과
+### 2. 공용 계약 패키지 — `상태: 완료`
+- [x] `@repo/game-core` — `config.js` · `game-rules.js` · `spatial.js` ·
+      `kitchen-layout.js` · `render-config.js` 를 TS 로 이식 (12개 모듈)
+- [x] `@repo/types` — 소켓 와이어 타입 (`state` · `kitchen` · `positions` · 이벤트 페이로드,
+      `ServerToClientEvents` / `ClientToServerEvents`, `/health` 응답)
+- [x] `test/parity.test.mjs` — 레거시 JS 와 새 TS 의 값이 같음을 고정.
+      상수 전량 + 함수 26종을 약 2,000개 입력으로 훑는다
+      (`clearPosition` 은 37×45 격자 1,665점).
+- [x] 레거시 58 + 동등성 12 = **70개 통과**. typecheck · lint · prettier 통과.
+
+`render-utils.js` 는 three.js 객체를 받으므로 공용 패키지에 넣지 않았다.
+서버는 이 함수를 쓰지 않는다 — 4단계에서 `apps/client` 로 옮긴다.
+
+`npm test` 앞에 `pretest: turbo run build` 를 달았다. `dist/` 는 커밋하지 않으므로
+테스트가 스스로 빌드해야 하고, turbo 캐시가 있어 두 번째부터는 즉시 끝난다.
+turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필요해 함께 넣었다.
 
 ### 3. 백엔드 `apps/server` — `상태: 대기`
 - [ ] NestJS 12 뼈대 (`main.ts` · `AppModule` · config)
