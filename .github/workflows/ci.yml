@@ -28,7 +28,7 @@ jobs:
 
   deploy:
     name: Render 배포
-    needs: test                    # 테스트가 깨지면 여기까지 안 온다
+    needs: [test, redis-test]       # 실제 Redis 회귀 테스트도 통과해야 배포한다
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -42,3 +42,27 @@ jobs:
           fi
           curl -fsS -X POST "$HOOK" > /dev/null
           echo "배포를 요청했습니다."
+
+  redis-test:
+    name: 실제 Redis 저장 회귀 테스트
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379/tcp
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:redis
+        env:
+          REDIS_TEST_PORT: ${{ job.services.redis.ports[6379] }}

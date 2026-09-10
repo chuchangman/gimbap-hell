@@ -10,12 +10,13 @@
    ──────────────────────────────────────────────────────────── */
 import * as THREE from '/vendor/three.module.min.js';
 import { PARTS, PART_COLORS, DEFAULT_LOOK, sanitizeLook } from './config.js';
-import { previewBody } from './world.js';
+import { previewBody, animatePreviewBody, disposePreviewBody } from './world.js';
 
 const STORE_KEY = 'gimbap:look';
 
 let look = Object.assign({}, DEFAULT_LOOK);
-let renderer, scene, cam, model, spin = 0, raf = 0;
+let renderer, scene, cam, model, raf = 0, resizeObserver;
+let yaw = 0.22, walking = false, dragX = null;
 
 /** 지난번에 고른 조합을 되살린다. 안 되면 기본값 */
 function loadSaved() {
@@ -34,7 +35,7 @@ function save() {
 function initPreview(canvas) {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(canvas.clientWidth || 112, canvas.clientHeight || 150, false);
+  renderer.setSize(canvas.clientWidth || 280, canvas.clientHeight || 376, false);
   /* 게임과 같은 톤매핑·노출을 쓴다. 안 맞추면 여기서 고른 색이
      실제로는 다르게 보여서 고르는 의미가 없어진다. */
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -52,20 +53,49 @@ function initPreview(canvas) {
   cam = new THREE.OrthographicCamera(-0.66, 0.66, 1.25, -1.25, 0.1, 20);
   cam.position.set(0, 1.22, 4);
   cam.lookAt(0, 1.22, 0);
+  const stand = new THREE.Mesh(new THREE.CylinderGeometry(.59, .62, .055, 48),
+    new THREE.MeshStandardMaterial({ color: 0xd5c4a6, roughness: .9 }));
+  stand.position.y = -.036;
+  scene.add(stand);
+  resizeObserver = new ResizeObserver(() => {
+    if (!renderer || !canvas.clientWidth || !canvas.clientHeight) return;
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    fitPreview();
+  });
+  resizeObserver.observe(canvas);
+
+  canvas.addEventListener('pointerdown', (event) => {
+    dragX = event.clientX; canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (dragX === null) return;
+    yaw += (event.clientX - dragX) * .012; dragX = event.clientX;
+  });
+  const endDrag = () => { dragX = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', endDrag);
+  canvas.addEventListener('keydown', (event) => {
+    if (event.code !== 'ArrowLeft' && event.code !== 'ArrowRight') return;
+    event.preventDefault(); yaw += event.code === 'ArrowLeft' ? -.25 : .25;
+  });
 }
 
 /** 큰 모자나 게 후드도 잘리지 않도록 현재 조합의 실제 크기로 카메라를 맞춘다. */
 function fitPreview() {
   if (!model || !cam || !renderer) return;
+  const rotation = model.rotation.y;
+  model.rotation.y = 0;
   model.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(model);
   if (bounds.isEmpty()) return;
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
+  model.rotation.y = rotation;
   const canvas = renderer.domElement;
-  const aspect = Math.max(0.4, (canvas.clientWidth || 112) / (canvas.clientHeight || 150));
+  const aspect = Math.max(0.4, (canvas.clientWidth || 280) / (canvas.clientHeight || 376));
   // 기본 몸은 너무 작아지지 않게 하고, 큰 파츠가 붙었을 때만 필요한 만큼 물러난다.
-  const height = Math.max(2.34, size.y + 0.14, size.x / aspect + 0.14);
+  const height = Math.max(2.52, size.y + 0.24, Math.max(size.x, size.z) / aspect + 0.24);
   const halfH = height / 2;
   const halfW = halfH * aspect;
   cam.left = -halfW; cam.right = halfW;
@@ -76,23 +106,27 @@ function fitPreview() {
 }
 
 function rebuild() {
-  if (model) { scene.remove(model); model = null; }
+  if (!renderer || !scene) return;
+  if (model) { scene.remove(model); disposePreviewBody(model); model = null; }
   model = previewBody(look);
   scene.add(model);
   fitPreview();
 }
 
-function loop() {
+function loop(time = 0) {
   raf = requestAnimationFrame(loop);
-  spin += 0.006;
-  if (model) model.rotation.y = Math.sin(spin) * 0.45;   // 좌우로 천천히 돌아본다
+  if (!document.getElementById('screen-join').classList.contains('active')) return;
+  if (model) {
+    model.rotation.y = yaw;
+    animatePreviewBody(model, time / 1000, walking);
+  }
   renderer.render(scene, cam);
 }
 
 /* ──────────────── 조작 ──────────────── */
 
 const KEY = { hair: 'h', face: 'f', top: 't', bottom: 'b', expression: 'e' };
-const COLOR_KEY = { hair: 'hc', top: 'tc', bottom: 'bc' };
+const COLOR_KEY = { hair: 'hc', top: 'tc', bottom: 'bc', skin: 'sc', shoes: 'shc' };
 
 function paint(root) {
   for (const row of root.querySelectorAll('.cz-row')) {
@@ -103,7 +137,7 @@ function paint(root) {
     const part = box.dataset.swatch;
     const sel = look[COLOR_KEY[part]];
     [...box.children].forEach((sw, i) =>
-      sw.setAttribute('aria-selected', String(i === sel)));
+      sw.setAttribute('aria-pressed', String(i === sel)));
   }
   rebuild();
   save();
@@ -118,8 +152,9 @@ function buildSwatches(root) {
       b.type = 'button';
       b.className = 'cz-sw';
       b.style.background = '#' + hex.toString(16).padStart(6, '0');
-      const label = part === 'hair' ? '머리색 ' : part === 'bottom' ? '하의색 ' : '상의색 ';
+      const label = { hair: '머리색 ', bottom: '하의색 ', top: '상의색 ', skin: '피부색 ', shoes: '신발색 ' }[part];
       b.title = label + (i + 1);
+      b.setAttribute('aria-label', b.title);
       b.addEventListener('click', () => { look[COLOR_KEY[part]] = i; paint(root); });
       box.appendChild(b);
     });
@@ -147,6 +182,7 @@ export function initCustomizer() {
     const list = PARTS[part];
     for (const btn of row.querySelectorAll('.cz-arrow')) {
       btn.type = 'button';
+      btn.setAttribute('aria-label', row.querySelector('.cz-label').textContent + (Number(btn.dataset.d) < 0 ? ' 이전' : ' 다음'));
       btn.addEventListener('click', () => {
         const d = Number(btn.dataset.d);
         look[KEY[part]] = (look[KEY[part]] + d + list.length) % list.length;
@@ -166,11 +202,22 @@ export function initCustomizer() {
         f: pick(PARTS.face.length),
         t: pick(PARTS.top.length),  tc: pick(PART_COLORS.top.length),
         b: pick(PARTS.bottom.length), bc: pick(PART_COLORS.bottom.length),
-        e: pick(PARTS.expression.length)
+        e: pick(PARTS.expression.length),
+        sc: pick(PART_COLORS.skin.length), shc: pick(PART_COLORS.shoes.length)
       };
       paint(root);
     });
   }
+
+  document.getElementById('cz-reset').addEventListener('click', () => {
+    look = { ...DEFAULT_LOOK }; yaw = .22; paint(root);
+  });
+  document.getElementById('cz-turn').addEventListener('click', () => { yaw += Math.PI / 2; });
+  document.getElementById('cz-front').addEventListener('click', () => { yaw = 0; });
+  document.getElementById('cz-walk').addEventListener('click', (event) => {
+    walking = !walking;
+    event.currentTarget.setAttribute('aria-pressed', String(walking));
+  });
 
   paint(root);
   if (renderer) loop();
@@ -183,4 +230,6 @@ export function currentLook() { return Object.assign({}, look); }
 export function stopCustomizer() {
   if (raf) { cancelAnimationFrame(raf); raf = 0; }
   if (renderer) { renderer.dispose(); renderer = null; }
+  resizeObserver?.disconnect();
+  if (model) { disposePreviewBody(model); model = null; }
 }

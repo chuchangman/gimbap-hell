@@ -7,7 +7,14 @@
   "scripts": {
     "start": "node server/index.mjs",
     "dev": "node server/index.mjs",
-    "test": "node test/smoke.mjs",
+    "test": "node test/smoke.mjs && node --test test/game-rules.test.mjs test/runtime-config.test.mjs test/protocol.test.mjs test/server.integration.test.mjs test/ranking-store.test.mjs test/spatial.test.mjs test/layout.test.mjs test/render-utils.test.mjs test/qa-fixtures.test.mjs",
+    "test:spatial": "node --test test/spatial.test.mjs",
+    "test:storage": "node --test test/ranking-store.test.mjs",
+    "test:redis": "node --test test/redis.integration.test.mjs",
+    "test:protocol": "node --test test/protocol.test.mjs test/server.integration.test.mjs",
+    "test:qa-fixtures": "node --test test/qa-fixtures.test.mjs",
+    "qa:browser": "node tools/release-browser-qa.cjs",
+    "qa:character": "node tools/character-preview-qa.cjs",
     "assets:food": "node tools/generate-low-poly-food-assets.mjs"
   },
   "engines": {
@@ -16,5 +23,8 @@
   "license": "MIT",
   "dependencies": {
     "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "socket.io-client": "4.8.3"
   }
 }

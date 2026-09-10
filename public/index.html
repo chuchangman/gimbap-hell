@@ -10,6 +10,10 @@
 <body>
 
 <canvas id="gl"></canvas>
+<div id="connection-status" class="connection-status hidden" role="status" aria-live="polite">
+  <span id="connection-status-text">서버에 연결하고 있습니다.</span>
+  <button id="connection-retry" type="button">다시 연결</button>
+</div>
 
 <!-- ══════════════ HUD ══════════════ -->
 <div id="hud" class="hidden">
@@ -25,6 +29,10 @@
   </div>
   <div class="hud-sub" id="stat-rolls"></div>
   <div id="wave-pop" class="wave-pop"></div>
+  <div id="pause-overlay" class="pause-overlay hidden">
+    <strong>⏸ 일시정지</strong>
+    <span id="pause-hint">방장이 게임을 멈췄습니다.</span>
+  </div>
 
   <div id="queue" class="queue"></div>
   <div class="hud-right">
@@ -45,22 +53,34 @@
   <div class="controls">
     <b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>Space</b> 점프 · <b>마우스</b> 시점<br />
     <b>E</b>/좌클릭 상호작용 · <b>Q</b> 버리기 · <b>H</b> 도움말 · <b>Esc</b> 마우스 해제<br />
+    방장: <b>P</b> 일시정지/재개<br />
     <b>🧹 빗자루</b>를 들면 <b>좌클릭</b>으로 동료 · 손님을 후려칩니다
   </div>
 </div>
 
 <!-- ══════════════ 입장 ══════════════ -->
-<section id="screen-join" class="screen solid active">
+<section id="screen-join" class="screen solid active scrollable">
   <div class="card">
     <h1 class="logo">🍣 김밥지옥<br /><span>웨이브 디펜스</span></h1>
     <p class="tagline">손님이 웨이브로 밀려옵니다.<br />다 같이 김밥을 말아 인내심이 다하기 전에 내보내세요.</p>
 
-    <label class="field"><span>이름 <em>(2~12글자)</em></span>
-      <input id="input-name" minlength="2" maxlength="12" placeholder="예: 김알바" autocomplete="off" /></label>
+    <label class="field"><span>이름 <em id="name-limits"></em></span>
+      <input id="input-name" placeholder="예: 김알바" autocomplete="off" /></label>
 
+    <div class="cz-heading"><b>나의 클레이 캐릭터</b><span>선택한 모습이 게임에 그대로 적용돼요</span></div>
     <div class="customize">
-      <div class="cz-preview"><canvas id="cz-canvas"></canvas></div>
+      <div class="cz-preview">
+        <canvas id="cz-canvas" aria-label="캐릭터 3D 미리보기. 드래그해서 회전" tabindex="0"></canvas>
+        <div class="cz-view-controls">
+          <button id="cz-turn" type="button" title="캐릭터 90도 회전">↻ 회전</button>
+          <button id="cz-walk" type="button" aria-pressed="false">걷기</button>
+          <button id="cz-front" type="button">정면</button>
+        </div>
+        <span class="cz-preview-hint">드래그로 360° 돌려보기</span>
+      </div>
       <div class="cz-rows">
+        <div class="cz-color-label">피부색</div>
+        <div class="cz-swatches" data-swatch="skin"></div>
         <div class="cz-row" data-part="hair">
           <span class="cz-label">머리</span>
           <button class="cz-arrow" data-d="-1">◀</button>
@@ -94,21 +114,26 @@
           <button class="cz-arrow" data-d="1">▶</button>
         </div>
         <div class="cz-swatches" data-swatch="bottom"></div>
-        <button id="cz-random" class="btn tiny">🎲 아무거나</button>
+        <div class="cz-color-label">신발색</div>
+        <div class="cz-swatches" data-swatch="shoes"></div>
+        <div class="cz-actions">
+          <button id="cz-random" class="btn tiny">랜덤 조합</button>
+          <button id="cz-reset" class="btn tiny">기본 조합</button>
+        </div>
       </div>
     </div>
 
     <label class="field"><span>가게 이름 <em>(새로 열 때만 · 비우면 「이름」의 가게)</em></span>
-      <input id="input-shop" maxlength="16" placeholder="비워두면 「이름」의 가게" autocomplete="off" /></label>
+      <input id="input-shop" placeholder="비워두면 「이름」의 가게" autocomplete="off" /></label>
 
     <button id="btn-create" class="btn primary big">새 가게 열기</button>
     <div class="or"><span>또는</span></div>
     <div class="join-row">
-      <input id="input-code" maxlength="4" placeholder="방 코드" autocomplete="off" />
+      <input id="input-code" placeholder="방 코드" autocomplete="off" />
       <button id="btn-join" class="btn">입장</button>
     </div>
-    <p id="join-err" class="err"></p>
-    <p class="hint small">최대 6명 · 같은 Wi-Fi 면 주소만 공유하면 됩니다.</p>
+    <p id="join-err" class="err" role="status" aria-live="polite"></p>
+    <p id="player-limit-hint" class="hint small"></p>
   </div>
 </section>
 
@@ -179,6 +204,7 @@
 
     <h3>🏆 가게 랭킹</h3>
     <p class="rank-line" id="r-rank-line"></p>
+    <p class="hint" id="r-storage-status" role="status" aria-live="polite"></p>
     <ol class="board" id="r-board"></ol>
 
     <h3>다음엔 이렇게</h3>
@@ -220,7 +246,7 @@
     <tr><td>🍙 <b>조립대 ×3</b></td><td>김 → 밥 → 속재료 → 말기 <span data-time="roll"></span>초</td></tr>
     <tr><td>🗑️ <b>음쓰통</b></td><td>못 쓰게 된 재료는 여기에 (Q 로 바닥에 버리면 감점)</td></tr>
     <tr><td>👤 <b>손님 조준</b></td><td>카운터의 손님을 조준하고 <b>E</b> — 그 손님에게 바로 나갑니다</td></tr>
-    <tr><td>🛎️ <b>서빙 창구</b></td><td>조준하기 귀찮으면 여기로. <b>조합이 가장 잘 맞는 주문</b>으로 자동으로 나갑니다.<br />완전히 맞으면 만점, 빠지거나 더 들어가면 그만큼 깎입니다</td></tr>
+    <tr><td>🍽️ <b>서빙 테이블</b></td><td>조준하기 귀찮으면 여기로. <b>조합이 가장 잘 맞는 주문</b>으로 자동으로 나갑니다.<br />완전히 맞으면 만점, 빠지거나 더 들어가면 그만큼 깎입니다</td></tr>
   </table>
 
   <h3>🧹 빗자루 난투</h3>
@@ -238,7 +264,7 @@
     똑같이 맞는 손님이 여럿이면 전부 표시되고, 그중 <b>실제로 나갈 한 명</b>만 밝게 숨쉽니다.
     테두리는 <b>내 화면에만</b> 보입니다.<br />
     좌측 주문서의 <b>줄 긋기</b>는 그중 <b>가장 급한 한 명</b>에게만 갑니다 —
-    조준하지 않고 서빙 창구로 내면 바로 그 손님에게 나갑니다.<br />
+    조준하지 않고 서빙 테이블로 내면 바로 그 손님에게 나갑니다.<br />
     아직 만드는 중일 때는 <b>조립대에 넣은 재료</b>를 기준으로 줄이 그어집니다.
   </p>
 
@@ -260,7 +286,7 @@
   </p>
 </div>
 
-<div id="toast-area"></div>
+<div id="toast-area" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <!-- 벤더링한 GLTFLoader 가 "three" 를 bare specifier 로 부른다 -->
 <script type="importmap">

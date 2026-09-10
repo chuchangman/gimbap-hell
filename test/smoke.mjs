@@ -8,7 +8,7 @@ import {
   FRIDGE_ITEMS, KIND, SPECIAL_PATIENCE, SPECIAL_RATIO, QUEUE_SLOTS,
   matchScore, servedQuality, grumbleFor, scaleCount,
   CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
-  samplePath, shortestTurn, NET, PARTS
+  samplePath, shortestTurn, NET, PARTS, PART_COLORS, DEFAULT_LOOK, sanitizeLook, lookFromSeed
 } from '../public/js/config.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -44,15 +44,16 @@ const manifest = JSON.parse(fs.readFileSync(path.join(assetRoot, 'manifest.json'
 const characterAssets = [
   'char/base',
   ...PARTS.hair.filter((p) => p.id !== 'bald').map((p) => 'char/hair/' + p.id),
-  ...PARTS.top.map((p) => 'char/top/' + p.id)
+  ...PARTS.top.map((p) => 'char/top/' + p.id),
+  ...PARTS.bottom.map((p) => 'char/bottom/' + p.id)
 ];
 ok(characterAssets.every((name) => manifest[name]),
-  '베이스와 선택 가능한 머리·상의가 manifest에 모두 등록됐다');
+  '베이스와 선택 가능한 머리·상의·하의가 manifest에 모두 등록됐다');
 ok(characterAssets.every((name) => fs.existsSync(path.join(assetRoot, manifest[name] || 'missing'))),
   'manifest의 캐릭터 GLB가 실제 파일로 존재한다');
 ok(PARTS.hair.some((p) => p.id === 'chef') && PARTS.hair.some((p) => p.id === 'crab')
-  && PARTS.hair.some((p) => p.id === 'cap'), '원본 모자 3종을 고를 수 있다');
-ok(PARTS.top.some((p) => p.id === 'scout'), '분리한 스카우트 장비를 고를 수 있다');
+  && PARTS.hair.some((p) => p.id === 'cap'), '클레이 모자 3종을 고를 수 있다');
+ok(PARTS.top.some((p) => p.id === 'scout'), '워크 재킷을 독립 파츠로 고를 수 있다');
 ok(PARTS.bottom.some((p) => p.id === 'shorts'), '기본 하의를 독립 파츠로 고를 수 있다');
 const baseGlb = fs.readFileSync(path.join(assetRoot, manifest['char/base']));
 const baseJsonLength = baseGlb.readUInt32LE(12);
@@ -63,6 +64,36 @@ ok(baseNodeNames.has('baseTop') && baseNodeNames.has('baseBottom') && !baseNodeN
 const worldSource = fs.readFileSync(path.resolve('public/js/world.js'), 'utf8');
 ok(worldSource.includes('legRest: legs.map') && worldSource.includes('quaternion.copy(rest)'),
   'GLB 다리 뼈의 기본 축 회전을 보존한 채 걷기 각도를 더한다');
+const readGlb = (name) => {
+  const bytes = fs.readFileSync(path.join(assetRoot, manifest[name]));
+  return JSON.parse(bytes.toString('utf8', 20, 20 + bytes.readUInt32LE(12)));
+};
+ok(PARTS.top.every(({id}) => {
+  const names = readGlb('char/top/' + id).nodes.map(n => n.name);
+  return ['garmentBody', 'sleeveL', 'sleeveR'].every(n => names.includes(n));
+}), '모든 상의에 독립 팔 소켓이 있다');
+ok(PARTS.bottom.every(({id}) => {
+  const names = readGlb('char/bottom/' + id).nodes.map(n => n.name);
+  return ['waist', 'trouserL', 'trouserR'].every(n => names.includes(n));
+}), '모든 하의에 독립 다리 소켓이 있다');
+ok(characterAssets.every(name => {
+  const gltf=readGlb(name);
+  return !(gltf.textures?.length) && (gltf.materials || []).every(m =>
+    m.pbrMetallicRoughness?.roughnessFactor >= .8 && !m.pbrMetallicRoughness?.metallicFactor);
+}), '캐릭터 전체가 텍스처 없는 무광 클레이 재질이다');
+ok(PARTS.bottom.length === 3, '반바지·긴바지·롤업 팬츠를 선택한다');
+ok(sanitizeLook({sc:6,shc:4,b:2}).sc === 6 && sanitizeLook({sc:6,shc:4,b:2}).shc === 4
+  && sanitizeLook({b:2}).b === 2, '새 피부·신발·하의 값이 보존된다');
+ok(sanitizeLook({sc:Infinity,shc:-1,b:999}).sc === 0 && sanitizeLook({shc:-1}).shc === 0
+  && sanitizeLook({b:999}).b === 0, '범위를 벗어난 새 커스터마이징 값은 거부한다');
+ok(sanitizeLook({h:0,t:1}).sc === 0 && sanitizeLook({h:0,t:1}).shc === 0,
+  '옛 저장 데이터에 피부색·신발색이 없어도 안전하다');
+const lookRoom = new Room('LOOK');
+lookRoom.addPlayer('look-host', '클레이테스트', {...DEFAULT_LOOK,b:2,sc:4,shc:3});
+ok(lookRoom.publicState().players[0].look.sc === 4 && lookRoom.publicState().players[0].look.b === 2
+  && lookRoom.publicState().players[0].look.shc === 3, '서버 스냅샷에 새 외형 선택값이 동기화된다');
+ok(JSON.stringify(lookFromSeed(42)) === JSON.stringify(lookFromSeed(42))
+  && lookFromSeed(42).sc < PART_COLORS.skin.length, '손님 외형도 같은 시드로 결정된다');
 
 /* ═════════════════════════════════════════════ */
 head('[A] 재료 5종 추가 — 계란·당근·맛살·어묵·오이');
@@ -291,6 +322,8 @@ if (two.length >= 2) {
 const room = new Room('MTCH');
 room.addPlayer('p', '나');
 room.start();
+// This fixture isolates serving/matching; place the worker at the serving table.
+Object.assign(room.players.get('p'),{x:0,z:-5.4});
 rewind(room.waves, 'phaseEndsAt', 999);
 room.tick();
 for (let i = 0; i < 6; i++) { room.waves.nextSpawnAt = 0; room.tick(); }
@@ -376,6 +409,56 @@ ok(snap.wave && snap.wave.unlocked && snap.wave.reputation === REPUTATION_MAX,
   '공개 상태에 해금 목록과 평판이 들어 있다');
 ok(st.stateSignature() === st.stateSignature(),
   '시각만 흐른 상태는 같은 서명 → 브로드캐스트를 건너뛴다 (최적화)');
+
+/* ═════════════════════════════════════════════ */
+head('[P] ⏸ 방장 일시정지');
+
+const pausedRoom = new Room('PAUS');
+pausedRoom.addPlayer('host', '방장');
+pausedRoom.addPlayer('guest', '손님');
+pausedRoom.start();
+pausedRoom.kitchen.cookers[0] = { state: 'cooking', at: Date.now() - 1000, servings: 0 };
+pausedRoom.waves.phase = 'wave';
+pausedRoom.waves.nextSpawnAt = Date.now() + 3000;
+pausedRoom.waves.active = [{
+  id: 'pause-c', kind: KIND.KIOSK, look: { name: '대기 손님', emoji: '🙂', color: '#fff' },
+  fills: BASE_FILLINGS.slice(), need: 1, done: 0, patienceMax: 10,
+  hp: CUSTOMER_HP.normal, hpMax: CUSTOMER_HP.normal, slot: 0, seed: 1, state: 'wait',
+  since: Date.now() - 500, enteredAt: Date.now() - 300, deadline: Date.now() + 9000
+}];
+
+ok(pausedRoom.togglePause('guest') === null && !pausedRoom.paused,
+  '방장이 아니면 일시정지할 수 없다');
+const pausedResult = pausedRoom.togglePause('host');
+ok(pausedResult && pausedResult.paused && pausedRoom.paused,
+  '방장이 P 요청을 보내면 방 전체가 일시정지된다');
+ok(pausedRoom.publicState().paused && pausedRoom.publicState().pausedAt === pausedRoom.pausedAt,
+  '공개 상태에 일시정지 여부와 고정 시각이 실린다');
+ok(pausedRoom.kitchenState().now === pausedRoom.pausedAt,
+  '일시정지 중 주방 시계도 같은 시각에 고정된다');
+
+const cookAtBeforePause = pausedRoom.kitchen.cookers[0].at;
+const spawnAtBeforePause = pausedRoom.waves.nextSpawnAt;
+const deadlineBeforePause = pausedRoom.waves.active[0].deadline;
+const xBeforePause = pausedRoom.players.get('host').x;
+ok(pausedRoom.tick().length === 0 && pausedRoom.kitchen.cookers[0].at === cookAtBeforePause,
+  '일시정지 중에는 서버 틱이 조리와 웨이브를 진행하지 않는다');
+ok(!pausedRoom.act('host', 'fridge:take', { item: 'ham' }).ok,
+  '일시정지 중에는 주방 조작이 막힌다');
+pausedRoom.move('host', { x: 7, z: 7 });
+ok(pausedRoom.players.get('host').x === xBeforePause,
+  '일시정지 중에는 플레이어 위치도 바뀌지 않는다');
+
+pausedRoom.pausedAt -= 5000; // 기다리지 않고 5초가 흐른 상황을 만든다
+const resumedResult = pausedRoom.togglePause('host');
+const pausedFor = resumedResult.elapsed;
+ok(!pausedRoom.paused && !resumedResult.paused,
+  '방장이 다시 P 요청을 보내면 게임이 재개된다');
+ok(pausedRoom.kitchen.cookers[0].at === cookAtBeforePause + pausedFor,
+  '밥솥 조리 시간이 멈춘 길이만큼 보정된다');
+ok(pausedRoom.waves.nextSpawnAt === spawnAtBeforePause + pausedFor &&
+   pausedRoom.waves.active[0].deadline === deadlineBeforePause + pausedFor,
+  '손님 등장과 인내심 시간도 멈춘 길이만큼 보정된다');
 
 /* ═════════════════════════════════════════════ */
 head('[H] 가게 이름 · 🏆 점수 순 랭킹');

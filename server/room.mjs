@@ -1,21 +1,25 @@
 /* ────────────────────────────────────────────────────────────
    방 — 플레이어 · 주방 · 웨이브 · 빗자루 난투를 한데 묶는다.
-   판정은 전부 여기(서버)에서 한다. 클라이언트를 고쳐도 뚫리지 않는다.
+   게임 규칙과 좌표·설비 거리 검증은 서버가 수행한다.
    ──────────────────────────────────────────────────────────── */
 import {
-  COMBAT, SCORE, REPUTATION_MAX, QUEUE_Z, slotX, sanitizeLook, DEFAULT_LOOK
+  COMBAT, SCORE, REPUTATION_MAX, QUEUE_Z, slotX, sanitizeLook, DEFAULT_LOOK, itemUnlockWave
 } from '../public/js/config.js';
 import { Kitchen, nowMs } from './kitchen.mjs';
 import { WaveRunner } from './waves.mjs';
 import * as leaderboard from './leaderboard.mjs';
+import { validKitchenAction } from './protocol.mjs';
+import {MOVEMENT,actionBox,interactionDistance} from '../public/js/spatial.js';
+import {movementState,validateMove,grantKnockback} from './movement.mjs';
+import { PLAYER_LIMIT, NAME_MIN, NAME_MAX } from '../public/js/game-rules.js';
 
 /* 닉네임 규칙 — 서버가 최종 판정자다. 클라이언트 검사는 거들 뿐 */
-export const NAME_MIN = 2;
-export const NAME_MAX = 12;
+export { NAME_MIN, NAME_MAX };
 
 /** 문제가 있으면 사람이 읽을 메시지, 없으면 null */
 export function nameError(name) {
-  const s = String(name == null ? '' : name).trim();
+  if (typeof name !== 'string' || /[\u0000-\u001f\u007f]/u.test(name)) return '올바른 이름을 입력해 주세요.';
+  const s = name.trim();
   if (s.length < NAME_MIN) return '이름은 ' + NAME_MIN + '글자 이상이어야 합니다.';
   if (s.length > NAME_MAX) return '이름은 ' + NAME_MAX + '글자를 넘을 수 없습니다.';
   return null;
@@ -37,6 +41,8 @@ export class Room {
     this.players = new Map();       // id → { id, name, color, x, z, y, ry, lastSwing }
     this.hostId = null;
     this.phase = 'lobby';           // lobby | playing | result
+    this.paused = false;
+    this.pausedAt = 0;
     this.kitchen = new Kitchen();
     this.waves = null;
     this.result = null;
@@ -47,22 +53,25 @@ export class Room {
   /** 안 쓰는 가장 작은 자리 번호 — 나간 자리는 다음 사람이 물려받는다 */
   freeSlot() {
     const used = new Set([...this.players.values()].map((p) => p.slot));
-    for (let i = 0; i < 6; i++) if (!used.has(i)) return i;
+    for (let i = 0; i < PLAYER_LIMIT; i++) if (!used.has(i)) return i;
     return this.players.size;
   }
 
   addPlayer(id, name, look) {
+    if (this.players.has(id)) return this.players.get(id);
+    if (this.players.size >= PLAYER_LIMIT || typeof name !== 'string') return null;
     const i = this.freeSlot();
     const spawn = SPAWNS[i % SPAWNS.length];
     this.players.set(id, {
       id,
       slot: i,
-      name: (name || '').trim().slice(0, 12) || ('알바' + (i + 1)),
+      name: (name || '').trim().slice(0, NAME_MAX) || ('알바' + (i + 1)),
       color: COLORS[i % COLORS.length],
       // 클라이언트가 보낸 값은 그대로 믿지 않는다 — 범위를 벗어나면 잘라낸다
       look: sanitizeLook(look || DEFAULT_LOOK),
       x: spawn.x, z: spawn.z, y: 0, ry: 0,
-      lastSwing: 0
+      spawn: {x:spawn.x,z:spawn.z,y:0,ry:0},
+      lastSwing: 0, connected: true, motion:movementState()
     });
     this.kitchen.join(id);
     if (!this.hostId) this.hostId = id;
@@ -72,7 +81,8 @@ export class Room {
   removePlayer(id) {
     this.players.delete(id);
     this.kitchen.leave(id);
-    if (this.hostId === id) this.hostId = this.players.keys().next().value || null;
+    if (this.hostId === id) this.hostId = [...this.players.values()].find(p=>p.connected)?.id
+      || this.players.keys().next().value || null;
   }
 
   get size() { return this.players.size; }
@@ -98,23 +108,51 @@ export class Room {
     for (const id of this.players.keys()) this.kitchen.join(id);
     this.waves = new WaveRunner(this.players.size);
     this.phase = 'playing';
+    this.paused = false;
+    this.pausedAt = 0;
     this.result = null;
     let i = 0;
     for (const p of this.players.values()) {
       const s = SPAWNS[i++ % SPAWNS.length];
       p.x = s.x; p.z = s.z; p.y = 0; p.ry = 0;
+      p.spawn = {x:s.x,z:s.z,y:0,ry:0};
+      p.motion=movementState();
     }
     return true;
   }
 
   toLobby() {
     this.phase = 'lobby';
+    this.paused = false;
+    this.pausedAt = 0;
     this.result = null;
+  }
+
+  /** 방장만 P 키로 영업 전체를 멈추거나 다시 시작할 수 있다. */
+  togglePause(pid) {
+    if (!this.isHost(pid) || this.phase !== 'playing') return null;
+    const t = nowMs();
+    if (!this.paused) {
+      this.paused = true;
+      this.pausedAt = t;
+      return { paused: true };
+    }
+
+    const elapsed = Math.max(0, t - this.pausedAt);
+    this.kitchen.shiftTime(elapsed);
+    if (this.waves) this.waves.shiftTime(elapsed);
+    for (const p of this.players.values()) if (p.lastSwing) p.lastSwing += elapsed;
+    for(const p of this.players.values()) {
+      p.motion.at=performance.now();p.motion.airAt=null;p.motion.impulseUntil=0;
+    }
+    this.paused = false;
+    this.pausedAt = 0;
+    return { paused: false, elapsed };
   }
 
   /** 5Hz 로 호출된다 → 밖으로 내보낼 이벤트 목록 */
   tick() {
-    if (this.phase !== 'playing') return [];
+    if (this.phase !== 'playing' || this.paused) return [];
     const events = [];
     for (const n of this.kitchen.tick()) events.push({ type: 'toast', msg: n.msg, kind: n.kind });
 
@@ -131,9 +169,21 @@ export class Room {
   /* ──────────────── 주방 동작 ──────────────── */
   act(pid, action, payload) {
     if (this.phase !== 'playing') return { ok: false, msg: '아직 영업 전입니다.', kind: 'bad' };
+    if (this.paused) return { ok: false, msg: '게임이 일시정지 중입니다.', kind: 'bad' };
     if (!this.players.has(pid)) return { ok: false, msg: '방에 없습니다.', kind: 'bad' };
+    if (!validKitchenAction(action,payload === undefined ? {} : payload)) return {ok:false,msg:'올바르지 않은 동작입니다.',kind:'bad'};
+    if (action === 'fridge:take' && itemUnlockWave(payload.item) > Math.max(1,this.waves?.wave || 0))
+      return {ok:false,msg:'아직 해금되지 않은 재료입니다.',kind:'bad'};
     if (action === 'serve') return this.serve(pid, payload && payload.customerId);
+    if(action!=='drop' && !this.canReach(pid,action,payload))
+      return {ok:false,msg:'조금 더 가까이 다가가 주세요.',kind:'bad',rejected:'distance'};
     return this.kitchen.act(pid, action, payload);
+  }
+
+  canReach(pid,action,payload={},customer=null) {
+    const player=this.players.get(pid);
+    // A small allowance absorbs the last movement packet's network delay.
+    return !!player && player.connected && interactionDistance(player,actionBox(action,payload,customer))<=MOVEMENT.reach+.35;
   }
 
   /**
@@ -142,7 +192,8 @@ export class Room {
    * 안 주면 속재료 조합이 가장 잘 맞는 주문으로 나간다 (창구 서빙).
    */
   serve(pid, customerId) {
-    if (!this.waves) return { ok: false, msg: '아직 영업 전입니다.', kind: 'bad' };
+    if (!this.waves || this.phase!=='playing') return { ok: false, msg: '아직 영업 전입니다.', kind: 'bad' };
+    if (this.paused) return { ok: false, msg: '게임이 일시정지 중입니다.', kind: 'bad' };
 
     const hand = this.kitchen.hand(pid);
     if (!hand || hand.id !== 'gimbap') return { ok: false, msg: '완성된 김밥을 들고 오세요.', kind: 'bad' };
@@ -158,6 +209,9 @@ export class Room {
       };
     }
 
+    if(!this.canReach(pid,'serve',{customerId},target))
+      return {ok:false,msg:'서빙할 곳에 조금 더 가까이 다가가 주세요.',kind:'bad',rejected:'distance'};
+
     const item = this.kitchen.takeGimbap(pid);
     const r = this.waves.serve(item.fills || [], customerId);
     if (!r.ok) {
@@ -172,7 +226,7 @@ export class Room {
      사거리·정면 판정·쿨다운을 서버가 다시 검사한다.
      ──────────────────────────────────────────────────────────── */
   swing(pid, targetId, targetKind) {
-    if (this.phase !== 'playing') return null;
+    if (this.phase !== 'playing' || this.paused) return null;
     const me = this.players.get(pid);
     if (!me) return null;
     if (!this.kitchen.hasBroom(pid)) return null;
@@ -210,6 +264,7 @@ export class Room {
     if (!other || other.id === pid) return out;
     const dir = reach(other.x, other.z);
     if (!dir) return out;
+    grantKnockback(other);
 
     const dropped = this.kitchen.dropFor(other.id);
     out.hit = {
@@ -223,12 +278,10 @@ export class Room {
 
   /* ──────────────── 위치 ──────────────── */
   move(pid, d) {
+    if (this.phase !== 'playing' || this.paused) return;
     const p = this.players.get(pid);
     if (!p || !d) return;
-    if (typeof d.x === 'number') p.x = Math.max(-8, Math.min(8, d.x));
-    if (typeof d.z === 'number') p.z = Math.max(-11, Math.min(9, d.z));
-    if (typeof d.y === 'number') p.y = Math.max(0, Math.min(3, d.y));
-    if (typeof d.ry === 'number') p.ry = d.ry;
+    return validateMove(p,d);
   }
 
   /* 위치 패킷 — [자리번호, x, z, y, ry] 배열.
@@ -248,22 +301,34 @@ export class Room {
 
   /* ──────────────── 스냅샷 ──────────────── */
   publicState() {
+    const result=this.result ? {...this.result, storage:leaderboard.status()} : null;
+    if(result) {
+      result.board=leaderboard.publicBoard(result.entryId,10);
+      result.rank=result.board.myRank;
+    }
     return {
-      now: nowMs(),
+      now: this.paused ? this.pausedAt : nowMs(),
       code: this.code,
       shop: this.shop,
       phase: this.phase,
+      paused: this.paused,
+      pausedAt: this.pausedAt,
       hostId: this.hostId,
       players: [...this.players.values()].map((p) => ({
-        id: p.id, slot: p.slot, name: p.name, color: p.color, look: p.look
+        id: p.id, slot: p.slot, name: p.name, color: p.color, look: p.look, connected:p.connected,
+        spawn: p.spawn
       })),
       wave: this.waves ? this.waves.snapshot() : null,
-      result: this.result,
+      result,
       history: this.history
     };
   }
 
-  kitchenState() { return this.kitchen.snapshot(); }
+  kitchenState() {
+    const state = this.kitchen.snapshot();
+    if (this.paused) state.now = this.pausedAt;
+    return state;
+  }
 
   /** 브로드캐스트 최적화 — 시각(now)만 다른 스냅샷은 다시 보내지 않는다 */
   stateSignature() {

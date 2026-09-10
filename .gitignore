@@ -22,3 +22,11 @@ assets-src/
 
 # 에셋 미리보기 스냅샷 (작업용 산출물)
 /food-*-preview.png
+/clay-*-preview.png
+/clay-knife-closeup.png
+/artifacts/
+__pycache__/
+
+# Runtime manifest에서 쓰지 않는 원본 팩·승인용 시안
+/public/assets/packs/
+/public/assets/concepts/

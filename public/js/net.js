@@ -3,6 +3,7 @@
    서버가 보내주는 스냅샷을 S 에 담아두고, 나머지 모듈은 여기서 읽는다.
    ──────────────────────────────────────────────────────────── */
 import { samplePath, NET } from './config.js';
+import {DEFAULT_RECOVERY_MS} from './game-rules.js';
 
 const listeners = new Map();
 
@@ -13,7 +14,12 @@ export const S = {
   state: null,       // 방/웨이브 공개 상태
   kitchen: null,     // 주방 스냅샷
   positions: [],     // 다른 플레이어 위치
-  offset: 0          // 서버 시계 - 내 시계 (ms)
+  offset: 0,         // 서버 시계 - 내 시계 (ms)
+  connection: 'connecting',
+  frozenAt: 0,
+  restorePose: null,
+  recoveryMs: DEFAULT_RECOVERY_MS,
+  motionVersion: 0
 };
 
 export function on(evt, fn) {
@@ -28,7 +34,11 @@ function fire(evt, data) {
 }
 
 /** 서버 기준 현재 시각 (ms) */
-export const serverNow = () => Date.now() + S.offset;
+export const serverNow = () => {
+  if (S.connection !== 'connected' && S.frozenAt) return S.frozenAt;
+  if (S.state && S.state.paused && S.state.pausedAt) return S.state.pausedAt;
+  return Date.now() + S.offset;
+};
 
 /* ── 원격 플레이어 위치 보간 ──────────────────────────────
    S.positions 는 "방금 받은 값" 그대로다 (내 위치를 찾는 데 쓴다).
@@ -104,12 +114,22 @@ export function handOf(id) {
 }
 
 export const isHost = () => !!S.state && S.state.hostId === S.meId;
+export const isPaused = () => !!S.state && !!S.state.paused;
 export const wave = () => (S.state && S.state.wave) || null;
 export const phase = () => (S.state ? S.state.phase : 'lobby');
-export const isPlaying = () => phase() === 'playing';
+export const isPlaying = () => S.connection === 'connected' && phase() === 'playing' && !isPaused();
 
 export function emit(evt, data, cb) {
-  if (S.socket) S.socket.emit(evt, data, cb);
+  // Socket.IO buffers ordinary emits offline. Replaying old cooking/movement
+  // commands on reconnect would mutate a different point in the game timeline.
+  if (!S.socket?.connected || S.connection !== 'connected') {
+    if (typeof cb === 'function') cb({ok:false,err:'연결 복구 중입니다. 잠시 기다려 주세요.'});
+    return false;
+  }
+  if (typeof cb === 'function') S.socket.timeout(8000).emit(evt,data,(error,response) =>
+    cb(error ? {ok:false,err:'응답이 늦어지고 있습니다. 연결 상태를 확인해 주세요.'} : response));
+  else S.socket.emit(evt,data);
+  return true;
 }
 
 /** 주방 동작 — 서버가 다시 검사한다 */
@@ -118,16 +138,32 @@ export function act(action, payload) {
 }
 
 export function connect() {
-  const socket = window.io();
+  const socket = window.io({ timeout:8000, reconnectionDelay:500, reconnectionDelayMax:3000 });
   S.socket = socket;
 
-  socket.on('hello', (d) => { S.meId = d.id; fire('hello', d); });
+  const clearSession = () => {
+    S.state = null; S.kitchen = null; S.positions = []; S.restorePose = null;
+    snaps.clear(); owner.clear();
+  };
+  socket.on('hello', (d) => {
+    const hadSession = !!S.state;
+    if (!d.restored) clearSession();
+    S.meId = d.id; S.connection = 'connected'; S.frozenAt = 0;
+    S.motionVersion=d.motionVersion||0;
+    S.recoveryMs = d.recoveryMs || 30000;
+    S.restorePose = d.restored ? d.pose : null;
+    fire('hello', d); fire('connection',S.connection);
+    if (hadSession && !d.restored) fire('toast',{msg:'이전 연결을 복구하지 못했습니다. 방 코드로 다시 입장해 주세요.',kind:'warn'});
+    if (d.restored) fire('toast',{msg:'연결을 복구했습니다. 같은 자리에서 이어갑니다.',kind:'good'});
+  });
 
   socket.on('state', (st) => {
+    if (S.connection !== 'connected') return; // ignore replayed stale packets; hello precedes fresh state
     S.offset = st.now - Date.now();
     const prev = S.state && S.state.phase;
     const prevWave = S.state && S.state.wave && S.state.wave.wave;
     S.state = st;
+    if(st.phase==='playing' && prev!=='playing')S.motionVersion=0;
     fire('state', st);
     if (prev !== st.phase) fire('phase', st.phase);
     const w = st.wave && st.wave.wave;
@@ -135,12 +171,14 @@ export function connect() {
   });
 
   socket.on('kitchen', (k) => {
+    if (S.connection !== 'connected') return;
     S.offset = k.now - Date.now();
     S.kitchen = k;
     fire('kitchen', k);
   });
 
   socket.on('positions', (d) => {
+    if (S.connection !== 'connected') return;
     const raw = d.list || d;
     const t = typeof d.t === 'number' ? d.t : serverNow();
     pushSnapshot(t, raw);
@@ -148,14 +186,24 @@ export function connect() {
     S.positions = raw.map(unpack).map((e) => ({ id: idOfSlot(e.slot), ...e }));
     fire('positions', S.positions);
   });
-  socket.on('toast', (d) => fire('toast', d));
-  socket.on('waveEnd', (d) => fire('waveEnd', d));
-  socket.on('swing', (d) => fire('swing', d));
-  socket.on('hit', (d) => fire('hit', d));
-  socket.on('disconnect', () => fire('toast', { msg: '서버와 연결이 끊겼습니다.', kind: 'bad' }));
+  socket.on('position:correct',d=>{
+    if(S.connection!=='connected' || !Number.isInteger(d.version) || d.version<S.motionVersion)return;
+    S.motionVersion=d.version;fire('position:correct',d);
+  });
+  for (const event of ['toast','waveEnd','swing','hit']) {
+    socket.on(event, d => { if(S.connection === 'connected') fire(event,d); });
+  }
+  socket.on('disconnect', () => {
+    S.frozenAt = serverNow(); S.connection = 'reconnecting';
+    fire('connection',S.connection);
+  });
+  socket.on('connect_error', () => { S.connection = 'reconnecting'; fire('connection',S.connection); });
+  socket.on('server:closing', d => fire('toast',{msg:d.msg,kind:'warn'}));
 
-  return new Promise((resolve, reject) => {
-    socket.on('connect', resolve);
-    socket.on('connect_error', (e) => reject(new Error(e.message || '연결 실패')));
+  return new Promise((resolve) => {
+    // Show usable controls and connection feedback even if the first attempt
+    // fails; background reconnection can then recover without a dead fatal page.
+    socket.once('hello', resolve);
+    socket.once('connect_error', resolve);
   });
 }

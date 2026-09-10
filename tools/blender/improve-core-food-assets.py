@@ -31,6 +31,9 @@ def clear_scene():
 
 
 def material(name, color, roughness=0.82, specular=0.25):
+    """Create the shared matte-clay surface used by the kitchen asset set."""
+    roughness = max(roughness, 0.88)
+    specular = min(specular, 0.16)
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat.diffuse_color = (*color, 1.0)
     mat.use_nodes = True
@@ -55,6 +58,7 @@ def transparent_material(name, color, alpha, roughness=.30):
                  if node.type == "BSDF_PRINCIPLED"), None)
     if bsdf is not None:
         bsdf.inputs["Alpha"].default_value = alpha
+        bsdf.inputs["Roughness"].default_value = max(roughness, .48)
     if hasattr(mat, "surface_render_method"):
         mat.surface_render_method = "DITHERED"
     return mat
@@ -73,7 +77,9 @@ def rounded_box(name, dimensions, location, mat, bevel=0.012, segments=3):
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     mod = obj.modifiers.new("soft food edges", "BEVEL")
     mod.width = bevel
-    mod.segments = segments
+    # A single broad chamfer reads as moulded clay and preserves the polygonal
+    # silhouette used by the new kitchen props.
+    mod.segments = 1
     mod.limit_method = "ANGLE"
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.modifier_apply(modifier=mod.name)
@@ -81,7 +87,7 @@ def rounded_box(name, dimensions, location, mat, bevel=0.012, segments=3):
 
 
 def ellipsoid(name, location, scale, mat, subdivisions=1, rotation=(0, 0, 0)):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subdivisions, radius=1,
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=min(subdivisions, 2), radius=1,
                                          location=location, rotation=rotation)
     obj = bpy.context.object
     obj.name = name
@@ -93,8 +99,8 @@ def ellipsoid(name, location, scale, mat, subdivisions=1, rotation=(0, 0, 0)):
 def torus(name, location, major_radius, minor_radius, mat, major_segments=24, minor_segments=6):
     bpy.ops.mesh.primitive_torus_add(major_radius=major_radius,
                                     minor_radius=minor_radius,
-                                    major_segments=major_segments,
-                                    minor_segments=minor_segments,
+                                    major_segments=min(major_segments, 16),
+                                    minor_segments=min(minor_segments, 5),
                                     location=location)
     obj = bpy.context.object
     obj.name = name
@@ -103,7 +109,7 @@ def torus(name, location, major_radius, minor_radius, mat, major_segments=24, mi
 
 def cylinder_axis(name, radius, depth, location, mat, axis="Z", vertices=16, bevel=0.0):
     rotation = {"X": (0, math.pi / 2, 0), "Y": (math.pi / 2, 0, 0), "Z": (0, 0, 0)}[axis]
-    bpy.ops.mesh.primitive_cylinder_add(vertices=vertices, radius=radius, depth=depth,
+    bpy.ops.mesh.primitive_cylinder_add(vertices=min(vertices, 12), radius=radius, depth=depth,
                                         location=location, rotation=rotation)
     obj = bpy.context.object
     obj.name = name
@@ -133,30 +139,60 @@ def cone_x(name, radius_base, radius_tip, depth, location, mat, vertices=16):
 
 
 def egg_shell_mesh(name, mat):
-    segments, rings = 20, 16
-    verts = []
-    for ring in range(rings + 1):
-        t = ring / rings
-        z = -.162 + .324 * t
-        # Fractional power keeps the lower end round while the taper term makes
-        # only the upper end recognisably egg-shaped.
-        radius = .130 * math.sin(math.pi * t) ** .58 * (1.08 - .16 * t)
+    # An icosphere avoids the pinched poles of a latitude/longitude egg.  A
+    # gentle height-dependent radial taper keeps the top smaller than the base
+    # without turning either end into a spike.
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1)
+    obj = bpy.context.object
+    obj.name = name
+    for vertex in obj.data.vertices:
+        source_z = vertex.co.z
+        height_t = (source_z + 1.0) * 0.5
+        radial = 1.05 - 0.16 * height_t + 0.030 * (1.0 - source_z * source_z)
+        vertex.co.x *= .126 * radial
+        vertex.co.y *= .121 * radial
+        vertex.co.z *= .165
+        vertex.co.z += .006 * (1.0 - source_z * source_z)
+    assign(obj, mat)
+    return obj
+
+
+def cooked_rice_mound(name, mat):
+    """Low-poly sticky-rice dome with a flat base instead of a rock underside."""
+    segments = 16
+    rings = (
+        (0.000, .154, .130),
+        (0.022, .192, .162),
+        (0.066, .181, .151),
+        (0.108, .139, .113),
+        (0.145, .073, .057),
+    )
+    verts = [(0, 0, 0)]
+    for ring_index, (z, radius_x, radius_y) in enumerate(rings):
         for side in range(segments):
             angle = math.tau * side / segments
-            verts.append((radius * math.cos(angle), radius * math.sin(angle), z))
+            wobble = 1.0 + .018 * math.sin(side * 2.3 + ring_index * .8)
+            verts.append((math.cos(angle) * radius_x * wobble,
+                          math.sin(angle) * radius_y * wobble,
+                          z + .002 * math.sin(side * 1.7 + ring_index)))
+    top_index = len(verts)
+    verts.append((.006, -.004, .158))
     faces = []
-    for ring in range(rings):
+    for side in range(segments):
+        nxt = (side + 1) % segments
+        faces.append((0, 1 + nxt, 1 + side))
+    for ring_index in range(len(rings) - 1):
+        base = 1 + ring_index * segments
+        upper = base + segments
         for side in range(segments):
             nxt = (side + 1) % segments
-            a = ring * segments + side
-            b = ring * segments + nxt
-            c = (ring + 1) * segments + nxt
-            d = (ring + 1) * segments + side
-            faces.append((a, b, c, d))
+            faces.append((base + side, base + nxt, upper + nxt, upper + side))
+    last = 1 + (len(rings) - 1) * segments
+    for side in range(segments):
+        nxt = (side + 1) % segments
+        faces.append((last + side, last + nxt, top_index))
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata(verts, [], faces)
-    for polygon in mesh.polygons:
-        polygon.use_smooth = True
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     assign(obj, mat)
@@ -291,7 +327,13 @@ def export_glb(relative_path):
         export_yup=True,
     )
     meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
-    print(f"EXPORTED {relative_path}: {len(meshes)} meshes, "
+    points = [obj.matrix_world @ Vector(corner) for obj in meshes for corner in obj.bound_box]
+    lo = Vector(tuple(min(point[i] for point in points) for i in range(3)))
+    hi = Vector(tuple(max(point[i] for point in points) for i in range(3)))
+    size = hi - lo
+    print(f"EXPORTED {relative_path}: bounds=({size.x:.3f},{size.z:.3f},{size.y:.3f}) "
+          f"center=({(lo.x+hi.x)*.5:.3f},{(lo.z+hi.z)*.5:.3f},{(lo.y+hi.y)*.5:.3f}), "
+          f"{len(meshes)} meshes, "
           f"{sum(len(o.data.vertices) for o in meshes)} verts, "
           f"{sum(len(o.data.polygons) for o in meshes)} faces")
 
@@ -328,7 +370,7 @@ def build_ham():
 
 def fishcake_sheet(name, z, rotation, scale, mat, seed):
     rng = random.Random(seed)
-    count = 32
+    count = 16
     a, b = .196 * scale, .146 * scale
     outline = []
     for i in range(count):
@@ -357,11 +399,6 @@ def fishcake_sheet(name, z, rotation, scale, mat, seed):
         faces.append((2 + i, 2 + nxt, 2 + count + nxt, 2 + count + i))
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata(verts, [], faces)
-    # Smooth only the broad top/bottom fans. Keeping the narrow edge faces flat
-    # preserves the stacked low-poly silhouette without a starburst on top.
-    for i in range(count):
-        mesh.polygons[i * 3].use_smooth = True
-        mesh.polygons[i * 3 + 1].use_smooth = True
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     assign(obj, mat)
@@ -445,7 +482,7 @@ def build_raw_rice():
     ellipsoid("rice_pile_base", (0,0,.035), (.170,.170,.044), raw_mats[0], 2)
 
     grains = []
-    for _ in range(148):
+    for _ in range(84):
         radius = math.sqrt(RNG.random()) * .158
         angle = RNG.random() * math.tau
         x, y = radius * math.cos(angle), radius * math.sin(angle)
@@ -471,33 +508,33 @@ def build_cooked_rice():
         material("cooked rice highlight", (.99, .97, .89), .56, .38),
         material("cooked rice warm", (.79, .74, .63), .70, .26),
     ]
-    ellipsoid("sticky_rice_mound", (0,0,.004), (.193,.164,.108), cooked_mats[0], 3)
-    # Overlapping lobes break the perfect dome silhouette and read as sticky clumps.
+    cooked_rice_mound("sticky_rice_mound", cooked_mats[0])
+    # Small overlapping lobes break the perfect dome silhouette without making
+    # the serving look like a pile of rocks.
     for i, (x,y,z,sx,sy,sz) in enumerate((
-        (-.105,-.025,.068,.050,.042,.026),(-.055,.067,.078,.052,.043,.025),
-        (.050,-.065,.079,.056,.044,.027),(.108,.035,.065,.046,.040,.024),
-        (0,.015,.101,.055,.047,.022),(-.025,-.090,.055,.043,.037,.022),
-        (.072,.080,.057,.041,.036,.021))):
+        (-.095,-.020,.090,.034,.029,.016),(-.045,.060,.116,.036,.030,.016),
+        (.052,-.052,.118,.038,.030,.017),(.098,.030,.090,.032,.027,.015),
+        (.006,.012,.148,.036,.031,.014))):
         ellipsoid(f"sticky_cluster_{i}", (x,y,z), (sx,sy,sz),
                   cooked_mats[1 if i % 3 == 0 else 0], 2)
 
     grains = []
-    for _ in range(132):
+    for _ in range(64):
         for _attempt in range(20):
             x = RNG.uniform(-.178,.178)
             y = RNG.uniform(-.145,.145)
             q = (x/.190)**2 + (y/.162)**2
             if q < .96:
                 break
-        z_rel = .106 * math.sqrt(max(.02, 1-q))
-        z = .005 + z_rel
-        normal = Vector((x/.190**2, y/.162**2, z_rel/.106**2)).normalized()
+        z_rel = .145 * math.sqrt(max(.02, 1-q))
+        z = .008 + z_rel
+        normal = Vector((x/.190**2, y/.162**2, z_rel/.145**2)).normalized()
         guide = Vector((math.cos(RNG.random()*math.tau), math.sin(RNG.random()*math.tau), 0))
         tangent = (guide - normal * guide.dot(normal)).normalized()
         bitangent = normal.cross(tangent).normalized()
         grains.append(((x,y,z + .001), tangent, bitangent, normal,
-                       RNG.uniform(.017,.023), RNG.uniform(.0042,.0054),
-                       RNG.uniform(.0031,.0041), RNG.choices((0,1,2),(6,3,1))[0]))
+                       RNG.uniform(.021,.027), RNG.uniform(.0050,.0063),
+                       RNG.uniform(.0035,.0046), RNG.choices((0,1,2),(6,3,1))[0]))
     combined_grains("visible_cooked_grains", grains, cooked_mats)
     export_glb("item/bap.glb")
 
@@ -608,24 +645,19 @@ def build_raw_carrot():
 
 def build_gim():
     clear_scene()
-    seaweed = material("roasted seaweed", (.010,.022,.012), .94, .08)
-    fiber = material("seaweed fibers", (.025,.070,.040), .98, .05)
-    edge = material("seaweed edge", (.018,.042,.025), .96, .06)
-    rounded_box("gim_sheet", (.640,.520,.012), (0,0,0), seaweed, .006, 2)
-    for i, y in enumerate((-.19,-.11,-.025,.065,.155)):
-        pts=[(-.285,y,.007),(-.14,y+.004*math.sin(i),.0075),(.02,y-.003,.0075),(.18,y+.004,.0075),(.285,y,.007)]
-        poly_curve(f"gim_fiber_{i}",pts,.0010,fiber)
-    rounded_box("gim_edge", (.625,.505,.003), (0,0,-.0065), edge, .004, 1)
+    # 김은 이전 피드백대로 무늬를 없앤 거의 검은 한 장의 판으로 유지한다.
+    seaweed = material("roasted seaweed", (.008,.014,.010), .97, .05)
+    rounded_box("gim_sheet", (.640,.520,.012), (0,0,0), seaweed, .006, 1)
     export_glb("item/gim.glb")
 
 
 def build_fill_danmuji():
     clear_scene()
-    body=material("danmuji strip",(.94,.72,.025),.76,.23)
-    light=material("danmuji moist edge",(1.0,.86,.12),.68,.29)
+    body=material("danmuji strip",(.93,.70,.035),.90,.14)
+    light=material("danmuji moist edge",(1.0,.84,.15),.88,.16)
     pore=material("danmuji strip pores",(.66,.45,.018),.92,.10)
-    rounded_box("danmuji_strip",(.056,.056,.998),(0,0,0),body,.007,2)
-    rounded_box("moist_cut_side",(.051,.006,.982),(0,-.0285,0),light,.002,1)
+    rounded_box("danmuji_strip",(.072,.068,.998),(0,0,0),body,.012,1)
+    rounded_box("moist_cut_side",(.060,.009,.970),(0,-.0345,0),light,.003,1)
     for i,z in enumerate((-.36,-.21,-.05,.13,.29,.41)):
         ellipsoid(f"strip_pore_{i}",(.020 if i%2 else -.017,-.032,z),(.003,.0015,.006),pore,1)
     export_glb("fill/danmuji.glb")
@@ -636,8 +668,8 @@ def build_fill_ham():
     meat=material("cooked ham strip",(.84,.40,.42),.70,.27)
     rind=material("ham strip rind",(.55,.19,.20),.86,.15)
     fat=material("ham strip fat",(.95,.74,.69),.76,.22)
-    rounded_box("ham_strip",(.074,.040,.998),(0,0,0),meat,.006,2)
-    rounded_box("ham_rind_edge",(.074,.009,.994),(0,-.016,0),rind,.003,1)
+    rounded_box("ham_strip",(.090,.052,.998),(0,0,0),meat,.010,1)
+    rounded_box("ham_rind_edge",(.090,.012,.982),(0,-.022,0),rind,.004,1)
     for i,x in enumerate((-.020,.014)):
         pts=[(x,.021,-.44),(x+.008*(i*2-1),.021,-.20),(x-.004,.021,.02),(x+.006,.021,.25),(x,.021,.44)]
         poly_curve(f"ham_fat_line_{i}",pts,.0018,fat)
@@ -649,8 +681,11 @@ def build_fill_egg():
     omelet=material("rolled omelet",(.94,.61,.055),.72,.24)
     fold=material("omelet folds",(1.0,.78,.15),.68,.28)
     brown=material("omelet browned edge",(.67,.32,.035),.90,.13)
-    rounded_box("egg_strip",(.088,.043,.998),(0,0,0),omelet,.007,2)
-    rounded_box("browned_bottom",(.083,.007,.990),(0,-.020,0),brown,.002,1)
+    # 한 장의 각진 막대가 아니라 지단을 접어 올린 세 겹으로 보이게 한다.
+    rounded_box("egg_strip",(.112,.044,.998),(0,0,0),omelet,.012,1)
+    rounded_box("egg_fold_left",(.050,.018,.970),(-.028,.028,.006),fold,.008,1)
+    rounded_box("egg_fold_right",(.050,.018,.970),(.028,.028,-.006),omelet,.008,1)
+    rounded_box("browned_bottom",(.104,.009,.982),(0,-.022,0),brown,.003,1)
     for i,z in enumerate((-.31,-.08,.17,.36)):
         poly_curve(f"omelet_fold_{i}",[(-.038,.023,z-.018),(0,.024,z),(.038,.023,z+.014)],.0017,fold)
     export_glb("fill/egg.glb")
@@ -661,8 +696,9 @@ def build_fill_crab():
     white=material("crab stick core",(.94,.88,.77),.72,.25)
     red=material("crab stick red skin",(.78,.095,.045),.77,.22)
     fiber=material("crab stick fibers",(.78,.68,.54),.90,.12)
-    rounded_box("crab_core",(.056,.052,.998),(0,0,0),white,.010,3)
-    rounded_box("red_skin",(.060,.018,.996),(0,-.021,0),red,.006,2)
+    cylinder_axis("crab_core",.043,.998,(0,0,0),white,"Z",10,.006)
+    # 붉은 막은 한쪽만 덮어 단면에서도 흰 속살이 남도록 한다.
+    rounded_box("red_skin",(.078,.018,.986),(0,-.036,0),red,.007,1)
     for i,x in enumerate((-.017,0,.017)):
         poly_curve(f"crab_fiber_{i}",[(x,.027,-.46),(x+.003,.027,-.2),(x-.002,.027,.08),(x+.002,.027,.44)],.0011,fiber)
     export_glb("fill/crab.glb")
@@ -673,8 +709,8 @@ def build_fill_cucumber():
     flesh=material("cucumber baton flesh",(.48,.69,.24),.72,.25)
     skin=material("cucumber baton skin",(.035,.28,.055),.88,.15)
     seed=material("cucumber baton seeds",(.82,.86,.46),.77,.20)
-    rounded_box("cucumber_baton",(.052,.055,.998),(0,0,0),flesh,.006,2)
-    rounded_box("cucumber_skin",(.052,.012,.998),(0,-.026,0),skin,.004,2)
+    rounded_box("cucumber_baton",(.070,.064,.998),(0,0,0),flesh,.010,1)
+    rounded_box("cucumber_skin",(.070,.016,.986),(0,-.031,0),skin,.006,1)
     for i,x in enumerate((-.014,.014)):
         poly_curve(f"cucumber_seed_line_{i}",[(x,.029,-.44),(x-.003,.029,-.15),(x+.002,.029,.13),(x,.029,.44)],.0015,seed)
     export_glb("fill/cucumber.glb")
@@ -691,9 +727,9 @@ def build_fill_spinach():
         pts=[]
         for z in (-.47,-.25,0,.24,.47):
             pts.append((x+.006*math.sin(z*12+i),y+.005*math.cos(z*9+i),z))
-        poly_curve(f"spinach_strand_{i}",pts,.0065 if i%2 else .0075,mats[i%3])
-    for i,z in enumerate((-.29,-.03,.26)):
-        ellipsoid(f"wilted_leaf_{i}",((i-1)*.018,.002,z),(.030,.018,.055),mats[i%2],1,(0,i*.35,0))
+        poly_curve(f"spinach_strand_{i}",pts,.0085 if i%2 else .010,mats[i%3])
+    for i,z in enumerate((-.36,-.20,-.03,.15,.32)):
+        ellipsoid(f"wilted_leaf_{i}",((i%3-1)*.012,.004,z),(.020,.022,.055),mats[i%2],1,(0,i*.35,0))
     export_glb("fill/spinach.glb")
 
 
@@ -702,9 +738,10 @@ def build_fill_carrot():
     mats=[material("carrot julienne",(.91,.28,.025),.79,.20),
           material("carrot julienne light",(1.0,.39,.045),.75,.22),
           material("carrot julienne dark",(.71,.18,.018),.86,.15)]
-    positions=((-0.040,-.009),(-.020,.009),(0,-.009),(.020,.009),(.040,-.009))
+    positions=((-0.044,-.012),(-.022,.011),(0,-.010),(.022,.012),(.044,-.008))
     for i,(x,y) in enumerate(positions):
-        rounded_box(f"julienne_{i}",(.018,.018,.996),(x,y,0),mats[i%3],.003,2)
+        strip=rounded_box(f"julienne_{i}",(.022,.022,.996),(x,y,0),mats[i%3],.004,1)
+        strip.rotation_euler[2]=(i-2)*.035
     export_glb("fill/carrot.glb")
 
 
@@ -713,8 +750,9 @@ def build_fill_fishcake():
     body=material("cooked fishcake strip",(.73,.43,.19),.78,.21)
     light=material("fishcake cut side",(.88,.61,.31),.72,.24)
     toast=material("fishcake strip toast",(.43,.20,.065),.91,.10)
-    rounded_box("fishcake_strip",(.096,.050,.998),(0,0,0),body,.008,2)
-    rounded_box("fishcake_cut_side",(.088,.008,.988),(0,.025,0),light,.003,1)
+    rounded_box("fishcake_strip",(.118,.058,.998),(0,0,0),body,.012,1)
+    rounded_box("fishcake_fold",(.050,.018,.965),(-.026,-.037,.010),light,.007,1)
+    rounded_box("fishcake_cut_side",(.106,.010,.982),(0,.029,0),light,.004,1)
     for i,(x,z) in enumerate(((-.025,-.32),(.022,-.12),(-.010,.10),(.028,.31))):
         ellipsoid(f"strip_toast_{i}",(x,.030,z),(.009,.0018,.025),toast,1,(0,RNG.uniform(-.5,.5),0))
     export_glb("fill/fishcake.glb")

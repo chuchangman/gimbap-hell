@@ -9,6 +9,7 @@ import { focusNow, bapReady } from './kitchen.js';
 import { state as P, releaseLock, resetPose } from './player.js';
 import { camera } from './world.js';
 import { initCustomizer, currentLook, stopCustomizer } from './customize.js';
+import { PLAYER_LIMIT, NAME_MIN, NAME_MAX, SHOP_MAX, ROOM_CODE_LENGTH } from './game-rules.js';
 
 export const $ = (s, r) => (r || document).querySelector(s);
 export const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -43,7 +44,7 @@ export function showScreen(id) {
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === id));
   const playing = id === 'screen-game';
   $('#hud').classList.toggle('hidden', !playing);
-  P.enabled = playing;
+  P.enabled = playing && S.connection === 'connected';
   if (!playing) releaseLock();
   // 판이 끝나고 돌아온 경우까지 포함해, 들어온 순간엔 무조건 새로 받는다
   if (entered && id === 'screen-lobby') loadLobbyBoard(true);
@@ -57,6 +58,20 @@ export function route() {
   renderLobby();
   showScreen('screen-lobby');
   loadLobbyBoard();
+}
+
+let pauseShown = false;
+function renderPause() {
+  const paused = !!(S.state && S.state.phase === 'playing' && S.state.paused);
+  const overlay = $('#pause-overlay');
+  if (overlay) overlay.classList.toggle('hidden', !paused);
+  if (paused) {
+    $('#pause-hint').textContent = isHost()
+      ? 'P를 눌러 게임을 재개하세요.'
+      : '방장이 게임을 재개할 때까지 기다려 주세요.';
+    if (!pauseShown) releaseLock();
+  }
+  pauseShown = paused;
 }
 
 /* ──────────────── 도움말 ──────────────── */
@@ -78,7 +93,13 @@ export function renderLobby() {
   $('#player-list').innerHTML = st.players.map((p) =>
     '<li><span class="dot" style="background:' + esc(p.color) + '"></span>' +
     '<span class="' + (p.id === S.meId ? 'me' : '') + '">' + esc(p.name) + '</span>' +
-    (p.id === st.hostId ? '<span class="tag">방장</span>' : '') + '</li>').join('');
+    (p.id === st.hostId ? '<span class="tag">방장</span>' : '') +
+    (p.connected === false ? '<span class="tag">연결 복구 중</span>' : '') + '</li>').join('');
+  $$('#player-list li').forEach((row,i) => {
+    if (st.players[i].connected === false) {
+      const tag=document.createElement('span');tag.className='tag';tag.textContent='연결 복구 중';row.appendChild(tag);
+    }
+  });
 
   $('#party-desc').textContent =
     '인원 ' + st.players.length + '명 기준으로 손님 수가 자동 조정됩니다.';
@@ -121,6 +142,7 @@ export function renderHUD(force) {
   if (!force && now - lastHud < HUD_MS) return;
   lastHud = now;
   const t = serverNow();
+  renderPause();
 
   /* 조준 문구 */
   const p = P.prompt;
@@ -319,6 +341,10 @@ function boardRow(row, n, mine) {
 }
 
 function renderBoard(r) {
+  const storage=r.storage;
+  $('#r-storage-status').textContent = !storage ? '' : storage.error
+    ? '랭킹 저장을 재시도하고 있습니다. 현재 순위는 임시이며 아직 저장 완료되지 않았습니다.'
+    : storage.pending ? '랭킹을 저장하고 있습니다. 현재 순위는 임시입니다.' : '랭킹 저장 완료';
   const b = r.board;
   const line = $('#r-rank-line');
   const list = $('#r-board');
@@ -383,13 +409,33 @@ export function renderResult() {
 /* ──────────────── 초기화 ──────────────── */
 export function initUI() {
   /* 입장 */
+  $('#input-name').minLength = NAME_MIN;
+  $('#input-name').maxLength = NAME_MAX;
+  $('#name-limits').textContent = `(${NAME_MIN}~${NAME_MAX}글자)`;
+  $('#input-shop').maxLength = SHOP_MAX;
+  $('#input-code').maxLength = ROOM_CODE_LENGTH;
+  $('#player-limit-hint').textContent = `최대 ${PLAYER_LIMIT}명 · 같은 Wi-Fi 면 주소만 공유하면 됩니다.`;
   const nameOf = () => $('#input-name').value.trim();
   const shopOf = () => $('#input-shop').value.trim();
+  let joining = false;
+  function joinRequest(event,data) {
+    if (joining) return;
+    joining = true;
+    $('#btn-create').disabled = $('#btn-join').disabled = true;
+    $('#join-err').textContent = '가게에 연결하고 있습니다…';
+    emit(event,data,(res) => {
+      joining = false;
+      $('#btn-create').disabled = $('#btn-join').disabled = S.connection !== 'connected';
+      if (!res?.ok) { $('#join-err').textContent = res?.err || '입장하지 못했습니다.'; return; }
+      $('#join-err').textContent = '';
+      S.meId = res.youId; location.hash = res.code;
+    });
+  }
 
   /* 서버도 같은 규칙으로 막는다 (room.mjs nameError) — 여기선 먼저 알려줄 뿐 */
   const nameOk = () => {
-    if (nameOf().length >= 2) return true;
-    $('#join-err').textContent = '이름은 2글자 이상이어야 합니다.';
+    if (nameOf().length >= NAME_MIN) return true;
+    $('#join-err').textContent = `이름은 ${NAME_MIN}글자 이상이어야 합니다.`;
     $('#input-name').focus();
     return false;
   };
@@ -405,24 +451,16 @@ export function initUI() {
   syncShopHint();
   $('#btn-create').addEventListener('click', () => {
     if (!nameOk()) return;
-    emit('room:create', { name: nameOf(), shop: shopOf(), look: currentLook() }, (res) => {
-      if (!res || !res.ok) return ($('#join-err').textContent = (res && res.err) || '실패');
-      S.meId = res.youId;
-      location.hash = res.code;
-    });
+    joinRequest('room:create', { name: nameOf(), shop: shopOf(), look: currentLook() });
   });
   $('#btn-join').addEventListener('click', () => {
     if (!nameOk()) return;
     const code = $('#input-code').value.trim().toUpperCase();
-    if (code.length !== 4) return ($('#join-err').textContent = '방 코드 4글자를 입력하세요.');
-    emit('room:join', { code, name: nameOf(), look: currentLook() }, (res) => {
-      if (!res || !res.ok) return ($('#join-err').textContent = (res && res.err) || '실패');
-      S.meId = res.youId;
-      location.hash = res.code;
-    });
+    if (code.length !== ROOM_CODE_LENGTH) return ($('#join-err').textContent = `방 코드 ${ROOM_CODE_LENGTH}글자를 입력하세요.`);
+    joinRequest('room:join', { code, name: nameOf(), look: currentLook() });
   });
   $('#input-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-join').click(); });
-  if (location.hash.length === 5) $('#input-code').value = location.hash.slice(1).toUpperCase();
+  if (location.hash.length === ROOM_CODE_LENGTH + 1) $('#input-code').value = location.hash.slice(1).toUpperCase();
 
   $('#btn-copy').addEventListener('click', async () => {
     try {
@@ -452,17 +490,32 @@ export function initUI() {
 
   /* 상태 변화 → 화면 전환 */
   on('state', () => {
+    if (S.restorePose) { resetPose(S.restorePose); S.restorePose = null; }
     if (S.state.phase === 'lobby') renderLobby();
     route();
+    renderPause();
   });
   on('phase', (ph) => {
     Object.keys(cache).forEach((k) => delete cache[k]);
     if (ph === 'playing') {
-      const me = S.positions.find((p) => p.id === S.meId);
-      resetPose(me || { x: 0, z: 6.2 });
+      const me = S.state?.players.find(p=>p.id===S.meId);
+      resetPose(me?.spawn || S.positions.find(p=>p.id===S.meId) || {x:0,z:6.2});
     }
   });
   on('toast', (d) => toast(d.msg, d.kind));
+  const renderConnection = () => {
+    const connected = S.connection === 'connected';
+    $('#connection-status').classList.toggle('hidden',connected);
+    $('#connection-status-text').textContent = S.state
+      ? '연결을 복구하고 있습니다. 잠시만 기다려 주세요. (' + Math.round(S.recoveryMs/1000) + '초 이내 자동 복귀)'
+      : '서버에 연결하고 있습니다. 연결이 되면 입장할 수 있습니다.';
+    $('#btn-create').disabled = $('#btn-join').disabled = !connected || joining;
+    if (!connected) { P.enabled=false; releaseLock(); }
+    else { route(); renderPause(); }
+  };
+  on('connection',renderConnection);
+  $('#connection-retry').addEventListener('click',()=> { S.socket?.connect(); });
+  renderConnection();
 
   // 입장 화면의 캐릭터 꾸미기 — 미리보기 캔버스와 파츠 버튼을 켠다
   initCustomizer();

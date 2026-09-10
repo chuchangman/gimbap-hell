@@ -5,54 +5,39 @@
      · NET.tickMs 마다 플레이어 위치를 뿌린다 (volatile)
    ──────────────────────────────────────────────────────────── */
 import http from 'node:http';
-import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { randomInt } from 'node:crypto';
 
 import { Room, nameError } from './room.mjs';
 import * as leaderboard from './leaderboard.mjs';
 import { WAVES, NET } from '../public/js/config.js';
+import { createHttpHandler } from './http.mjs';
+import { validEvent, createEventLimiter, allowedOrigin } from './protocol.mjs';
+import { PLAYER_LIMIT, ROOM_CODE_LENGTH, ROOM_CODE_ALPHABET } from '../public/js/game-rules.js';
+import { loadRuntimeConfig } from './runtime-config.mjs';
+import { RANKING_POLICY } from './ranking-policy.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', 'public');
-const PORT = Number(process.env.PORT) || 3211;
+const runtime = loadRuntimeConfig();
+const RECOVERY_MS = runtime.recoveryMs;
+const metrics = { invalidHttp:0, httpErrors:0, invalidEvents:0, rateLimited:0, rejectedOrigins:0, recovered:0, expired:0 };
+const count = key => { metrics[key] = (metrics[key] || 0) + 1; };
+let stopping = false;
 
 /* 이벤트 루프가 밀리는지 재둔다 — /health 로 밖에서 확인한다.
    CPU 가 모자라면 여기부터 티가 난다 (숫자가 커지면 응답이 늦다는 뜻). */
-const loopLag = monitorEventLoopDelay({ resolution: 10 });
+const loopLag = monitorEventLoopDelay({ resolution: runtime.loopLagResolutionMs });
 loopLag.enable();
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8'
-};
-
-function send(res, code, body, type) {
-  res.writeHead(code, { 'Content-Type': type || 'text/plain; charset=utf-8' });
-  res.end(body);
-}
-
-const server = http.createServer((req, res) => {
-  let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-  if (urlPath === '/') urlPath = '/index.html';
-  if (urlPath === '/health') {
-    /* HTTP 코드는 문제가 있어도 200 을 유지한다 — Render 가 이 경로를
-       헬스체크로 쓰기 때문이다. 랭킹 저장소가 죽었다고 서비스를 내리면
-       게임은 멀쩡한데 다 같이 못 하게 된다. 대신 본문의 ok 를 false 로
-       내리니, 외부 모니터는 '"ok":true' 키워드로 감시하면 된다. */
-    return send(res, 200, JSON.stringify({
-      ok: !store.error,
+const server = http.createServer(createHttpHandler({
+  root: ROOT, count,
+  health: () => ({
+      ok: leaderboard.status().ready && !stopping,
       uptimeSec: Math.round(process.uptime()),
       rooms: rooms.size,
       players: io.engine.clientsCount,
@@ -60,33 +45,37 @@ const server = http.createServer((req, res) => {
       lagP99ms: Math.round(loopLag.percentile(99) / 1e5) / 10,   // 이벤트 루프 지연
       store: store.mode,              // 'file' | 'redis' — 어느 저장소를 쓰는지
       entries: leaderboard.size(),
-      storeError: store.error || undefined
-    }), MIME['.json']);
+      storeError: leaderboard.status().error || undefined,
+      storage: leaderboard.status(),
+      recoveryPending: pendingRecovery.size,
+      rejected: metrics
+    }),
+  ready: () => !stopping && leaderboard.status().ready,
+  board: () => leaderboard.publicTop(RANKING_POLICY.publicApiCount)
+}));
+Object.assign(server, runtime.http);
+const io = new Server(server, {
+  ...runtime.socket,
+  connectionStateRecovery: { maxDisconnectionDuration: RECOVERY_MS, skipMiddlewares: false },
+  allowRequest: (req, cb) => {
+    const originOk = allowedOrigin(req, runtime.allowedOrigins);
+    if (!originOk) count('rejectedOrigins');
+    cb(null, originOk && !stopping && io.engine.clientsCount < runtime.maxConnections);
   }
-  if (urlPath === '/leaderboard.json') return send(res, 200, JSON.stringify(leaderboard.publicTop(50)), MIME['.json']);
-
-  // 경로 탈출 방지 — '..' 과 '.' 을 아예 걸러낸다
-  const parts = urlPath.split('/').filter((p) => p && p !== '.' && p !== '..');
-  const filePath = path.join(ROOT, ...parts);
-  if (!filePath.startsWith(ROOT)) return send(res, 403, 'forbidden');
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) return send(res, 404, '404 — ' + urlPath);
-    send(res, 200, data, MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream');
-  });
 });
-
-const io = new Server(server, { cors: { origin: '*' } });
 
 /** @type {Map<string, Room>} */
 const rooms = new Map();
 const socketRoom = new Map();   // socketId → roomCode
+const pendingRecovery = new Map(); // socketId -> { until, autoPaused }
+const lastSig = new Map();
+const lastSent = new Map();
 
 function makeCode() {
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const letters = ROOM_CODE_ALPHABET;
   let code;
   do {
-    code = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+    code = Array.from({ length: ROOM_CODE_LENGTH }, () => letters[randomInt(letters.length)]).join('');
   } while (rooms.has(code));
   return code;
 }
@@ -95,14 +84,74 @@ const roomOf = (socket) => rooms.get(socketRoom.get(socket.id));
 const pushState = (room) => io.to(room.code).emit('state', room.publicState());
 const pushKitchen = (room) => io.to(room.code).emit('kitchen', room.kitchenState());
 const toast = (room, msg, kind) => io.to(room.code).emit('toast', { msg, kind: kind || 'good' });
+const pushPositions = room => io.to(room.code).emit('positions', { t: room.paused ? room.pausedAt : Date.now(), list:room.positions() });
+const acknowledge = (cb, value) => { if (typeof cb === 'function') cb(value); };
+
+function removeMembership(id) {
+  const code = socketRoom.get(id);
+  socketRoom.delete(id);
+  pendingRecovery.delete(id);
+  const room = rooms.get(code);
+  if (!room) return;
+  const wasHost = room.isHost(id);
+  room.removePlayer(id);
+  if (!room.size) {
+    rooms.delete(code); lastSig.delete(code); lastSent.delete(code);
+  } else {
+    if (wasHost) toast(room, '방장이 나갔습니다. 다음 참가자가 방장을 이어받았습니다.', 'warn');
+    pushState(room); pushKitchen(room); pushPositions(room);
+  }
+}
 
 /* ──────────────── 소켓 ──────────────── */
 io.on('connection', (socket) => {
-  socket.emit('hello', { id: socket.id, waves: WAVES.length });
+  const previous = pendingRecovery.get(socket.id);
+  const recoveredRoom = roomOf(socket);
+  const restored = !!(socket.recovered && previous && recoveredRoom?.players.has(socket.id) && previous.until > Date.now());
+  if (socket.recovered && !restored) {
+    // The adapter can still hold a just-expired session. Never keep its old room subscription.
+    for (const code of socket.rooms) if (code !== socket.id) socket.leave(code);
+    removeMembership(socket.id);
+  }
+  if (restored) {
+    pendingRecovery.delete(socket.id);
+    recoveredRoom.players.get(socket.id).connected = true;
+    const motion=recoveredRoom.players.get(socket.id).motion;
+    motion.at=performance.now();motion.airAt=null;
+    if (previous.autoPaused && recoveredRoom.isHost(socket.id) && recoveredRoom.paused) recoveredRoom.togglePause(socket.id);
+    count('recovered');
+  }
+  socket.emit('hello', { id: socket.id, waves: WAVES.length, restored, recoveryMs: RECOVERY_MS,
+    motionVersion:restored?recoveredRoom.players.get(socket.id).motion.version:0,
+    pose: restored ? recoveredRoom.players.get(socket.id) && {
+      x: recoveredRoom.players.get(socket.id).x, z: recoveredRoom.players.get(socket.id).z,
+      y: recoveredRoom.players.get(socket.id).y, ry: recoveredRoom.players.get(socket.id).ry
+    } : null });
+  if (restored) { pushState(recoveredRoom); pushKitchen(recoveredRoom); pushPositions(recoveredRoom); }
+
+  const permit = createEventLimiter();
+  socket.use(([event, ...args], next) => {
+    const cb = args.at(-1);
+    const d = typeof args[0] === 'function' ? undefined : args[0];
+    if (!permit(event)) {
+      count('rateLimited');
+      acknowledge(cb,{ok:false,err:'요청이 너무 빠릅니다. 잠시 후 다시 시도해 주세요.'});
+      return;
+    }
+    if (!validEvent(event,d)) {
+      count('invalidEvents');
+      acknowledge(cb,{ok:false,err:'입력 형식이 올바르지 않습니다.'});
+      return;
+    }
+    next();
+  });
 
   socket.on('room:create', (d, cb) => {
     const bad = nameError(d && d.name);
-    if (bad) return cb && cb({ ok: false, err: bad });
+    if (bad) return acknowledge(cb,{ ok: false, err: bad });
+    const existing = roomOf(socket);
+    if (existing) return acknowledge(cb,{ok:false,err:'이미 가게에 입장해 있습니다.'});
+    if (rooms.size >= runtime.maxRooms) return acknowledge(cb,{ok:false,err:'가게가 많아 잠시 후 다시 시도해 주세요.'});
     const code = makeCode();
     const room = new Room(code, d && d.shop);
     rooms.set(code, room);
@@ -110,38 +159,61 @@ io.on('connection', (socket) => {
     room.resolveShop();                 // 이름을 안 정했으면 "방장닉의 가게"
     socket.join(code);
     socketRoom.set(socket.id, code);
-    if (cb) cb({ ok: true, code, youId: socket.id });
+    acknowledge(cb,{ ok: true, code, youId: socket.id });
     pushState(room);
     pushKitchen(room);
+    pushPositions(room);
   });
 
   socket.on('room:join', (d, cb) => {
     const bad = nameError(d && d.name);
-    if (bad) return cb && cb({ ok: false, err: bad });
+    if (bad) return acknowledge(cb,{ ok: false, err: bad });
+    if (roomOf(socket)) return acknowledge(cb,{ok:false,err:'이미 가게에 입장해 있습니다.'});
     const code = String((d && d.code) || '').toUpperCase().trim();
     const room = rooms.get(code);
-    if (!room) return cb && cb({ ok: false, err: '그런 방이 없습니다.' });
-    if (room.size >= 6) return cb && cb({ ok: false, err: '방이 가득 찼습니다. (최대 6명)' });
+    if (!room) return acknowledge(cb,{ ok: false, err: '그런 방이 없습니다.' });
+    if (room.size >= PLAYER_LIMIT) return acknowledge(cb,{ ok: false, err: `방이 가득 찼습니다. (최대 ${PLAYER_LIMIT}명)` });
     room.addPlayer(socket.id, d && d.name, d && d.look);
     socket.join(code);
     socketRoom.set(socket.id, code);
-    if (cb) cb({ ok: true, code, youId: socket.id });
+    acknowledge(cb,{ ok: true, code, youId: socket.id });
     pushState(room);
     pushKitchen(room);
+    pushPositions(room);
+  });
+
+  socket.on('room:leave', (_d, cb) => {
+    const code = socketRoom.get(socket.id);
+    if (code) socket.leave(code);
+    removeMembership(socket.id);
+    acknowledge(typeof _d === 'function' ? _d : cb,{ok:true});
   });
 
   socket.on('game:start', () => {
     const room = roomOf(socket);
     if (!room || !room.isHost(socket.id)) return;
     if (!room.start()) return;
+    pushPositions(room);
     pushState(room);
     pushKitchen(room);
     toast(room, '영업 시작! 첫 손님이 오기 전에 밥부터 안치세요.', 'good');
   });
 
+  socket.on('game:pause', () => {
+    const room = roomOf(socket);
+    if (!room) return;
+    const changed = room.togglePause(socket.id);
+    if (!changed) return;
+    pushState(room);
+    pushKitchen(room);
+    toast(room, changed.paused ? '⏸ 방장이 게임을 일시정지했습니다.' : '▶ 게임을 재개했습니다.',
+      changed.paused ? 'warn' : 'good');
+  });
+
   socket.on('game:lobby', () => {
     const room = roomOf(socket);
     if (!room || !room.isHost(socket.id)) return;
+    if (room.phase !== 'result') return;
     room.toLobby();
     pushState(room);
   });
@@ -150,17 +222,19 @@ io.on('connection', (socket) => {
     const room = roomOf(socket);
     if (!room || !d) return;
     const r = room.act(socket.id, d.action, d.payload);
+    if(r?.rejected)count('rejectedDistance');
     if (r && r.msg) {
       if (r.broadcast) toast(room, r.msg, r.kind);
       else socket.emit('toast', { msg: r.msg, kind: r.kind });
     }
-    pushKitchen(room);
+    if (r?.ok) pushKitchen(room);
     if (r && r.broadcast) pushState(room);
   });
 
   socket.on('player:move', (d) => {
     const room = roomOf(socket);
-    if (room) room.move(socket.id, d);
+    const result=room?.move(socket.id,d);
+    if(result?.pose){count('rejectedMovement');socket.emit('position:correct',result.pose);}
   });
 
   socket.on('player:swing', (d) => {
@@ -179,25 +253,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    const code = socketRoom.get(socket.id);
-    socketRoom.delete(socket.id);
-    const room = rooms.get(code);
+  socket.on('disconnect', (reason) => {
+    const room = roomOf(socket);
     if (!room) return;
-    room.removePlayer(socket.id);
-    if (room.size === 0) rooms.delete(code);
-    else { pushState(room); pushKitchen(room); }
+    if (!stopping && ['transport close','transport error','ping timeout'].includes(reason)) {
+      const autoPaused = room.isHost(socket.id) && room.phase === 'playing' && !room.paused;
+      if (autoPaused) room.togglePause(socket.id);
+      room.players.get(socket.id).connected = false;
+      pendingRecovery.set(socket.id,{until:Date.now()+RECOVERY_MS,autoPaused});
+      toast(room, '참가자의 연결을 복구하고 있습니다.' + (autoPaused ? ' 방장 복귀까지 일시정지합니다.' : ''), 'warn');
+      pushState(room); pushKitchen(room);
+    } else removeMembership(socket.id);
   });
 });
 
 /* ──────────────── 틱 ──────────────── */
 /* 방마다 마지막으로 보낸 상태 서명 — 안 바뀌었으면 다시 안 보낸다 */
-const lastSig = new Map();
-const lastSent = new Map();
-const HEARTBEAT_MS = 2000;      // 시계 동기화를 위해 이 간격으로는 무조건 한 번
-
-setInterval(() => {
+const gameTimer = setInterval(() => {
   const t = Date.now();
+  for (const [id, pending] of pendingRecovery) {
+    if (t >= pending.until) { count('expired'); removeMembership(id); }
+  }
   for (const room of rooms.values()) {
     const events = room.tick();
     for (const e of events) {
@@ -230,14 +306,14 @@ setInterval(() => {
 
     // 바뀐 게 없으면 상태 브로드캐스트를 건너뛴다
     const sig = room.stateSignature();
-    const stale = t - (lastSent.get(room.code) || 0) >= HEARTBEAT_MS;
+    const stale = t - (lastSent.get(room.code) || 0) >= runtime.heartbeatMs;
     if (sig !== lastSig.get(room.code) || stale) {
       lastSig.set(room.code, sig);
       lastSent.set(room.code, t);
       pushState(room);
     }
   }
-}, 200);
+}, runtime.gameTickMs);
 
 /* 위치 브로드캐스트 (NET.tickMs) — 클라이언트가 이 t 를 기준으로 보간한다.
    시각을 안 실어주면 받은 시각으로 보간해야 하는데, 네트워크가 한 번
@@ -248,9 +324,9 @@ setInterval(() => {
    느린 클라이언트 하나가 서버 메모리와 이벤트 루프를 붙잡는 걸 막는다.
    토스트·상태·웨이브 종료처럼 한 번 놓치면 복구가 안 되는 것들은
    그대로 신뢰성 있게 보낸다. */
-setInterval(() => {
+const positionsTimer = setInterval(() => {
   for (const room of rooms.values()) {
-    if (room.phase === 'playing') {
+    if (room.phase === 'playing' && !room.paused) {
       io.to(room.code).volatile.emit('positions', { t: Date.now(), list: room.positions() });
     }
   }
@@ -270,17 +346,37 @@ function lanAddress() {
 /* 랭킹을 먼저 읽어 캐시에 올린다 — 첫 손님이 빈 랭킹을 보지 않도록 */
 const store = await leaderboard.init();
 
-server.listen(PORT, () => {
+server.listen(runtime.port, () => {
+  const port = server.address().port;
   const lan = lanAddress();
   console.log('');
-  console.log('  🍣 김밥지옥 — 웨이브 디펜스 (최대 6인)');
+  console.log(`  🍣 김밥지옥 — 웨이브 디펜스 (최대 ${PLAYER_LIMIT}인)`);
   console.log('  ─────────────────────────────────────────');
-  console.log('  ➜ http://localhost:' + PORT);
-  if (lan) console.log('  📡 팀원에게: http://' + lan + ':' + PORT + '   (같은 Wi-Fi)');
+  console.log('  ➜ http://localhost:' + port);
+  if (lan) console.log('  📡 팀원에게: http://' + lan + ':' + port + '   (같은 Wi-Fi)');
   console.log('');
   console.log('  웨이브 ' + WAVES.length + '개');
   console.log('  🏆 가게 랭킹 ' + leaderboard.size() + '건 기록됨 (' + store.where + ')');
   if (store.error) console.log('  ⚠  저장소 연결 실패 — 이번 판 기록이 남지 않습니다');
-  console.log('  한 명이 [새 가게 열기] → 나머지는 방 코드 4글자로 입장');
+  console.log(`  한 명이 [새 가게 열기] → 나머지는 방 코드 ${ROOM_CODE_LENGTH}글자로 입장`);
   console.log('');
+  process.send?.({type:'ready',port});
 });
+
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(gameTimer); clearInterval(positionsTimer); loopLag.disable();
+  io.emit('server:closing', {msg:'서버 점검으로 연결을 종료합니다. 잠시 후 다시 입장해 주세요.'});
+  const deadline=setTimeout(() => process.exit(1),runtime.shutdownTimeoutMs);
+  deadline.unref();
+  const closed=new Promise(resolve=>io.close(resolve));
+  const saved=await leaderboard.flush();
+  leaderboard.close();
+  await closed;
+  clearTimeout(deadline);
+  if(!saved) console.error('[shutdown] ranking_flush_incomplete');
+  process.exit(saved?0:1);
+}
+process.on('SIGINT',shutdown);
+process.on('SIGTERM',shutdown);

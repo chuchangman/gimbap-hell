@@ -4,26 +4,29 @@
    ──────────────────────────────────────────────────────────── */
 import * as THREE from '/vendor/three.module.min.js';
 import { COMBAT, QUEUE_Z, slotX, NET , EYE } from './config.js';
+import {MOVEMENT} from './spatial.js';
+import {PLAYER_INPUT,CHARACTER_MOTION} from './render-config.js';
 import {
   camera, interactables, solids, bumpHand, setSwingProgress, setArmBob
 } from './world.js';
-import { S, emit, myHand, isPlaying, remotePositions } from './net.js';
+import { S, emit, myHand, isHost, isPlaying, remotePositions } from './net.js';
 import { resolveAction, dropHand, swingBroom } from './kitchen.js';
 
 const keys = Object.create(null);
-const RADIUS = 0.34;      // 플레이어 반지름 (충돌)
+const clearKeys = () => { for(const key of Object.keys(keys)) delete keys[key]; };
+const RADIUS = MOVEMENT.radius;
 
-const SPEED = 3.6;
-const RUN = 6.2;
-const REACH = 2.9;        // 상호작용 사거리
+const SPEED = MOVEMENT.walk;
+const RUN = MOVEMENT.run;
+const REACH = MOVEMENT.reach;
 
 /* 점프 / 중력 / 넉백 */
-const GRAVITY = -24;
-const JUMP_V = 6.2;
-const HIT_LAUNCH = 5.0;   // 빗자루에 맞으면 뜨는 높이
-const AIR_CONTROL = 2.4;  // 공중에서 방향을 얼마나 바꿀 수 있나
+const GRAVITY = MOVEMENT.gravity;
+const JUMP_V = MOVEMENT.jump;
+const HIT_LAUNCH = MOVEMENT.hitLaunch;
+const AIR_CONTROL = MOVEMENT.airControl;
 
-let yaw = 0;              // yaw=0 → -z (서빙 창구) 를 본다
+let yaw = 0;              // yaw=0 → -z (서빙 테이블) 를 본다
 let pitch = 0;
 let locked = false;
 let bob = 0;
@@ -56,13 +59,15 @@ export function initPlayer(canvas) {
 
   document.addEventListener('pointerlockchange', () => {
     locked = document.pointerLockElement === canvas;
+    if(!locked) clearKeys();
   });
+  window.addEventListener('blur',clearKeys);
 
   document.addEventListener('mousemove', (e) => {
-    if (!locked) return;
-    yaw -= e.movementX * 0.0022;
-    pitch -= e.movementY * 0.0022;
-    pitch = Math.max(-1.35, Math.min(1.35, pitch));
+    if (!locked || !isPlaying()) return;
+    yaw -= e.movementX * PLAYER_INPUT.lookSensitivity;
+    pitch -= e.movementY * PLAYER_INPUT.lookSensitivity;
+    pitch = Math.max(-PLAYER_INPUT.maxPitch, Math.min(PLAYER_INPUT.maxPitch, pitch));
   });
 
   document.addEventListener('keydown', (e) => {
@@ -70,11 +75,16 @@ export function initPlayer(canvas) {
       if (e.key === 'Escape') state.onCloseOverlay();
       return;
     }
-    keys[e.code] = true;
-
     if (e.code === 'Escape') { state.onCloseOverlay(); return; }
-    if (e.code === 'KeyH' || e.code === 'Tab') { e.preventDefault(); state.onToggleHelp(); return; }
-    if (state.overlayOpen || !state.enabled) return;
+    // Tab remains normal keyboard focus navigation throughout the UI.
+    if (e.code === 'KeyH' && state.enabled) { e.preventDefault(); state.onToggleHelp(); return; }
+    if (e.code === 'KeyP' && state.enabled) {
+      e.preventDefault();
+      if (!e.repeat && isHost()) emit('game:pause');
+      return;
+    }
+    if (state.overlayOpen || !state.enabled || !isPlaying()) return;
+    keys[e.code] = true;
 
     if (e.code === 'KeyE') { e.preventDefault(); interact(); }
     else if (e.code === 'KeyQ') { dropHand(); bumpHand(); }
@@ -85,7 +95,7 @@ export function initPlayer(canvas) {
 
   // 좌클릭: 빗자루를 들었으면 휘두르기, 아니면 상호작용
   document.addEventListener('mousedown', (e) => {
-    if (!locked || state.overlayOpen || !state.enabled || e.button !== 0) return;
+    if (!locked || state.overlayOpen || !state.enabled || !isPlaying() || e.button !== 0) return;
     if (hasBroom()) swing();
     else interact();
   });
@@ -131,7 +141,7 @@ function pickTarget() {
 
 function swing() {
   if (performance.now() < swingUntil - 200 + COMBAT.cooldown) return;
-  swingUntil = performance.now() + 260;
+  swingUntil = performance.now() + CHARACTER_MOTION.swingMs;
 
   // 십자선으로 손님을 정확히 겨냥했으면 그 손님이 우선이다
   const st = state.target && state.target.userData.station;
@@ -160,11 +170,13 @@ function shakeOffset() {
 /* ──────────────── 조준 ──────────────── */
 const ray = new THREE.Raycaster();
 const CENTER = new THREE.Vector2(0, 0);
+const rayHits=[];
 
 function aim() {
   ray.setFromCamera(CENTER, camera);
-  const hits = ray.intersectObjects(interactables, false);
-  for (const h of hits) {
+  rayHits.length=0;
+  ray.intersectObjects(interactables,false,rayHits);
+  for (const h of rayHits) {
     if (h.distance <= REACH) return h.object;
   }
   return null;
@@ -217,13 +229,15 @@ function collide(pos) {
       else pos.z = s.maxZ + RADIUS;
     }
   }
-  pos.x = Math.max(-7.6, Math.min(7.6, pos.x));
-  pos.z = Math.max(-10.6, Math.min(8.6, pos.z));
+  pos.x = Math.max(MOVEMENT.minX,Math.min(MOVEMENT.maxX,pos.x));
+  pos.z = Math.max(MOVEMENT.minZ,Math.min(MOVEMENT.maxZ,pos.z));
 }
 
 /* ──────────────── 매 프레임 ──────────────── */
 export function updatePlayer(dt) {
-  const canMove = state.enabled && !state.overlayOpen && isPlaying();
+  const playing = isPlaying();
+  const canMove = state.enabled && !state.overlayOpen && playing;
+  if (!playing) dt = 0;
 
   let mx = 0, mz = 0;
   if (canMove) {
@@ -296,36 +310,46 @@ export function updatePlayer(dt) {
 
   // 휘두르는 모션
   const swingLeft = swingUntil - performance.now();
-  setSwingProgress(swingLeft > 0 ? 1 - swingLeft / 260 : 0);
+  setSwingProgress(swingLeft > 0 ? 1-swingLeft/CHARACTER_MOTION.swingMs : 0);
 
   // 조준
-  const obj = (state.overlayOpen || !state.enabled) ? null : aim();
+  const obj = (state.overlayOpen || !state.enabled || !playing) ? null : aim();
   state.target = obj;
   state.prompt = obj ? resolveAction(obj.userData.station) : null;
 
   // 위치 동기화 — 받는 쪽이 보간하므로 이 주기가 부드러움의 상한이다
   const t = performance.now();
-  if (state.enabled && t - lastSent > NET.tickMs) {
+  if (state.enabled && playing && t - lastSent > NET.tickMs) {
     lastSent = t;
-    emit('player:move', { x: camera.position.x, z: camera.position.z, y: height, ry: yaw });
+    emit('player:move', { x: camera.position.x, z: camera.position.z, y: height, ry: yaw, version:S.motionVersion });
   }
 }
 
-/** 라운드 시작 위치 — 서버가 정해준 자리에서 서빙 창구를 본다 */
+/** 라운드 시작 위치 — 서버가 정해준 자리에서 서빙 테이블을 본다 */
 export function resetPose(spawn) {
   const s = spawn || { x: 0, z: 6.2 };
-  camera.position.set(s.x, EYE, s.z);
-  yaw = 0; pitch = 0;
-  height = 0; velY = 0; airborne = false;
+  height = Math.max(0,Number.isFinite(s.y) ? s.y : 0);
+  camera.position.set(s.x, EYE + height, s.z);
+  yaw = Number.isFinite(s.ry) ? s.ry : 0; pitch = 0;
+  velY = 0; airborne = height > 0;
   moveVel.x = 0; moveVel.z = 0;
   knock.x = 0; knock.z = 0;
+  clearKeys();
   bob = 0;
+}
+
+/** Correct rejected coordinates without turning the camera or losing held input. */
+export function correctPose(pose) {
+  camera.position.x=pose.x;camera.position.z=pose.z;
+  height=Math.max(0,pose.y||0);camera.position.y=EYE+height;
+  if(height===0){velY=0;airborne=false;}
+  moveVel.x=moveVel.z=0;knock.x=knock.z=0;
 }
 
 /** 시점 직접 지정 (디버깅/자동 검증용) */
 export function setLook(y, p) {
   yaw = y;
-  pitch = Math.max(-1.35, Math.min(1.35, p));
+  pitch = Math.max(-PLAYER_INPUT.maxPitch,Math.min(PLAYER_INPUT.maxPitch,p));
 }
 
 export function getPose() {

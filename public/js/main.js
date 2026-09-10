@@ -2,7 +2,7 @@
 import { connect, on, S } from './net.js';
 import { initWorld, render, remoteSwing, scene, camera, interactables } from './world.js';
 import {
-  initPlayer, updatePlayer, applyKnockback, isSwinging, setLook, getPose, state as P
+  initPlayer, updatePlayer, applyKnockback, isSwinging, setLook, getPose, correctPose, state as P
 } from './player.js';
 import { initUI, renderHUD, route, toast, wavePop } from './ui.js';
 import { resolveAction } from './kitchen.js';
@@ -50,6 +50,7 @@ async function boot() {
 
   initPlayer(canvas);
   initUI();
+  on('position:correct',correctPose);
 
   // 🌊 웨이브가 끝났다 — 중앙 상단에 크게 알린다
   on('waveEnd', wavePop);

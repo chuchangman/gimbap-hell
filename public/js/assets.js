@@ -38,20 +38,20 @@ export const CONTRACT = {
   /* ── 캐릭터 — 베이스는 리그, 기본 상·하의는 독립 메시 파츠 ── */
   'char/base': { size: [0.96, 2.19, 0.86], origin: '발바닥 한가운데, 얼굴 +z',
     parts: ['rig', 'body', 'head', 'legL', 'legR', 'armL', 'armR', 'baseTop', 'baseBottom'] },
-  'char/hair/short': { size: [0.90, 0.40, 0.90], origin: 'char/base와 동일', parts: [] },
+  'char/hair/short': { size: [0.84, 0.60, 0.84], origin: 'char/base와 동일', parts: [] },
   'char/hair/bob':   { size: [0.90, 0.55, 0.90], origin: 'char/base와 동일', parts: [] },
   'char/hair/bun':   { size: [0.90, 0.55, 1.05], origin: 'char/base와 동일', parts: [] },
   'char/hair/spiky': { size: [0.90, 0.70, 0.90], origin: 'char/base와 동일', parts: [] },
   'char/hair/long':  { size: [0.90, 1.10, 0.90], origin: 'char/base와 동일', parts: [] },
   'char/hair/chef':  { size: [0.72, 0.55, 0.73], origin: 'char/base와 동일', parts: [] },
-  'char/hair/crab':  { size: [1.52, 1.00, 0.90], origin: 'char/base와 동일', parts: [] },
-  'char/hair/cap':   { size: [0.43, 0.34, 0.55], origin: 'char/base와 동일', parts: [] },
-  'char/top/tee':    { size: [0.62, 0.06, 0.62], origin: 'char/base와 동일', parts: [] },
-  'char/top/apron':  { size: [0.38, 0.52, 0.05], origin: 'char/base와 동일', parts: [] },
-  'char/top/stripe': { size: [0.62, 0.46, 0.62], origin: 'char/base와 동일', parts: [] },
-  'char/top/hoodie': { size: [0.45, 0.35, 0.45], origin: 'char/base와 동일', parts: [] },
-  'char/top/vest':   { size: [0.63, 0.46, 0.63], origin: 'char/base와 동일', parts: [] },
-  'char/top/scout':  { size: [0.64, 0.52, 0.57], origin: 'char/base와 동일', parts: [] },
+  'char/hair/crab':  { size: [1.20, 0.85, 0.90], origin: 'char/base와 동일', parts: [] },
+  'char/hair/cap':   { size: [0.90, 0.75, 0.92], origin: 'char/base와 동일', parts: [] },
+  ...Object.fromEntries(['tee', 'apron', 'stripe', 'hoodie', 'vest', 'scout'].map((id) =>
+    ['char/top/' + id, { size: [0.91, 0.69, 0.49], origin: 'char/base와 동일',
+      parts: ['garmentBody', 'sleeveL', 'sleeveR'] }])),
+  ...Object.fromEntries(['shorts', 'trousers', 'cuffed'].map((id) =>
+    ['char/bottom/' + id, { size: [0.57, id === 'shorts' ? 0.35 : 0.58, 0.37],
+      origin: 'char/base와 동일', parts: ['waist', 'trouserL', 'trouserR'] }])),
 
   /* ── 속재료 — 길이 1.0 (y축), 원점 한가운데, 단면은 xz 평면 ── */
   'fill/danmuji':  { size: [0.056, 1, 0.056], origin: '한가운데', parts: [] },
@@ -92,7 +92,6 @@ export const CONTRACT = {
   'station/board':  { size: [1.05, 0.07, 0.85], origin: '판 한가운데', parts: [] },
   'station/mat':    { size: [0.72, 0.06, 0.72], origin: '판 한가운데', parts: [] },
   'station/bin':    { size: [0.95, 1.02, 0.95], origin: '바닥 한가운데', parts: [] },
-  'station/kiosk':  { size: [0.80, 1.80, 0.60], origin: '바닥 한가운데', parts: [] },
   'station/pot':    { size: [0.60, 0.30, 0.54], origin: '바닥 한가운데', parts: ['water'] },
   'station/pan':    { size: [0.60, 0.10, 0.90], origin: '바닥 한가운데', parts: [] },
 
@@ -164,6 +163,7 @@ export async function preloadAssets() {
       /* clone(true)는 노드와 메시만 복제하고 재질은 원본을 계속 공유한다.
          색을 바꾸는 설비가 자기 재질만 떼어낼 수 있도록 공유 상태를 표시한다. */
       gltf.scene.traverse((o) => {
+        if (o.geometry) o.geometry.userData.shared = true;
         const materials = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
         materials.forEach((m) => { m.userData.shared = true; });
       });

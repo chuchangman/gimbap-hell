@@ -7,6 +7,10 @@
    ──────────────────────────────────────────────────────────── */
 import * as THREE from '/vendor/three.module.min.js';
 import { asset, partOf } from './assets.js';
+import {WORLD_SOLIDS,stationBox,SERVE_Z,BROOM_SPOTS} from './spatial.js';
+import {KITCHEN_LAYOUT,burnerZ,boardX,cookerZ,fridgeZ,matX} from './kitchen-layout.js';
+import {CAMERA_VIEW,CHARACTER_MOTION} from './render-config.js';
+import {collectTintTargets,applyBurnTint} from './render-utils.js';
 import {
   ITEMS, FRIDGE_ROW_A, FRIDGE_ROW_B, TIME, C,
   BURNERS, BOARD_COUNT, MAT_COUNT, COOKER_COUNT, BROOM_COUNT,
@@ -21,31 +25,25 @@ import {
 } from './kitchen.js';
 
 export const scene = new THREE.Scene();
-export const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 140);
+export const camera = new THREE.PerspectiveCamera(CAMERA_VIEW.fov,1,CAMERA_VIEW.near,CAMERA_VIEW.far);
 export const interactables = [];   // 조준 가능한 메시
-export const solids = [];          // 충돌용 AABB {minX,maxX,minZ,maxZ}
+export const solids = WORLD_SOLIDS; // 서버와 동일한 충돌 영역
 
 let renderer;
 const D = {
   burners: [], boards: [], mats: [], brooms: [], cookers: [], fridge: [],
   sink: null,
+  outside: { cars: [], people: [] },
   customers: new Map(),
   remotes: new Map(),
   hand: null, handBase: null, handKey: null
 };
 
 /* ──────────────── 좌표 ──────────────── */
-export const SERVE_Z = -6.8;                 // 서빙 카운터
 export const DOOR = { x: -6, z: -10.4 };     // 출입문
-export const KIOSK = { x: 4.2, z: -9.3 };    // 키오스크
-export { QUEUE_Z, slotX };                   // 줄 좌표는 config 가 갖고 있다 (서버와 공유)
+export { QUEUE_Z, slotX, SERVE_Z, BROOM_SPOTS };
 const HIT_FLINCH_MS = 260;                   // 빗자루에 맞고 움찔거리는 시간
 
-export const BROOM_SPOTS = [
-  { x: -2.6, z: 7.9, ry: Math.PI },
-  { x: 2.6, z: 7.9, ry: Math.PI },
-  { x: 6.9, z: 3.4, ry: -Math.PI / 2 }
-];
 
 /* ──────────────── 헬퍼 ──────────────── */
 /* ────────────────────────────────────────────────────────────
@@ -286,17 +284,16 @@ function kill(obj, parent) {
   return null;
 }
 
-function addSolid(x, z, w, d) {
-  solids.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
-}
-
 function station(mesh, data) {
   mesh.userData.station = data;
   interactables.push(mesh);
   return mesh;
 }
 
-function hitProxy(x, y, z, w, h, d, data) {
+function hitProxy(data) {
+  const shared=stationBox(data);
+  if(!shared) throw new Error('Missing interaction box for '+JSON.stringify(data));
+  const {x,y,z,w,h,d}=shared;
   const m = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
@@ -443,6 +440,14 @@ class Panel {
     }
     this.tex.needsUpdate = true;
   }
+}
+
+function stationPanel(scale,x,y,z,parent=scene) {
+  const panel=new Panel(256,96,scale);
+  panel.sprite.position.set(x,y,z);
+  panel.sprite.visible=false;
+  parent.add(panel.sprite);
+  return panel;
 }
 
 /* 글자 폭을 재는 공용 캔버스 */
@@ -798,6 +803,132 @@ export function makeItemMesh(item) {
 /* ────────────────────────────────────────────────────────────
    가게 짓기 — x −8..8, z −11..9
    ──────────────────────────────────────────────────────────── */
+function buildStreetCar(color, laneZ, direction, offset, speed) {
+  const car = new THREE.Group();
+  box(1.75, 0.38, 0.76, color, 0, 0.40, 0, car);
+  box(0.92, 0.34, 0.68, new THREE.Color(color).multiplyScalar(0.86).getHex(), -0.15, 0.71, 0, car);
+  box(0.34, 0.23, 0.02, 0xaed6df, -0.24, 0.72, 0.355, car);          // 옆 창문
+  box(0.30, 0.23, 0.02, 0xaed6df, 0.16, 0.72, 0.355, car);
+  box(0.08, 0.11, 0.54, 0xffe6a1, 0.89, 0.43, 0, car);              // 전조등
+  box(0.08, 0.11, 0.54, 0xc94d45, -0.89, 0.43, 0, car);             // 후미등
+  const wheels = [];
+  for (const x of [-0.57, 0.57]) for (const z of [-0.39, 0.39]) {
+    const wheel = cyl(0.19, 0.10, 0x25282a, x, 0.24, z, car, 10);
+    wheel.rotation.x = Math.PI / 2;
+    wheels.push(wheel);
+  }
+  car.position.z = laneZ;
+  car.rotation.y = direction < 0 ? Math.PI : 0;
+  scene.add(car);
+  D.outside.cars.push({ mesh: car, wheels, direction, offset, speed });
+}
+
+function buildStreetPerson(shirt, pants, z, direction, offset, period, active) {
+  const person = new THREE.Group();
+  const skin = 0xd6a274;
+  const head = new THREE.Mesh(
+    sharedGeo('street_head', () => new THREE.SphereGeometry(0.20, 8, 6)), mat(skin)
+  );
+  head.position.y = 1.48;
+  person.add(head);
+  box(0.40, 0.62, 0.25, shirt, 0, 1.02, 0, person);
+  const legL = box(0.13, 0.60, 0.14, pants, -0.11, 0.43, 0, person);
+  const legR = box(0.13, 0.60, 0.14, pants, 0.11, 0.43, 0, person);
+  box(0.12, 0.53, 0.13, skin, -0.27, 1.02, 0, person);
+  box(0.12, 0.53, 0.13, skin, 0.27, 1.02, 0, person);
+  person.position.z = z;
+  person.scale.setScalar(0.82);
+  scene.add(person);
+  D.outside.people.push({ mesh: person, legL, legR, direction, offset, period, active });
+}
+
+/** 문 오른쪽 통창과 그 너머의 저비용 거리 풍경. 실내 충돌에는 포함하지 않는다. */
+function buildStorefrontAndStreet() {
+  const wall = 0xf2eee5;
+  const frame = 0x60747a;
+  const windowLeft = -4.80, windowRight = 7.80;
+  const windowW = windowRight - windowLeft;
+  const windowX = (windowLeft + windowRight) / 2;
+
+  /* 기존 통짜 앞벽 대신 출입문과 통창의 빈자리를 남긴 벽 조각을 세운다. */
+  box(1.05, 3.40, 0.18, wall, -7.475, 1.70, -11);
+  box(1.90, 1.05, 0.18, wall, DOOR.x, 2.875, -11);                  // 문 위
+  box(0.25, 3.40, 0.18, wall, -4.925, 1.70, -11);                  // 문·창 사이 기둥
+  box(0.20, 3.40, 0.18, wall, 7.90, 1.70, -11);
+  box(windowW, 0.28, 0.18, wall, windowX, 0.14, -11);
+  box(windowW, 0.40, 0.18, wall, windowX, 3.20, -11);
+
+  /* 한 장의 유리와 가는 프레임. 반사는 약하게 두어 바깥 움직임이 잘 보이게 한다. */
+  const glass = new THREE.Mesh(
+    new THREE.PlaneGeometry(windowW - 0.10, 2.65),
+    new THREE.MeshPhongMaterial({
+      color: 0xb8dce5, transparent: true, opacity: 0.16,
+      side: THREE.DoubleSide, depthWrite: false, shininess: 70
+    })
+  );
+  glass.position.set(windowX, 1.65, -10.91);
+  glass.renderOrder = 3;
+  scene.add(glass);
+  box(windowW, 0.12, 0.13, frame, windowX, 0.31, -10.90);
+  box(windowW, 0.12, 0.13, frame, windowX, 2.99, -10.90);
+  for (const x of [windowLeft, -0.62, 3.56, windowRight])
+    box(0.12, 2.80, 0.13, frame, x, 1.65, -10.90);
+
+  /* 인도·2차선 도로·맞은편 건물. 모두 창밖이므로 플레이어 충돌은 만들지 않는다. */
+  box(24, 0.10, 2.00, 0xaaa9a2, 0, -0.02, -12.0);
+  box(24, 0.18, 0.18, 0xd8d1c4, 0, 0.04, -12.95);
+  box(30, 0.08, 5.40, 0x3f464a, 0, -0.07, -15.65);
+  box(24, 0.10, 1.40, 0xa9aaa5, 0, -0.02, -18.85);
+  for (let x = -14; x <= 14; x += 3.2)
+    box(1.55, 0.018, 0.10, 0xf2e6b9, x, -0.02, -15.65);
+
+  const buildings = [
+    { x: -9, w: 8.0, h: 4.6, c: 0xb77b62, trim: 0x6d4b43 },
+    { x: -1.5, w: 6.4, h: 3.8, c: 0xd1b583, trim: 0x755b47 },
+    { x: 6.2, w: 8.6, h: 5.2, c: 0x879da0, trim: 0x485b60 }
+  ];
+  for (const b of buildings) {
+    box(b.w, b.h, 0.60, b.c, b.x, b.h / 2, -19.8);
+    box(b.w * 0.72, 0.24, 0.18, b.trim, b.x, 2.55, -19.45);
+    const cols = Math.max(2, Math.floor(b.w / 1.7));
+    for (let i = 0; i < cols; i++) {
+      const wx = b.x - b.w * 0.36 + i * (b.w * 0.72 / Math.max(1, cols - 1));
+      box(0.72, 0.78, 0.04, 0xb9d8dc, wx, 1.25, -19.47);
+    }
+  }
+
+  buildStreetCar(0xd86455, -14.25, 1, 1.0, 2.6);
+  buildStreetCar(0x4d82b8, -16.65, -1, 9.5, 2.2);
+  buildStreetCar(0xe0aa4f, -14.25, 1, 15.0, 2.4);
+  buildStreetPerson(0xe18a5c, 0x4d6380, -12.15, 1, 1.2, 21, 8.5);
+  buildStreetPerson(0x5c8d72, 0x5a4c65, -12.38, -1, 10.5, 27, 9.0);
+  buildStreetPerson(0x7d68a8, 0x4b5965, -18.65, 1, 17.0, 31, 8.0);
+}
+
+function animateStreet(now) {
+  const seconds = now / 1000;
+  const minX = -14, maxX = 14, span = maxX - minX;
+  for (const car of D.outside.cars) {
+    const u = ((seconds * car.speed + car.offset) % span + span) % span;
+    car.mesh.position.x = car.direction > 0 ? minX + u : maxX - u;
+    const spin = seconds * car.speed / 0.19 * car.direction;
+    for (const wheel of car.wheels) wheel.rotation.y = spin;
+  }
+  for (const person of D.outside.people) {
+    const phase = ((seconds + person.offset) % person.period + person.period) % person.period;
+    person.mesh.visible = phase < person.active;
+    if (!person.mesh.visible) continue;
+    const t = phase / person.active;
+    person.mesh.position.x = person.direction > 0
+      ? THREE.MathUtils.lerp(-10, 10, t)
+      : THREE.MathUtils.lerp(10, -10, t);
+    person.mesh.position.y = Math.abs(Math.sin(phase * 7.2)) * 0.035;
+    const stride = Math.sin(phase * 7.2) * 0.34;
+    person.legL.rotation.z = stride;
+    person.legR.rotation.z = -stride;
+  }
+}
+
 function buildRoom() {
   /* ASTRONEER 가 쓰는 방식 — 멀수록 하늘색으로 바래게 한다.
      안개 색을 배경과 똑같이 맞춰야 먼 것이 "흐려지는" 게 아니라
@@ -846,7 +977,6 @@ function buildRoom() {
 
   const roomWalls = [
     ['room/wall-back',  0, 1.7,   9, 16, 0, 9, Math.PI, 0xf2e2c4],
-    ['room/wall-front', 0, 1.7, -11, 16, 0,-11, 0,       0xf6ead0],
     ['room/wall-left', -8, 1.7,  -1, 20,-8, -1, Math.PI/2, 0xcbe6da],
     ['room/wall-right', 8, 1.7,  -1, 20, 8, -1,-Math.PI/2, 0xe9d9c8]
   ];
@@ -860,11 +990,8 @@ function buildRoom() {
       fallback.position.set(fx,1.7,fz); fallback.rotation.y=ry; scene.add(fallback);
     }
   }
+  buildStorefrontAndStreet();
 
-  addSolid(0, 9.4, 18, 0.8);
-  addSolid(0, -11.4, 18, 0.8);
-  addSolid(-8.4, -1, 0.8, 22);
-  addSolid(8.4, -1, 0.8, 22);
 
   /* 천장 형광등 — 예전엔 천장이 통짜 흰 판이라 실내로 안 읽혔다.
      빛을 실제로 쏘지는 않는다(방향광 두 개로 충분하다). 형태만 준다. */
@@ -892,13 +1019,6 @@ function buildRoom() {
   box(1.5, 1.5, 0.04, 0xd7ecf5, 0, 0.28, 0.07, door);
   box(0.07, 0.34, 0.05, 0xd8dde1, 0.62, -0.15, 0.09, door);           // 문 손잡이
   wallLabel('🚪 출입문', 0.26, DOOR.x, 2.65, -10.8, 0, '#cfe9f5');
-
-  /* 벽시계 — 손님 쪽 벽이 넓게 비어 있다 */
-  const clock = cyl(0.30, 0.06, 0xf4f1ea, 3.4, 2.55, -10.88, scene, 18);
-  clock.rotation.x = Math.PI / 2;
-  cyl(0.255, 0.075, 0x2f2b26, 0, 0, 0, clock, 18);
-  box(0.028, 0.09, 0.17, 0xe8e4da, 0, 0.01, -0.075, clock);
-  box(0.13, 0.09, 0.028, 0xe8e4da, 0.055, 0.01, 0, clock);
 
   // 공정 안내판 (오른쪽 벽) — 벽을 향한 고정 평면이라 각도가 틀어져도 안 잘린다
   box(0.08, 2.1, 3.6, 0x2c2620, 7.92, 2.05, 5.2);
@@ -939,7 +1059,6 @@ function counterTop(x, z, w, d, color) {
   } else {
     counterBody(x, z, w, d, color, scene);
   }
-  addSolid(x, z, w, d);
 }
 
 /** 자연 크기의 가구를 긴 방향으로 반복해 지정한 받침대 영역을 채운다. */
@@ -1029,7 +1148,7 @@ function counterBody(x, z, w, d, color, parent) {
    안 됐다. 뒤를 어둡게 깔고 칸막이·선반으로 격자를 세워 칸을 따로 떼어
    보이게 하고, 이름표는 칸 아래 선반 앞면에 붙인다 (진열대 가격표처럼). */
 function buildFridge() {
-  const X = -7.05, Z = -3.1;
+  const {x:X,z:Z} = KITCHEN_LAYOUT.fridge;
 
   const DEPTH = 0.55;                    // 홈이 파인 깊이 (재료가 앞으로 안 튀어나올 만큼)
   const CUB_H = 0.80;                    // 홈 높이
@@ -1066,10 +1185,9 @@ function buildFridge() {
   });
   shell.position.set(X, 0, Z);
   scene.add(shell);
-  addSolid(X, Z, 1.15, 5.9);
 
   rows.forEach((r) => r.ids.forEach((id, i) => {
-    const z = Z - 2.3 + i * 1.15;
+    const z = fridgeZ(i);
     const y = r.floorY + 0.12;
     const def = ITEMS[id];
 
@@ -1078,7 +1196,7 @@ function buildFridge() {
     sample.rotation.y = Math.PI / 2;   // 긴 쪽을 칸 면에 나란히 — 앞으로 찌르지 않게
     sample.scale.setScalar(1.45);
     scene.add(sample);
-    hitProxy(X + 0.55, y + 0.1, z, 0.9, 0.82, 1.1, { kind: 'fridge', item: id });
+    hitProxy({ kind: 'fridge', item: id });
 
     const p = wallLabel(def.emoji + ' ' + def.name, 0.17,
       front + 0.05, r.floorY - BOARD / 2 - 0.01, z, Math.PI / 2, '#fff');
@@ -1104,7 +1222,7 @@ function syncFridge() {
 
 /* ──────────────── 🚰 싱크대 ──────────────── */
 function buildSink() {
-  const X = -6.7, Z = 1.1;
+  const {x:X,z:Z} = KITCHEN_LAYOUT.sink;
   const BW = 0.92, BD = 1.36, WALL2 = 0.055, LIP = 0.20;
   const bx = 0.05;                       // 개수대 한가운데 (조리대 기준 국소좌표)
 
@@ -1139,21 +1257,21 @@ function buildSink() {
     return g;
   });
   shell.position.set(X, 0, Z);
+  shell.rotation.y = Math.PI / 2;
   scene.add(shell);
-  addSolid(X, Z, 1.3, 2.1);
+  // 90° 회전한 실제 GLB 바닥 크기(1.70 × 1.30)에 충돌 영역도 맞춘다.
 
   /* 물줄기 — 모델이 water 노드를 들고 있으면 그걸 쓴다 */
   const fromModel = partOf(shell, 'water');
-  const water = fromModel || ownMat(cyl(0.035, 0.42, C.water, X - 0.02, 1.26, Z, scene, 8));
+  // 회전된 수전 주둥이의 바로 아래. 이전 좌표는 개수대 중앙이라 물줄기가
+  // 관 옆에서 솟는 것처럼 보였다.
+  const water = fromModel || ownMat(cyl(0.035, 0.18, C.water, X - 0.31, 1.19, Z - 0.10, scene, 8));
   if (!fromModel) { water.material.transparent = true; water.material.opacity = 0.55; }
   water.visible = false;
 
-  hitProxy(X + 0.4, 1.4, Z, 1.1, 1.0, 1.6, { kind: 'sink' });
+  hitProxy({ kind: 'sink' });
 
-  const panel = new Panel(256, 96, 0.8);
-  panel.sprite.position.set(X + 0.25, 1.85, Z);
-  panel.sprite.visible = false;
-  scene.add(panel.sprite);
+  const panel=stationPanel(.8,X+.25,1.85,Z);
 
   labelSprite('🚰 싱크대 — 쌀 씻기', 1.45, 0, scene, '#9fd8ff').sprite.position.set(X + 0.3, 2.2, Z);
   // 씻는 쌀은 개수대 한가운데 놓는다 (예전엔 왼쪽 벽 메시 위치를 썼다)
@@ -1162,9 +1280,9 @@ function buildSink() {
 
 /* ──────────────── 🍚 밥솥 ×2 ──────────────── */
 function buildCookers() {
-  const X = -6.7;
+  const X = KITCHEN_LAYOUT.cookers.x;
   for (let i = 0; i < COOKER_COUNT; i++) {
-    const Z = 4.0 + i * 2.4;
+    const Z = cookerZ(i);
     const shell = asset('station/cooker', () => {
       const g = new THREE.Group();
       counterBody(0, 0, 1.3, 2.1, 0xe0cfa8, g);   // 밥솥 — 크림
@@ -1184,8 +1302,9 @@ function buildCookers() {
       return g;
     });
     shell.position.set(X, 0, Z);
+    // 왼쪽 벽 설비의 전면은 주방 안쪽(+x)을 향한다.
+    shell.rotation.y = Math.PI / 2;
     scene.add(shell);
-    addSolid(X, Z, 1.3, 2.1);
 
     /* 뚜껑 — 취사 중에 들썩인다. 모델이 lid 노드를 들고 있으면 그걸 쓴다 */
     const lid = partOf(shell, 'lid');
@@ -1200,12 +1319,9 @@ function buildCookers() {
       steam.push({ mesh: m, t: s / 5 });
     }
 
-    hitProxy(X + 0.35, 1.45, Z, 1.2, 1.2, 1.4, { kind: 'cooker', cooker: i });
+    hitProxy({ kind: 'cooker', cooker: i });
 
-    const panel = new Panel(256, 96, 0.85);
-    panel.sprite.position.set(X + 0.05, 1.92, Z);
-    panel.sprite.visible = false;
-    scene.add(panel.sprite);
+    const panel=stationPanel(.85,X+.05,1.92,Z);
 
     labelSprite('🍚 밥솥 ' + (i + 1), 1.3, 0, scene, '#ffd88a').sprite.position.set(X + 0.3, 2.3, Z);
     D.cookers.push({ lid, panel, steam, x: X + 0.05, z: Z });
@@ -1214,7 +1330,9 @@ function buildCookers() {
 
 /* ──────────────── 🔥 가스렌지 5구 ──────────────── */
 function buildStove() {
-  const X = 6.7, Z = -1.2;
+  const {x:X,z:Z} = KITCHEN_LAYOUT.stove;
+  // clay 스토브 모델의 실제 화구 중심은 로컬 x=0.08이다.
+  const burnerX = KITCHEN_LAYOUT.stove.burnerX;
   /* 껍데기 — 몸통·조리면·화구 오덕·조절 손잡이.
      불꽃과 냄비·팬은 상태에 따라 변하므로 아래에서 따로 만든다. */
   const shell = asset('station/stove', () => {
@@ -1245,12 +1363,12 @@ function buildStove() {
   });
   shell.position.set(X, 0, Z);
   scene.add(shell);
-  addSolid(X, Z, 1.3, 6.8);
 
   BURNERS.forEach((b, i) => {
-    const z = -3.8 + i * 1.3;
+    // GLB의 6.8m 상판을 5등분한 실제 화구 간격(1.36m)을 그대로 쓴다.
+    const z = burnerZ(i);
 
-    const flame = ownMat(cyl(0.16, 0.14, C.fire, X - 0.05, 1.09, z, scene, 12, 0.04));
+    const flame = ownMat(cyl(0.16, 0.14, C.fire, burnerX, 1.09, z, scene, 12, 0.04));
     flame.material.transparent = true; flame.material.opacity = 0.85;
     flame.visible = false;
     // 속의 파란 심지 — 겉불꽃만 있으면 주황 원뿔로만 보인다
@@ -1278,22 +1396,19 @@ function buildStove() {
       }
       return v;
     });
-    vessel.position.set(X - 0.05, 1.14, z);
+    vessel.position.set(burnerX, 1.14, z);
     // 끓는 물 — 코드로 만들었든 모델에서 왔든 water 라는 이름으로 찾는다
     vessel.userData.water = partOf(vessel, 'water');
     scene.add(vessel);
 
-    hitProxy(X - 0.15, 1.45, z, 1.1, 1.0, 1.24, { kind: 'burner', slot: i });
+    hitProxy({ kind: 'burner', slot: i });
 
-    const panel = new Panel(256, 96, 0.68);
-    panel.sprite.position.set(X - 0.05, 1.78, z);
-    panel.sprite.visible = false;
-    scene.add(panel.sprite);
+    const panel=stationPanel(.68,burnerX,1.78,z);
 
     labelSprite((b.kind === 'pot' ? '🥬 ' : '🍳 ') + b.label, 0.8, 0, scene, '#ffc9a0')
-      .sprite.position.set(X - 0.05, 1.52, z);
+      .sprite.position.set(burnerX, 1.52, z);
 
-    D.burners.push({ vessel, flame, panel, mesh: null, key: null, kind: b.kind });
+    D.burners.push({ vessel, flame, panel, mesh: null, tintTargets: [], key: null, kind: b.kind });
   });
 
   labelSprite('🔥 가스렌지', 1.5, 0, scene, '#ff9c5b').sprite.position.set(X - 0.2, 2.5, Z);
@@ -1302,11 +1417,11 @@ function buildStove() {
 
 /* ──────────────── 🔪 도마 ×3 ──────────────── */
 function buildBoards() {
-  const Z = -1.2;
+  const Z = KITCHEN_LAYOUT.boards.z;
   counterTop(0, Z, 4.4, 1.7, 0xc07d3a);   // 도마 — 진한 나무
 
   for (let i = 0; i < BOARD_COUNT; i++) {
-    const x = -1.4 + i * 1.4;
+    const x = boardX(i);
     const bm = asset('station/board', () => null);
     if (bm) bm.position.set(x, 1.06, Z), scene.add(bm);
     if (!bm) {
@@ -1332,12 +1447,9 @@ function buildBoards() {
     knife.position.set(x + 0.42, 1.14, Z);
     if (!knifeFromModel) scene.add(knife);
 
-    hitProxy(x, 1.45, Z, 1.3, 1.0, 1.5, { kind: 'board', board: i });
+    hitProxy({ kind: 'board', board: i });
 
-    const panel = new Panel(256, 96, 0.7);
-    panel.sprite.position.set(x, 1.72, Z);
-    panel.sprite.visible = false;
-    scene.add(panel.sprite);
+    const panel=stationPanel(.7,x,1.72,Z);
 
     D.boards.push({ knife, panel, mesh: null, key: null, x, z: Z, knifeHome: knife.position.clone() });
   }
@@ -1346,11 +1458,11 @@ function buildBoards() {
 
 /* ──────────────── 🍙 조립대 ×3 ──────────────── */
 function buildMats() {
-  const Z = 2.6;
+  const Z = KITCHEN_LAYOUT.mats.z;
   counterTop(0, Z, 5.2, 1.7, 0xd99a4e);   // 조립대 — 밝은 나무
 
   for (let i = 0; i < MAT_COUNT; i++) {
-    const X = -1.6 + i * 1.6;
+    const X = matX(i);
 
     /* 대나무 발 — 조립대 세 대가 상판 하나를 나눠 쓰므로
        교체 단위는 상판이 아니라 발 한 장이다. 발만 90° 돌린다. */
@@ -1363,7 +1475,9 @@ function buildMats() {
       return g;
     });
     group.position.set(X, 1.05, Z);
-    group.rotation.y = Math.PI / 2;
+    // 새 클레이 GLB는 모델 자체의 대나무 봉을 이미 90° 돌려 내보낸다.
+    // 코드 폴백만 예전처럼 여기서 회전시켜 이중 회전을 피한다.
+    group.rotation.y = group.userData.fromAsset ? 0 : Math.PI / 2;
     scene.add(group);
 
     const gim = box(0.62, 0.016, 0.5, C.gim, X, 1.08, Z);
@@ -1379,12 +1493,9 @@ function buildMats() {
     roll.rotation.z = Math.PI / 2;
     roll.visible = false;
 
-    hitProxy(X, 1.5, Z, 1.5, 1.1, 1.5, { kind: 'mat', mat: i });
+    hitProxy({ kind: 'mat', mat: i });
 
-    const panel = new Panel(256, 96, 0.9);
-    panel.sprite.position.set(X, 1.75, Z);
-    panel.sprite.visible = false;
-    scene.add(panel.sprite);
+    const panel=stationPanel(.9,X,1.75,Z);
 
     labelSprite('🍙 조립대 ' + (i + 1), 1.0, 0, scene, '#ffe08a').sprite.position.set(X, 2.02, Z);
 
@@ -1394,7 +1505,7 @@ function buildMats() {
 
 /* ──────────────── 🗑️ 음쓰통 · 🧹 빗자루 ──────────────── */
 function buildBin() {
-  const X = 5.6, Z = 5.6;
+  const {x:X,z:Z} = KITCHEN_LAYOUT.bin;
   const model = asset('station/bin', () => null);
   if (model) { model.position.set(X, 0, Z); scene.add(model); }
   if (!model) {
@@ -1406,8 +1517,7 @@ function buildBin() {
   cyl(0.022, 0.85, 0x6b7178, X - 0.44, 0.5, Z, scene, 6);         // 발판 연결대
   }
   // 충돌·상호작용·이름표는 모델을 넣어도 언제나 코드가 맡는다
-  addSolid(X, Z, 0.9, 0.9);
-  hitProxy(X, 1.1, Z, 1.1, 1.5, 1.1, { kind: 'bin' });
+  hitProxy({ kind: 'bin' });
   labelSprite('🗑️ 음쓰통', 1.25, 0, scene, '#a8e0b0').sprite.position.set(X, 1.5, Z);
 }
 
@@ -1419,31 +1529,19 @@ function buildBrooms() {
     broom.position.set(s.x, 0.78, s.z);
     broom.rotation.set(0.22, s.ry, 0.12);
     scene.add(broom);
-    hitProxy(s.x, 1.0, s.z, 0.9, 1.9, 0.9, { kind: 'broom', rack: i });
+    hitProxy({ kind: 'broom', rack: i });
     const label = labelSprite('🧹 빗자루', 1.1, 0, scene, '#ffe08a');
     label.sprite.position.set(s.x, 1.75, s.z);
     D.brooms.push({ mesh: broom, label });
   }
 }
 
-/* ──────────────── 🛎️ 카운터 + 🖥️ 키오스크 ──────────────── */
+/* ──────────────── 서빙 테이블 ──────────────── */
 function buildServe() {
-  counterTop(0, SERVE_Z, 7.0, 0.9, 0xe08434);  // 서빙 — 가장 강한 주황
-
-  for (const side of [-1, 1]) {
-    const x = side * 5.55;
-    box(4.1, 1.55, 0.5, 0xcf9a58, x, 0.78, SERVE_Z);
-    box(4.16, 0.08, 0.58, C.counterTop, x, 1.57, SERVE_Z);
-    addSolid(x, SERVE_Z, 4.1, 0.5);
-  }
-
-  box(1.4, 0.06, 0.7, 0xf0ece2, 1.8, 1.05, SERVE_Z);
-  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xe8c14a));
-  bell.position.set(1.15, 1.06, SERVE_Z);
-  scene.add(bell);
-
-  hitProxy(1.8, 1.45, SERVE_Z - 0.1, 1.8, 1.1, 0.9, { kind: 'serve' });
-  labelSprite('🛎️ 서빙 창구', 1.5, 0, scene, '#ffd27a').sprite.position.set(1.8, 1.68, SERVE_Z);
+  /* 안내판·벨·접시·양옆 칸막이 없이 공용 테이블 한 개만 둔다.
+     보이지 않는 상호작용 면은 테이블 전체에 남겨 기존 서빙 조작을 유지한다. */
+  counterTop(0, SERVE_Z, 7.0, 0.9, 0xe08434);
+  hitProxy({ kind: 'serve' });
 
   for (let i = 0; i < QUEUE_SLOTS; i++) {
     const ring = new THREE.Mesh(
@@ -1455,27 +1553,6 @@ function buildServe() {
     scene.add(ring);
   }
 
-  // 🖥️ 키오스크 — 일반 손님 주문이 들어오는 곳
-  const k = asset('station/kiosk', () => {
-  const k = new THREE.Group();
-  box(0.7, 1.25, 0.45, 0x2f3338, 0, 0.62, 0, k);
-  const screen = box(0.62, 0.72, 0.06, 0x1b7fa8, 0, 1.42, 0.06, k);
-  screen.rotation.x = -0.24;
-  box(0.54, 0.6, 0.02, 0x63d0f0, 0, 0, 0.05, screen);
-  box(0.8, 0.06, 0.55, 0x3c4247, 0, 1.02, 0, k);
-  return k;
-  });
-  k.position.set(KIOSK.x, 0, KIOSK.z);
-  scene.add(k);
-  addSolid(KIOSK.x, KIOSK.z, 0.8, 0.6);
-  hitProxy(KIOSK.x, 1.3, KIOSK.z, 1.0, 1.8, 0.9, { kind: 'kiosk' });
-  labelSprite('🖥️ 키오스크', 1.4, 0, scene, '#9fe8ff').sprite.position.set(KIOSK.x, 2.25, KIOSK.z);
-  labelSprite('일반 주문은 여기로', 1.5, 0, scene, '#8fb9c9').sprite.position.set(KIOSK.x, 2.0, KIOSK.z);
-
-  const menu = box(3.0, 1.05, 0.08, 0x2f2b26, -2.6, 2.0, -10.9);
-  box(2.8, 0.9, 0.02, 0x3d3830, 0, 0, -0.06, menu);
-  wallLabel('김밥 3,000원', 0.30, 0, 0.20, 0.08, 0, '#f5b942', menu);
-  wallLabel('주문은 키오스크에서', 0.22, 0, -0.20, 0.08, 0, '#e8e0d2', menu);
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -1660,6 +1737,7 @@ function syncBurners() {
 
     if (!info) {
       if (d.mesh) d.mesh = kill(d.mesh, d.vessel);
+      d.tintTargets=[];
       d.key = null;
       d.flame.visible = false;
       d.panel.sprite.visible = false;
@@ -1674,6 +1752,7 @@ function syncBurners() {
       d.mesh.position.set(0, d.kind === 'pot' ? 0.2 : 0.08, 0);
       d.mesh.scale.setScalar(0.8);
       d.vessel.add(d.mesh);
+      d.tintTargets=collectTintTargets(d.mesh);
       d.key = info.cell.id + info.cell.at;
     }
 
@@ -1682,12 +1761,7 @@ function syncBurners() {
     d.flame.material.color.setHex(info.burnt ? 0xff4d2e : C.fire);
 
     const k = Math.min(1, info.el / info.def.burn);
-    d.mesh.traverse((o) => {
-      if (o.isMesh && o.material && o.material.color && !o.userData.noTint) {
-        if (!o.userData.base) o.userData.base = o.material.color.clone();
-        o.material.color.copy(o.userData.base).multiplyScalar(1 - k * 0.68);
-      }
-    });
+    applyBurnTint(d.tintTargets,k);
 
     if (d.vessel.userData.water) d.vessel.userData.water.scale.y = 1 + Math.sin(performance.now() / 80 + i) * 0.35;
     if (d.kind === 'pan') d.mesh.position.y = 0.08 + Math.abs(Math.sin(performance.now() / 200 + i)) * 0.02;
@@ -1820,7 +1894,7 @@ function syncBrooms() {
    짙은 보라는 뒷벽 대비 약 6.4:1 이고, 금색(조준)·분홍(자리 링)·빨강(진상) 과도 겹치지 않는다. */
 const OUTLINE_COLOR = 0x5b21d6;
 const OUTLINE_PX = 4;                                     // 화면에서 유지할 테두리 두께(px)
-const OUTLINE_TAN = Math.tan((72 * Math.PI / 180) / 2);   // 카메라 fov 72 의 절반 탄젠트
+const OUTLINE_TAN = Math.tan((CAMERA_VIEW.fov * Math.PI / 180) / 2);
 const OUTLINE_TIE = 0.4;                                  // 동점자는 이만큼 흐리게
 
 /* ────────────────────────────────────────────────────────────
@@ -1870,11 +1944,13 @@ const BODY = {
   thighR: 0.098, thighH: 0.10, calfR: 0.074, calfH: 0.13,
   shoeR: 0.115
 };
-const HEAD_TOP = BODY.headY + BODY.headR * 0.98;   // 모자·머리카락이 얹히는 꼭대기
+// Must match the head/hair bake in build-clay-character-assets.py.
+const HEAD_SCALE = 0.875;
+const HEAD_TOP = BODY.headY + BODY.headR * 0.98 * HEAD_SCALE;
 const EYE_LOCAL = EYE - BODY.headY;                // 얼굴 그룹 안에서의 눈 높이
 
 /** 표정 기본값 — setFace 의 표가 비어 있을 때 쓰는 값 */
-const FACE_NEUTRAL = [-0.06, 0.125, 1.0, Math.PI, 0.75, 0.35];
+const FACE_NEUTRAL = [-0.03, 0.115, 0.94, Math.PI, 0.78, 0.28];
 
 /**
  * 얼굴 한 벌 = [눈썹 안쪽 기울기, 눈썹 높이, 눈 세로배율, 입 뒤집기, 입 가로배율, 입 세로배율]
@@ -1890,18 +1966,17 @@ const FACE_NEUTRAL = [-0.06, 0.125, 1.0, Math.PI, 0.75, 0.35];
  * 같은 표를 쓴다. 손님은 상태가 바뀔 때마다 갈아끼우고, 내 캐릭터는 고른 것을
  * 그대로 둔다 — 그래서 표를 나눌 이유가 없다. 키는 config.js PARTS.expression 의 id.
  *
- * ⚠ Hodaart 캐릭터는 입이 메시에 칠해져 있어 뒤 세 칸(입)이 아무 일도 하지 않는다.
- *   앞 세 칸만으로 여덟 표정이 서로 구별돼야 한다. 코드로 세운 몸은 여섯 칸을 다 쓴다.
+ * 클레이 에셋에는 얼굴 그림이 없으며, 모든 표정은 이 얼굴 파츠를 함께 쓴다.
  */
 const FACE_POSE = {
   neutral: FACE_NEUTRAL,
-  smile:   [-0.20, 0.132, 0.86, Math.PI, 1.05, 0.62],  // 눈은 그대로, 입만 살짝 올라간다
-  happy:   [-0.34, 0.140, 0.55, Math.PI, 1.30, 1.10],  // 웃는 눈, 활짝 올라간 입
-  smug:    [ 0.26, 0.158, 0.46, Math.PI, 0.58, 0.42],  // 눈썹은 올리고 안쪽은 내려 내려다본다
-  annoyed: [ 0.30, 0.108, 0.85, 0,       0.80, 0.55],  // 눈썹 안쪽이 내려오고 입이 살짝 굳는다
-  angry:   [ 0.62, 0.095, 0.60, 0,       0.95, 1.00],  // 눈을 부라리고 입이 확 뒤집힌다
-  shocked: [-0.10, 0.170, 1.30, Math.PI, 0.55, 1.80],  // 눈썹이 뜨고 입이 벌어진다
-  sleepy:  [ 0.14, 0.104, 0.24, 0,       0.66, 0.30]   // 눈이 거의 감기고 눈썹이 처진다
+  smile:   [-0.10, 0.121, 0.88, Math.PI, 1.06, 0.46],
+  happy:   [-0.12, 0.129, 0.92, Math.PI, 1.12, 0.58],
+  smug:    [ 0.08, 0.124, 0.70, Math.PI, 0.78, 0.30],
+  annoyed: [ 0.14, 0.103, 0.82, 0,       0.70, 0.28],
+  angry:   [ 0.28, 0.097, 0.79, 0,       0.78, 0.42],
+  shocked: [-0.12, 0.150, 1.10, Math.PI, 0.55, 1.10],
+  sleepy:  [ 0.02, 0.107, 0.92, Math.PI, 0.57, 0.18]
 };
 
 /** 고른 표정의 이름. sanitizeLook 을 거친 값만 들어오므로 범위는 이미 안전하다 */
@@ -1927,9 +2002,6 @@ function makeBody(color, opts) {
     const rig = partOf(model, 'rig') || model;
     const torso = partOf(model, 'body') || partOf(model, 'torso') || model;
     const head = partOf(model, 'head') || model;
-    const skinColor = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.12);
-    tintAssetMaterials(model, skinColor,
-      (part) => /^(body|head|skinArm[LR]|skinHand[LR])$/i.test(String(part.name || '')));
     const legs = [partOf(model, 'legL'), partOf(model, 'legR')].filter(Boolean);
     const arms = [partOf(model, 'armL'), partOf(model, 'armR')].filter(Boolean);
     return { group: g, rig, torso, head, legs, arms,
@@ -1957,7 +2029,7 @@ function makeBody(color, opts) {
     mat(SKIN)
   );
   head.position.y = BODY.headY;
-  head.scale.set(1, 0.98, BODY.headFlat);
+  head.scale.set(HEAD_SCALE, 0.98 * HEAD_SCALE, BODY.headFlat * HEAD_SCALE);
   rig.add(head);
 
   /* 큰 머리와 짧은 몸 사이가 비어 보이지 않게 작은 칼라/목을 숨겨 넣는다.
@@ -2030,44 +2102,59 @@ function makeFace(parent, opts) {
      BODY.headY 를 옮겨도 얼굴이 따라온다. */
   const f = new THREE.Group();
   f.position.set(0, BODY.headY, 0);
+  f.scale.setScalar(HEAD_SCALE);
   parent.add(f);
 
   const eyes = [], brows = [];
   for (const s of [-1, 1]) {
-    /* PEAK처럼 흰자와 동공을 분리한다. 검은 구 하나만 붙이면 멀리서 구멍처럼
-       보여서 표정이 죽는다. 눈 전체를 그룹으로 묶어 실눈/놀란 눈 변형은 유지한다. */
+    // Warm ivory eyes with a larger pupil: relaxed clay features, not googly eyes.
     const e = new THREE.Group();
     e.position.set(s * 0.15, EYE_LOCAL, BODY.faceZ);
     const white = new THREE.Mesh(
-      sharedGeo('eye_white', () => new THREE.SphereGeometry(0.078, 10, 8)),
-      mat(0xf8f3e7)
+      sharedGeo('eye_white_clay', () => new THREE.SphereGeometry(0.067, 24, 16)),
+      mat(0xf8f3e7, { flatShading: false })
     );
-    white.scale.set(0.92, 1.08, 0.55);
+    white.scale.set(0.95, 1.0, 0.40);
     e.add(white);
     const pupil = new THREE.Mesh(
-      sharedGeo('eye_pupil', () => new THREE.SphereGeometry(0.037, 9, 7)),
-      mat(0x241f1c)
+      sharedGeo('eye_pupil_clay', () => new THREE.SphereGeometry(0.040, 20, 12)),
+      mat(0x332d28, { flatShading: false })
     );
-    pupil.position.set(-s * 0.008, -0.003, 0.061);
-    pupil.scale.z = 0.72;
+    pupil.position.set(-s * 0.004, -0.002, 0.025);
+    pupil.scale.z = 0.24;
     e.add(pupil);
+    const closed = new THREE.Mesh(sharedGeo('clay_closed_eye', () => new THREE.TorusGeometry(.043, .009, 8, 20, Math.PI)),
+      mat(0x514237, { flatShading: false }));
+    closed.position.z = .011;
+    closed.scale.y = .55;
+    e.add(closed);
+    e.userData.openParts = [white, pupil];
+    e.userData.closed = closed;
     f.add(e); eyes.push(e);
 
-    const b = box(0.13, 0.028, 0.03, o.brow || 0x3a2f28,
-      s * 0.15, EYE_LOCAL + BODY.browUp, BODY.faceZ + 0.010, f);
+    const b = new THREE.Mesh(sharedGeo('clay_brow', () => new THREE.CapsuleGeometry(0.010, 0.076, 4, 12)),
+      mat(o.brow || 0x514237, { flatShading: false }));
+    b.geometry = sharedGeo('clay_brow_horizontal', () => b.geometry.clone().rotateZ(Math.PI / 2));
+    b.position.set(s * 0.15, EYE_LOCAL + FACE_NEUTRAL[1], 0.354);
+    f.add(b);
     b.userData.side = s;
     brows.push(b);
   }
 
   // 입은 반원 토러스 — z 로 뒤집으면 그대로 찡그린 입이 된다
   const mouth = new THREE.Mesh(
-    sharedGeo('mouth_arc', () => new THREE.TorusGeometry(0.085, 0.017, 6, 14, Math.PI)),
-    mat(0x8a4a44)
+    sharedGeo('mouth_arc_clay', () => new THREE.TorusGeometry(0.082, 0.0105, 8, 24, Math.PI)),
+    mat(0x67473b, { flatShading: false })
   );
-  mouth.position.set(0, EYE_LOCAL - BODY.mouthDown, BODY.faceZ);
+  mouth.position.set(0, EYE_LOCAL - BODY.mouthDown, 0.383);
+  mouth.rotation.x = .45; // lower lip follows the round cheek instead of floating
   f.add(mouth);
+  const openMouth = new THREE.Mesh(sharedGeo('clay_open_mouth', () => new THREE.SphereGeometry(.035, 20, 16)),
+    mat(0x67473b, { flatShading: false }));
+  openMouth.position.copy(mouth.position); openMouth.position.y -= .012;
+  openMouth.scale.set(.72, 1, .24); f.add(openMouth);
 
-  const face = { group: f, eyes, brows, mouth, mood: null,
+  const face = { group: f, eyes, brows, mouth, openMouth, mood: null,
     browBaseY: brows[0].position.y, mouthBaseY: mouth.position.y };
   setFace(face, mood);
   return face;
@@ -2085,8 +2172,21 @@ function setFace(face, mood) {
   face.brows.forEach((b) => {
     b.rotation.z = tilt * b.userData.side;
     b.position.y = face.browBaseY + (browY - FACE_NEUTRAL[1]) * 1.15;
+    // Keep brows on the curved forehead when expressions raise them.
+    b.position.z = Math.sqrt(Math.max(0.04, 1 - (0.15 / 0.43) ** 2
+      - (b.position.y / 0.425) ** 2)) * 0.4 + 0.014;
   });
-  face.eyes.forEach((e) => e.scale.set(1, 1.08 * eyeY, 1));
+  face.eyes.forEach((e, i) => {
+    e.scale.set(1, eyeY * (mood === 'smug' && i === 0 ? 0.86 : 1), 1);
+    const closed = mood === 'happy' || mood === 'sleepy';
+    e.userData.openParts?.forEach((o) => { o.visible = !closed; });
+    if (e.userData.closed) {
+      e.userData.closed.visible = closed;
+      e.userData.closed.rotation.z = mood === 'sleepy' ? Math.PI : 0;
+    }
+  });
+  face.mouth.visible = mood !== 'shocked';
+  if (face.openMouth) face.openMouth.visible = mood === 'shocked';
 
   face.mouth.rotation.z = mRot;
   face.mouth.scale.set(mX, mY, 1);
@@ -2106,17 +2206,23 @@ function setFace(face, mood) {
    ──────────────────────────────────────────────────────────── */
 
 /** 머리카락 — 큰 머리 위에 얕은 돔처럼 얹는다 */
-function buildHair(kind, color, g) {
+function buildHair(kind, color, parent) {
   if (kind !== 'bald') {
     const model = asset('char/hair/' + kind, () => null);
     if (model) {
       // 직접 만든 머리 파츠(custom)만 색을 바꾸고 원본 모자 텍스처는 유지한다.
       tintAssetMaterials(model, color,
         (o, m) => String(m.name || '').toLowerCase().includes('custom'));
-      g.add(model);
+      parent.add(model);
       return model;
     }
   }
+
+  // The fallback and GLB hair share the same head-centred scale.
+  const g = new THREE.Group();
+  g.scale.setScalar(HEAD_SCALE);
+  g.position.y = BODY.headY * (1 - HEAD_SCALE);
+  parent.add(g);
 
   /* 앞머리가 눈썹에 닿으면 표정이 통째로 죽는다 — 둘 다 짙어서 붙는 순간 구분이
      안 된다. 그래서 통짜 구가 아니라 위쪽만 남긴 돔을 쓴다. 돔의 아래 끝이
@@ -2167,34 +2273,48 @@ function buildHair(kind, color, g) {
 }
 
 /** 얼굴 소품 — makeFace 가 만든 눈·눈썹·입 위에 더한다 */
-function buildFaceStyle(kind, g) {
+function buildFaceStyle(kind, parent, hairColor = 0x715143) {
+  const g = new THREE.Group();
+  g.scale.setScalar(HEAD_SCALE);
+  g.position.y = BODY.headY * (1 - HEAD_SCALE);
+  parent.add(g);
   const FZ = BODY.faceZ;
   switch (kind) {
     case 'glasses':
       for (const s of [-1, 1]) {
-        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.092, 0.014, 5, 14), mat(0x2f2b26));
-        rim.position.set(s * 0.145, EYE, FZ + 0.022);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.092, 0.010, 8, 32), mat(0x514337, { flatShading: false }));
+        rim.position.set(s * 0.145, EYE, FZ + 0.05);
         g.add(rim);
       }
-      box(0.11, 0.014, 0.014, 0x2f2b26, 0, EYE, FZ + 0.024, g);       // 코걸이
+      box(0.11, 0.013, 0.015, 0x514337, 0, EYE, FZ + 0.05, g);
+      for (const s of [-1, 1]) {
+        const temple = box(0.19, 0.013, 0.014, 0x514337, s * 0.318, EYE, 0.292, g);
+        temple.rotation.y = s * 0.7;
+      }
       break;
     case 'freckle':
       for (let i = 0; i < 6; i++) {
         const s = i < 3 ? -1 : 1, k = i % 3;
-        cyl(0.015, 0.006, 0xc98a6a, s * (0.155 + k * 0.048), EYE - 0.085 + (k % 2) * 0.03,
-          FZ + 0.005, g, 5).rotation.x = Math.PI / 2;
+        const x = s * (0.20 + k * 0.032), y = EYE - 0.10 + (k % 2) * 0.024;
+        const z = .4 * Math.sqrt(1 - (x / .43) ** 2 - ((y - BODY.headY) / .425) ** 2) + .006;
+        const dot = new THREE.Mesh(sharedGeo('clay_freckle', () => new THREE.SphereGeometry(.009, 12, 8)),
+          mat(0xa5765a, { flatShading: false }));
+        dot.position.set(x, y, z); dot.scale.z = .35; g.add(dot);
       }
       break;
     case 'beard':
       // 입 아래에서 시작해 턱을 감싼다. 더 키우면 입까지 먹어 표정이 죽는다
-      { const b = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 6), mat(0x4a3a30));
-        b.position.set(0, EYE - BODY.mouthDown - 0.16, 0.14);
-        b.scale.set(1, 0.52, 0.84); g.add(b); }
+      { const b = new THREE.Mesh(new THREE.SphereGeometry(0.23, 24, 16), mat(hairColor, { flatShading: false }));
+        b.position.set(0, 1.505, 0.233);
+        b.scale.set(1, 0.44, 0.46); g.add(b); }
       break;
     case 'blush':
-      for (const s of [-1, 1])
-        cyl(0.062, 0.008, 0xe8907f, s * 0.245, EYE - 0.10, FZ - 0.075, g, 10)
-          .rotation.x = Math.PI / 2;
+      for (const s of [-1, 1]) {
+        const cheek = new THREE.Mesh(new THREE.SphereGeometry(.052, 24, 16),
+          mat(0xc78977, { flatShading: false }));
+        cheek.position.set(s * .255, 1.705, .325);
+        cheek.scale.set(1, .55, .16); cheek.rotation.y = s * .55; g.add(cheek);
+      }
       break;
     case 'plain': default: break;
   }
@@ -2271,17 +2391,40 @@ function applyLook(b, look, build) {
   const L = sanitizeLook(look);
   const into = b.rig || b.group;
   if (b.baseModel) {
-    const white = new THREE.Color(0xffffff);
-    const topTint = new THREE.Color(PART_COLORS.top[L.tc]).lerp(white, 0.45);
-    const bottomTint = new THREE.Color(PART_COLORS.bottom[L.bc]).lerp(white, 0.28);
-    tintAssetMaterials(b.baseModel, topTint,
-      (o) => String(o.name || '').toLowerCase() === 'basetop');
-    tintAssetMaterials(b.baseModel, bottomTint,
-      (o) => String(o.name || '').toLowerCase() === 'basebottom');
+    tintAssetMaterials(b.baseModel, PART_COLORS.skin[L.sc], (_, m) => m.name === 'skin');
+    tintAssetMaterials(b.baseModel, PART_COLORS.shoes[L.shc], (_, m) => m.name === 'shoe');
+    tintAssetMaterials(b.baseModel, PART_COLORS.top[L.tc], (o) => /^base(Top|Sleeve)/.test(o.name));
+    tintAssetMaterials(b.baseModel, PART_COLORS.bottom[L.bc], (o) => /^base(Bottom|Pants)/.test(o.name));
   }
   buildHair(PARTS.hair[L.h].id, PART_COLORS.hair[L.hc], into);
-  buildTop(PARTS.top[L.t].id, PART_COLORS.top[L.tc], into, build || 1);
-  buildFaceStyle(PARTS.face[L.f].id, into);
+  const top = buildTop(PARTS.top[L.t].id, PART_COLORS.top[L.tc], into, build || 1);
+  if (top && partOf(top, 'garmentBody')) {
+    shadeGarment(top, PART_COLORS.top[L.tc]);
+    b.baseModel?.traverse((o) => { if (/^base(Top|Sleeve)/.test(o.name)) o.visible = false; });
+    attachGarmentLimbs(top, 'sleeve', b.arms);
+  }
+  const bottom = asset('char/bottom/' + PARTS.bottom[L.b].id, () => null);
+  if (bottom) {
+    into.add(bottom);
+    shadeGarment(bottom, PART_COLORS.bottom[L.bc]);
+    b.baseModel?.traverse((o) => { if (/^base(Bottom|Pants)/.test(o.name)) o.visible = false; });
+    attachGarmentLimbs(bottom, 'trouser', b.legs);
+  }
+  buildFaceStyle(PARTS.face[L.f].id, into, PART_COLORS.hair[L.hc]);
+}
+
+function shadeGarment(root, color) {
+  tintAssetMaterials(root, color, (_, m) => m.name === 'custom');
+  tintAssetMaterials(root, new THREE.Color(color).multiplyScalar(0.78), (_, m) => m.name === 'customShade');
+}
+
+/** Modules export in the common foot coordinate system. attach preserves that
+ * placement while making each sleeve/pant leg follow its own animated pivot. */
+function attachGarmentLimbs(module, prefix, limbs) {
+  ['L', 'R'].forEach((side, i) => {
+    const socket = partOf(module, prefix + side);
+    if (socket && limbs[i]) limbs[i].attach(socket);
+  });
 }
 
 /**
@@ -2376,7 +2519,7 @@ function makeOutline(parent, build) {
   const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R, bodyH, 14), skin());
   body.position.y = bodyH / 2;
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(BODY.headR + 0.035, 12, 8), skin());
+  const head = new THREE.Mesh(new THREE.SphereGeometry(BODY.headR * HEAD_SCALE + 0.02, 12, 8), skin());
   head.position.y = BODY.headY;
 
   g.add(body, head);
@@ -2551,7 +2694,7 @@ function syncCustomers() {
       d.outline.head.material.opacity = o;
       const bs = rimScale(kk, far, d.outline.r, 1.40);
       d.outline.body.scale.set(bs, 1.05, bs);    // y 는 1.05 고정 — 1.0 이면 어깨 테두리가 끊긴다
-      d.outline.head.scale.setScalar(rimScale(kk, far, BODY.headR, 1.28));
+      d.outline.head.scale.setScalar(rimScale(kk, far, BODY.headR * HEAD_SCALE, 1.28));
     }
 
     /* 체력바 — 기다리는 동안에만 보여준다 */
@@ -2643,7 +2786,7 @@ function makeAvatar(name, color, look) {
   return g;
 }
 
-const SWING_MS = 260;
+const SWING_MS = CHARACTER_MOTION.swingMs;
 const swingAt = new Map();
 
 export function remoteSwing(playerId) { swingAt.set(playerId, performance.now()); }
@@ -2779,6 +2922,7 @@ function resize() {
 }
 
 export function render(swinging) {
+  animateStreet(serverNow());
   updateHand();
   animateHand(swinging);
   animateArm(swinging);
@@ -2818,7 +2962,14 @@ export function stats() {
 export function previewBody(look) {
   const L = sanitizeLook(look);
   const b = makeBody(0xc9c2b4);
-  makeFace(b.group, { mood: characterMood(L.e) });
+  makeFace(b.rig, { mood: characterMood(L.e) });
   applyLook(b, look, 1);
+  b.group.userData.limbs = b;
   return b.group;
 }
+
+export function animatePreviewBody(group, seconds, walking = false, holding = false) {
+  group.position.y = poseLimbs(group.userData.limbs, seconds * 7, walking, holding);
+}
+
+export function disposePreviewBody(group) { disposeObject(group); }

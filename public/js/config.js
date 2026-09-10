@@ -483,7 +483,7 @@ export const PARTS = {
     { id: 'short', name: '짧은 머리' },
     { id: 'bob',   name: '단발' },
     { id: 'bun',   name: '쪽머리' },
-    { id: 'spiky', name: '삐죽머리' },
+    { id: 'spiky', name: '볼륨 머리' },
     { id: 'long',  name: '긴 머리' },
     { id: 'chef',  name: '요리사 모자' },
     { id: 'crab',  name: '게 후드' },
@@ -516,20 +516,24 @@ export const PARTS = {
     { id: 'stripe', name: '줄무늬' },
     { id: 'hoodie', name: '후드' },
     { id: 'vest',   name: '조끼' },
-    { id: 'scout',  name: '스카우트 장비' }
+    { id: 'scout',  name: '워크 재킷' }
   ],
   bottom: [
-    { id: 'shorts', name: '반바지' }
+    { id: 'shorts', name: '반바지' },
+    { id: 'trousers', name: '긴바지' },
+    { id: 'cuffed', name: '롤업 팬츠' }
   ]
 };
 
 export const PART_COLORS = {
-  hair: [0x2a2320, 0x4a3128, 0x8a6a3a, 0xe4e0da, 0xa8442f, 0x3d4a6b],
-  top:  [0x4a6fa5, 0xc4763a, 0xb5548a, 0x5b5f6b, 0x4f8f58, 0xd96a6a, 0x3f8f8a, 0x9a6ad0],
-  bottom: [0x314b32, 0x3f4550, 0x4a6fa5, 0x8a4f3a, 0x7a4a6b, 0xd96a6a, 0x3f8f8a, 0x9a6ad0]
+  hair: [0x38312d, 0x715143, 0xb68b54, 0xd9d2c4, 0x9a5743, 0x566475],
+  top:  [0x718b80, 0xbd8860, 0xad7681, 0x666e79, 0x8d966c, 0xbe7665, 0x688e98, 0x95869d],
+  bottom: [0x535d50, 0x515b67, 0x6d8397, 0x987758, 0x807178, 0xb98577, 0x638883, 0xb6ad96],
+  skin: [0xdeb18e, 0xf0cfad, 0xc9926e, 0xa97050, 0x81583f, 0xa7b8a0, 0xccaeaa],
+  shoes: [0x755447, 0x434a50, 0xd2c5a9, 0x657c6f, 0xa16755]
 };
 
-export const DEFAULT_LOOK = { h: 0, hc: 0, f: 0, t: 0, tc: 0, b: 0, bc: 0, e: 0 };
+export const DEFAULT_LOOK = { h: 0, hc: 0, f: 0, t: 1, tc: 0, b: 0, bc: 0, e: 1, sc: 0, shc: 0 };
 
 /** 범위를 벗어난 값은 잘라낸다. 클라이언트가 보낸 값은 믿지 않는다 */
 export function sanitizeLook(look) {
@@ -547,7 +551,9 @@ export function sanitizeLook(look) {
     b:  pick(L.b,  PARTS.bottom.length),
     bc: pick(L.bc, PART_COLORS.bottom.length),
     // 표정은 나중에 생긴 항목이라, 저장해 둔 옛 조합에는 없다. pick 이 0 으로 떨군다.
-    e:  pick(L.e,  PARTS.expression.length)
+    e:  pick(L.e,  PARTS.expression.length),
+    sc: pick(L.sc, PART_COLORS.skin.length),
+    shc: pick(L.shc, PART_COLORS.shoes.length)
   };
 }
 
@@ -567,6 +573,8 @@ export function lookFromSeed(seed) {
     t:  Math.floor(r(4) * PARTS.top.length),
     tc: Math.floor(r(5) * PART_COLORS.top.length),
     b:  Math.floor(r(6) * PARTS.bottom.length),
-    bc: Math.floor(r(7) * PART_COLORS.bottom.length)
+    bc: Math.floor(r(7) * PART_COLORS.bottom.length),
+    sc: Math.floor(r(8) * 5),
+    shc: Math.floor(r(9) * PART_COLORS.shoes.length)
   };
 }

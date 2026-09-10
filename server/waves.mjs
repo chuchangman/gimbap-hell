@@ -63,6 +63,18 @@ export class WaveRunner {
 
   get totalWaves() { return WAVES.length; }
 
+  /** 일시정지 동안 흐른 실제 시간을 모든 웨이브 기준 시각에서 제외한다. */
+  shiftTime(ms) {
+    if (!(ms > 0)) return;
+    if (this.phase === 'prep' && this.phaseEndsAt) this.phaseEndsAt += ms;
+    if (this.phase === 'wave' && this.nextSpawnAt) this.nextSpawnAt += ms;
+    for (const c of this.active) {
+      if (c.since) c.since += ms;
+      if (c.enteredAt) c.enteredAt += ms;
+      if (c.deadline) c.deadline += ms;
+    }
+  }
+
   /** 이 웨이브에서 쓸 수 있는 속재료 전부 */
   available(wave) { return [...BASE_FILLINGS, ...unlockedExtras(wave)]; }
 

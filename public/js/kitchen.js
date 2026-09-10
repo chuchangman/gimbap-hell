@@ -380,7 +380,7 @@ export function resolveAction(st) {
         if (!t) return { text: '기다리는 주문이 없습니다', disabled: true };
         const m = targetMatch(t);
         const pct = Math.round((m === null ? 0 : m) * 100);
-        const who = t.kind === 'counter' ? t.emoji + ' ' + t.name : '🖥️ 키오스크';
+        const who = t.emoji + ' ' + t.name;
         return {
           text: who + ' 에게 서빙! (' + (t.done + 1) + '/' + t.need + '줄 · 주문 일치 ' + pct + '%)',
           key: 'E', danger: pct < 100, run: () => act('serve')
@@ -388,14 +388,12 @@ export function resolveAction(st) {
       }
       if (h && h.id === 'roll') return { text: '먼저 도마에서 썰어 오세요', disabled: true };
       if (t) {
-        const who = t.kind === 'counter' ? t.emoji + ' ' + t.name : '🖥️ 키오스크 주문';
+        const who = t.emoji + ' ' + t.name;
         return { text: who + ' 가 ' + (t.need - t.done) + '줄 기다립니다', disabled: true };
       }
       return { text: '완성된 김밥을 들고 오세요', disabled: true };
     }
 
-    case 'kiosk':
-      return { text: '🖥️ 키오스크 — 일반 손님 주문이 여기로 들어옵니다', disabled: true };
   }
   return null;
 }

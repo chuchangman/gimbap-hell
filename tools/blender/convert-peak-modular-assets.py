@@ -16,7 +16,7 @@ import bmesh
 from mathutils import Matrix, Vector
 
 
-PROJECT = Path(r"C:\Users\SSAFY\Desktop\gimbap")
+PROJECT = Path(__file__).resolve().parents[2]
 SOURCE = (PROJECT / "assets-src" / "peak-characters" / "extracted" /
           "PEAK Characters" / "1. Source" / "PEAK Characters fin.blend")
 TEXTURE_ROOT = (PROJECT / "assets-src" / "peak-characters" / "extracted" /

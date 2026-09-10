@@ -14,7 +14,7 @@ import math
 import bpy
 
 
-PROJECT = Path(r"C:\Users\SSAFY\Desktop\gimbap")
+PROJECT = Path(__file__).resolve().parents[2]
 OUT = PROJECT / "public" / "assets" / "char"
 OUT.mkdir(parents=True, exist_ok=True)
 

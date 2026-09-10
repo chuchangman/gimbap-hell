@@ -8,6 +8,7 @@ import {
   TIME, ITEMS, BURNERS, BOARD_COUNT, MAT_COUNT, COOKER_COUNT, BROOM_COUNT,
   itemLabel, cookQuality
 } from '../public/js/config.js';
+import { validKitchenAction } from './protocol.mjs';
 
 export const nowMs = () => Date.now();
 const secSince = (at) => (nowMs() - at) / 1000;
@@ -35,6 +36,15 @@ export class Kitchen {
     this.brooms = Array.from({ length: BROOM_COUNT }, () => null);  // 거치대 → 든 사람 id
     this.mess = 0;                                // 바닥에 버린 횟수
     this.wasted = 0;
+  }
+
+  /** 일시정지한 실제 시간만큼 진행 중인 공정의 기준 시각을 뒤로 민다. */
+  shiftTime(ms) {
+    if (!(ms > 0)) return;
+    for (const c of this.cookers) if (c.state === 'cooking' && c.at) c.at += ms;
+    for (const cell of this.burners) if (cell && cell.at) cell.at += ms;
+    for (const board of this.boards) if (board && board.at) board.at += ms;
+    for (const mat of this.mats) if (mat.rolling && mat.rollAt) mat.rollAt += ms;
   }
 
   emptyMat() { return { gim: false, bap: false, fills: [], rolling: false, rollAt: 0 }; }
@@ -103,6 +113,8 @@ export class Kitchen {
   /* ──────────────── 액션 ──────────────── */
   act(pid, action, p) {
     p = p || {};
+    if (!this.hands.has(pid)) return no('방에 없습니다.');
+    if (!validKitchenAction(action,p)) return no('올바르지 않은 동작입니다.');
     const h = this.hand(pid);
 
     switch (action) {
