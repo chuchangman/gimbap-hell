@@ -162,6 +162,12 @@ export function asset(name: string, build: () => THREE.Object3D): THREE.Object3D
   return g;
 }
 
+/** 모델이 있으면 사본을, 없으면 null.
+ *  레거시의 `asset(name, () => null)` 관용구를 그대로 옮긴 것이다. */
+export function assetOrNull(name: string): THREE.Object3D | null {
+  return models.has(name) ? asset(name, () => new THREE.Object3D()) : null;
+}
+
 /** 지금 코드 대신 모델을 쓰고 있는 이름들 (확인용) */
 export function loadedAssets(): string[] {
   return loadedNames.slice();

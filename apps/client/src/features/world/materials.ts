@@ -85,6 +85,12 @@ export function tintAssetMaterials<T extends THREE.Object3D>(
   return root;
 }
 
+/** 메시의 단일 재질을 램버트로 좁혀 준다.
+ *  레거시는 `o.material.color` 처럼 바로 짚었다 — 배열 재질을 쓰는 곳이 없다. */
+export function m1(o: THREE.Object3D): THREE.MeshLambertMaterial {
+  return (o as THREE.Mesh).material as THREE.MeshLambertMaterial;
+}
+
 /** 테스트 전용 — 재질 캐시를 비운다 */
 export function __resetMaterialCache(): void {
   matCache.clear();

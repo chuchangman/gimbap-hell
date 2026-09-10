@@ -183,11 +183,19 @@ export function gimbapSlice(x: number, y: number, z: number, fills: string[]): T
   return s;
 }
 
-export function makeItemMesh(item: HeldItem | null | undefined): THREE.Group {
+/** 레거시는 { id, stage } 만 든 부분 객체도 넘긴다 (냉장고 진열용 샘플 등) */
+export interface ItemLike {
+  id: string;
+  stage: string;
+  quality?: number;
+  fills?: { id: string; quality: number }[];
+}
+
+export function makeItemMesh(item: ItemLike | HeldItem | null | undefined): THREE.Group {
   const g = new THREE.Group();
   if (!item) return g;
   const id: string = item.id;
-  const st = item.stage;
+  const st = item.stage as string;
   const burnt = st === 'burnt';
 
   /* 손질이 끝난 속재료는 여덟 종이 모두 같은 형태 언어를 쓴다 */

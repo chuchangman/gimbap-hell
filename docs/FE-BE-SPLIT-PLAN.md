@@ -214,6 +214,20 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
 `HelloPayload` · `RoomAck` · `HealthResponse` 를 붙였다. 서버가 보내는 형태가
 바뀌면 이 테스트가 컴파일 단계에서 먼저 깨진다.
 
+**800줄 기하 코드는 손으로 옮기지 않았다.** 방·설비 구간은 좌표가 촘촘한
+순수 명령형 코드다. 손으로 다시 타이핑하면 오타 하나가 조용히 섞이는데,
+그게 정확히 이 작업의 가장 큰 위험이다. 그래서 원본 구간을 **잘라내 기계적으로
+변환**했다 — 임포트 헤더를 붙이고, export 를 달고, 매개변수 타입을 붙이고,
+타입 오류 187개를 0까지 줄였다. 전사 오류가 원리적으로 생기지 않는다.
+
+정확성은 씬 전체 대조가 증명한다. `initWorld` 이 지은 메시 300개 이상을
+좌표·회전·배율·정점·재질까지 통째로 비교하고, 배경색·안개·조준 대상의
+순서와 데이터·그림자 플래그까지 함께 못 박는다. 두 씬이 서로 다른 객체인지도
+단정한다 — 같은 객체를 자기 자신과 비교하면 무조건 통과하기 때문이다.
+
+레거시가 쓰던 쉼표 연산자(`if (bm) a, b;`) 한 곳만 블록으로 바꿨다.
+동작은 같고 린트가 잡아서다.
+
 **월드 이식의 검증 방법 — 눈이 아니라 정점으로 본다.**
 탐침으로 확인한 것: 레거시 `world.js` 는 jsdom 에서 그대로 import 되고
 `makeItemMesh` · `previewBody` 가 캔버스 없이 실행된다. 그래서 2,975줄을
@@ -267,9 +281,12 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
         `primitives`(box/cap/cyl/dispose/station/hitProxy)
   - [x] **음식/재료** — `fillPiece` · `fillLaid` · `rollFace` · `gimbapSlice` ·
         `makeItemMesh`. 레거시와 **정점 단위로 대조**해 통과.
-  - [ ] 방/설비 (`buildRoom` · 냉장고 · 싱크대 · 밥솥 · 가스렌지 · 도마 · 조립대 ·
-        음쓰통 · 빗자루 · 서빙대 + 거리 풍경)
-  - [ ] 손/팔 (`updateHand` · `buildArm` · `animateArm`) + 설비 동기화 (`sync*`)
+  - [x] **방/설비** — `panel`(캔버스 라벨/게이지) · `street`(통창 밖 거리) ·
+        `room`(방·조명·안개·간판·조리대) · `stations`(냉장고·싱크대·밥솥·가스렌지·
+        도마·조립대·음쓰통·빗자루·서빙대) · `hand`(1인칭 손·팔) · `registry`.
+        **씬 전체(메시 300개 이상)를 레거시와 정점까지 대조**해 통과.
+  - [ ] 설비 동기화 (`syncFridge` · `syncSink` · `syncCookers` · `syncBurners` ·
+        `syncBoards` · `syncMats` · `syncBrooms`) — `kitchen.js` 이식이 먼저 필요하다
   - [ ] 캐릭터/표정 (`makeBody` · `makeFace` · `buildHair` · `buildTop` · `applyLook`)
   - [ ] 손님 · 원격 플레이어 · 윤곽선 · 렌더 루프 (`initWorld` · `render`)
 - [ ] `features/player` — 1인칭 이동·충돌·조준 (`player.js`)

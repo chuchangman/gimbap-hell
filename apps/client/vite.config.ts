@@ -21,6 +21,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // jsdom 에 없는 2D 캔버스를 결정적인 스텁으로 채운다 (레거시 Panel 이 쓴다)
+    setupFiles: ['./src/testing/canvas-stub.ts'],
     include: ['src/**/*.spec.{ts,tsx}'],
     /* 동등성 테스트가 레거시 public/js/*.js 를 그대로 읽는다.
        그쪽은 동봉한 vendor 사본을 절대경로로 import 하므로 여기서만 이어준다.

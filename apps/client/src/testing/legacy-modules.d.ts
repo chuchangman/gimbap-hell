@@ -30,4 +30,7 @@ declare module '@legacy/world.js' {
   export function makeItemMesh(item: unknown): Object3D;
   export function previewBody(look: unknown): Object3D;
   export function disposePreviewBody(group: Object3D): void;
+  export function initWorld(canvas: HTMLCanvasElement): void;
+  export function render(swinging: boolean): void;
+  export function stats(): Record<string, number> | null;
 }
