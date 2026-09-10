@@ -22,5 +22,30 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['src/**/*.spec.{ts,tsx}'],
+    /* 동등성 테스트가 레거시 public/js/*.js 를 그대로 읽는다.
+       그쪽은 동봉한 vendor 사본을 절대경로로 import 하므로 여기서만 이어준다.
+       앱 빌드에는 영향이 없다 (test 블록 안이다). */
+    alias: [
+      /* 레거시 모듈은 '@legacy/...' 로 부른다. 상대경로가 아니라
+         비상대 지정자여야 TypeScript 가 앰비언트 선언
+         (src/testing/legacy-modules.d.ts)을 써 준다. */
+      {
+        find: /^@legacy\//,
+        replacement: path.resolve(import.meta.dirname, '../../public/js/') + '/',
+      },
+      { find: '/vendor/three.module.min.js', replacement: 'three' },
+      {
+        find: '/vendor/loaders/GLTFLoader.js',
+        replacement: 'three/examples/jsm/loaders/GLTFLoader.js',
+      },
+      {
+        find: '/vendor/utils/SkeletonUtils.js',
+        replacement: 'three/examples/jsm/utils/SkeletonUtils.js',
+      },
+      {
+        find: '/vendor/utils/BufferGeometryUtils.js',
+        replacement: 'three/examples/jsm/utils/BufferGeometryUtils.js',
+      },
+    ],
   },
 });

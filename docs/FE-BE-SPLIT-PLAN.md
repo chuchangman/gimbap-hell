@@ -214,6 +214,13 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
 `HelloPayload` · `RoomAck` · `HealthResponse` 를 붙였다. 서버가 보내는 형태가
 바뀌면 이 테스트가 컴파일 단계에서 먼저 깨진다.
 
+**클라이언트 쪽 레거시 대조 브리지.** 서버와 사정이 다르다. 서버는 지정자를
+변수로 넘겨 TS7016 을 피했지만, 클라이언트는 레거시 모듈이 동봉 vendor 사본을
+절대경로로 import 하므로 Vite 가 변환해 줘야 한다 — 동적 import 로는 별칭이
+안 걸린다. 그래서 비상대 지정자 `@legacy/...` 로 부르고,
+`src/testing/legacy-modules.d.ts` 의 앰비언트 선언이 타입을,
+`vite.config` 의 `test.alias` 가 실제 파일 연결을 맡는다. 앱 빌드에는 영향이 없다.
+
 **레거시 대조 브리지.** `src/testing/legacy.ts` 가 `server/*.mjs` 를 읽는다.
 타입 선언이 없어 정적 import 는 strict 에서 TS7016 으로 막히므로 지정자를
 변수로 넘긴다. 이 파일의 인터페이스 목록이 곧 "아직 이식하지 못한 레거시
@@ -248,7 +255,11 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
       CSS 는 Tailwind 로 다시 쓰지 않고 `style.css` 618줄을 그대로 옮긴다 —
       참고 프로젝트는 Tailwind 지만, 다시 쓰면 화면이 미묘하게 달라진다.
 - [ ] `features/customize` — 캐릭터 커스터마이즈 (`customize.js`)
-- [ ] `features/assets` — GLB 로더 (`assets.js`)
+- [x] `features/assets` — `assets.js` 이식. import 경로만 바뀐다
+      (동봉 vendor 사본 → `three` 패키지). `CONTRACT` 60여 항목·숫자 200개를
+      레거시와 deep-equal 로 대조해 고정했다 — 손으로 옮기면 반드시 한둘 틀린다.
+      `checkContract` 의 크기 허용폭(2배)과 부품 누락 경고, `partOf` 의 탐색
+      순서도 함께 고정했다. 20개 통과.
 
 ### 5. 동등성 검증과 마무리 — `상태: 대기`
 - [ ] 브라우저 QA (`tools/release-browser-qa.cjs`) 를 새 스택 기준으로 통과
