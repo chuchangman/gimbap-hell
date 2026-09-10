@@ -68,7 +68,7 @@ export function ownMat<T extends THREE.Object3D>(obj: T): T {
  */
 export function tintAssetMaterials<T extends THREE.Object3D>(
   root: T,
-  color: number,
+  color: number | THREE.Color,
   match?: (o: THREE.Object3D, m: THREE.Material) => boolean,
 ): T {
   if (!root) return root;

@@ -28,7 +28,13 @@ declare module '@legacy/world.js' {
   export const camera: PerspectiveCamera;
   export const interactables: Object3D[];
   export function makeItemMesh(item: unknown): Object3D;
-  export function previewBody(look: unknown): Object3D;
+  export function previewBody(look: unknown): import('three').Group;
+  export function animatePreviewBody(
+    group: import('three').Group,
+    seconds: number,
+    walking?: boolean,
+    holding?: boolean,
+  ): void;
   export function disposePreviewBody(group: Object3D): void;
   export function initWorld(canvas: HTMLCanvasElement): void;
   export function render(swinging: boolean): void;

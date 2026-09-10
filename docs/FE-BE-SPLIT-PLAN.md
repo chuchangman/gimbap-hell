@@ -287,8 +287,16 @@ HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 
         **씬 전체(메시 300개 이상)를 레거시와 정점까지 대조**해 통과.
   - [ ] 설비 동기화 (`syncFridge` · `syncSink` · `syncCookers` · `syncBurners` ·
         `syncBoards` · `syncMats` · `syncBrooms`) — `kitchen.js` 이식이 먼저 필요하다
-  - [ ] 캐릭터/표정 (`makeBody` · `makeFace` · `buildHair` · `buildTop` · `applyLook`)
-  - [ ] 손님 · 원격 플레이어 · 윤곽선 · 렌더 루프 (`initWorld` · `render`)
+  - [x] **캐릭터/표정** — `makeBody` · `makeFace` · `setFace` · `buildHair` ·
+        `buildFaceStyle` · `buildTop` · `customerLook` · `applyLook` ·
+        `accessorize` · `poseLimbs` · `makeOutline` · `makeHpBar` · 미리보기.
+        `previewBody` 로 **조합을 축별로 바꿔가며 레거시와 정점 대조** —
+        머리 9 · 얼굴 5 · 표정 8 · 상의 6 · 하의 3 · 색 팔레트 전부,
+        혼합 3종, 망가진 조합 4종, 걷기/들기 애니메이션 6시점 × 4모드.
+  - [ ] 손님 · 원격 플레이어 · 렌더 루프 (`makeCustomer` · `syncCustomers` ·
+        `updateRemotes` · `remoteSwing` · `render`).
+        `customerLook` · `makeOutline` · `makeHpBar` 는 레거시가 export 하지 않아
+        이 슬라이스에서 씬 대조로 함께 검증한다.
 - [ ] `features/player` — 1인칭 이동·충돌·조준 (`player.js`)
 - [ ] `features/kitchen` — 상호작용 해석 (`kitchen.js`)
 - [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
