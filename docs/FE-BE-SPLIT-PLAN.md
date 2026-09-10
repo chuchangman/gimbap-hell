@@ -97,20 +97,27 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
       랭킹은 `RoomLeaderboard` 인터페이스로 역전시켜 주입한다 —
       `LeaderboardService` 가 이 모양을 만족하고, 테스트는 레거시 모듈을 꽂는다.
       시계와 난수도 주입 가능하다.
-- [ ] `GameGateway` — 지금과 **완전히 같은** 이벤트/페이로드
+- [x] `GameGateway` + `GameLoopService` — 지금과 **완전히 같은** 이벤트/페이로드
       (`hello` `state` `kitchen` `positions` `toast` `waveEnd` `swing` `hit`
-       `position:correct` `server:closing`)
-- [ ] 소켓 어댑터 — origin 검사 · connectionStateRecovery · 레이트 리밋
+       `position:correct` `server:closing`). 틱 두 개(200ms 상태 · 67ms 위치)와
+      서명 기반 중복 제거, volatile 위치 전송까지 그대로다.
+- [x] 소켓 어댑터 — origin 검사 · connectionStateRecovery · 수용량 · 레이트 리밋
 - [x] `LeaderboardService` + `RankingStore` (파일 / Upstash Redis).
       `Room` 이 랭킹을 의존하므로 순서를 앞으로 당겼다.
       저장소는 클로저 팩토리 형태를 그대로 유지했다 — 파일 원자성 · 저널 ·
       재시도 타이머가 얽혀 있어 클래스로 재구성하면 순서를 놓치기 쉽다.
       `RankingStore<T>` 로 제네릭화해 캐스팅 없이 `LeaderboardRow` 를 다룬다.
-- [ ] `HealthController` (`/health` `/ready` `/leaderboard.json`)
-      — 레거시와 같은 필드를 채우려면 `LeaderboardService` 가 먼저 있어야 해서
-      아직 열지 않았다. 반쪽짜리 `/health` 는 운영을 오히려 속인다.
-- [ ] 정적 서빙 — Vite 빌드 산출물 + 기존 CSP/ETag/압축 정책 유지
-- [ ] 레거시 `test/*.mjs` 시나리오를 vitest 로 이식 (58개 전부)
+- [x] `HealthController` (`/health` `/ready` `/leaderboard.json`) — 이벤트 루프
+      지연 · rss · 저장소 상태 · rejected 카운터까지 레거시와 같은 필드다.
+- [x] 정적 서빙 — `http.mjs` 이식. CSP importmap sha256 해시 · ETag/304 ·
+      brotli/gzip · 경로 이탈 차단 · HEAD 를 그대로 유지한다.
+      **지금은 레거시 `public/` 을 서빙한다** (`GIMBAP_PUBLIC_ROOT`).
+      4단계에서 `apps/client/dist` 로 옮긴다.
+- [x] 레거시 소켓 통합 시나리오 9개를 vitest 로 이식하고 **새 서버에서 통과**
+      (`src/game.integration.spec.ts`). 실제 자식 프로세스를 띄우고 실제
+      socket.io 클라이언트로 붙는다.
+- [ ] 나머지 레거시 `test/*.mjs` 시나리오 이식 (주방/웨이브/랭킹은 이미
+      단위 spec 으로 덮였고, `smoke.mjs` 와 QA 픽스처가 남았다)
 
 **주방 차분 테스트.** 분기가 많은 상태 머신은 손으로 쓴 사례로 안 덮인다.
 레거시 `Kitchen` 과 새 `Kitchen` 을 같은 동작 열 4,000회로 나란히 돌리고
@@ -185,6 +192,27 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
 게임 오버 결과는 랭킹에서 온 값(`entryId` · `rank` · `board` · `storage`)을
 빼고 비교한다. 두 방이 각각 `add()` 를 호출해 UUID 가 달라지기 때문이다.
 점수 계산(`score = max(0, rawScore - mess×5)`)과 집계는 전부 단정한다.
+
+**중간 목표 달성 — 새 서버가 레거시 클라이언트를 그대로 돌린다.**
+`apps/server` 가 `public/` 을 서빙하고 레거시 소켓 계약을 모두 지킨다.
+레거시 `test/server.integration.test.mjs` 의 9개 시나리오가 새 서버에서
+그대로 통과한다: 원시 경로 이탈 차단 6종 · 304 재검증 · gzip · glb MIME ·
+HEAD · 6인 정원 · 방장 권한 · 해금 · 레이트 리밋 · 오리진 거부 ·
+연결 복구 · 근접 검사 우회 차단.
+
+**Nest 덕타이핑 함정 — 끊김 핸들러가 두 번 돌았다.** 메서드 이름을
+`handleDisconnect` 로 두면 Nest 가 이름만 보고 `OnGatewayDisconnect` 로
+간주해 자기 리스너를 하나 더 붙인다. 우리는 `reason` 이 필요해서
+`socket.on('disconnect')` 를 직접 등록했는데, 그 결과 한 번의 끊김에 핸들러가
+두 번 돌았다. 두 번째 호출은 이미 일시정지된 상태를 보고 `autoPaused=false` 로
+`pendingRecovery` 를 덮어써서, **방장이 복귀해도 일시정지가 풀리지 않았다.**
+메서드 이름을 `onSocketDisconnect` 로 바꿔 Nest 가 잡지 못하게 했다.
+통합 테스트가 이걸 잡았다 — 단위 테스트로는 드러나지 않는 종류의 결함이다.
+
+**통합 테스트에 와이어 타입을 붙였다.** `any` 로 두면 `no-unsafe-*` 경고 91개가
+나는데, 억제하는 대신 `@repo/types` 의 `PublicState` · `KitchenSnapshot` ·
+`HelloPayload` · `RoomAck` · `HealthResponse` 를 붙였다. 서버가 보내는 형태가
+바뀌면 이 테스트가 컴파일 단계에서 먼저 깨진다.
 
 **레거시 대조 브리지.** `src/testing/legacy.ts` 가 `server/*.mjs` 를 읽는다.
 타입 선언이 없어 정적 import 는 strict 에서 TS7016 으로 막히므로 지정자를

@@ -45,6 +45,9 @@ export interface RuntimeConfig {
    *  파일이고, 다른 데서 띄우면 다른 파일이 된다 —
    *  그래서 시작 로그에 실제 경로를 찍는다. GIMBAP_LEADERBOARD 로 고정할 수 있다. */
   readonly leaderboardFile: string;
+  /** 정적 파일 루트. 지금은 레거시 public/ 을 그대로 서빙한다 —
+   *  4단계에서 Vite 빌드 산출물(apps/client/dist)로 옮긴다. */
+  readonly publicRoot: string;
   readonly redis: { readonly url: string; readonly token: string; readonly key: string };
 }
 
@@ -63,6 +66,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     allowedOrigins: env.GIMBAP_ALLOWED_ORIGINS || '',
     leaderboardFile:
       env.GIMBAP_LEADERBOARD || path.join(process.cwd(), 'data', 'leaderboard.json'),
+    publicRoot: env.GIMBAP_PUBLIC_ROOT || path.join(process.cwd(), 'public'),
     redis: Object.freeze({
       url: (env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, ''),
       token: env.UPSTASH_REDIS_REST_TOKEN || '',
