@@ -27,9 +27,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "qa:browser": "node tools/release-browser-qa.cjs",
-    "qa:browser:next": "node tools/release-browser-qa.cjs --stack=next",
     "qa:character": "node tools/character-preview-qa.cjs",
-    "qa:character:next": "node tools/character-preview-qa.cjs --stack=next",
     "assets:food": "node tools/generate-low-poly-food-assets.mjs",
     "pretest": "turbo run build"
   },

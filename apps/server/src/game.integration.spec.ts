@@ -235,8 +235,9 @@ it('정적 응답의 캐시 · 압축 · MIME · 스크립트 정책이 그대�
   const zipped = await request('/js/world.js', { 'Accept-Encoding': 'gzip' });
   expect(zipped.headers['content-encoding']).toBe('gzip');
   expect(zipped.body.length).toBeLessThan(first.body.length / 2);
-  expect((await request('/assets/char/base.glb')).headers['content-type']).toBe('model/gltf-binary');
-  const head = await request('/assets/char/base.glb', {}, 'HEAD');
+  /* GLB 의 MIME 은 static.client.spec.ts 가 본다 — 게임 에셋은 이제
+     apps/client/public/assets 에 있고 여기서 서빙하는 레거시 트리에는 없다. */
+  const head = await request('/js/world.js', {}, 'HEAD');
   expect(head.body.length).toBe(0);
   expect(Number(head.headers['content-length'])).toBeGreaterThan(0);
   expect((await request('/ready')).status).toBe(200);

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
-import { createTestEnvironment, ownedTemporaryPath, requestedStack, startIsolatedServer, stackTarget, waitForReady } from '../tools/lib/qa-server.cjs';
+import { CLIENT_DIST, SERVER_ENTRY, createTestEnvironment, ownedTemporaryPath, startIsolatedServer, waitForReady } from '../tools/lib/qa-server.cjs';
 import { localQaUrl, loadPlaywright, waitForGameState, waitForOwnPoseSynced } from '../tools/lib/browser-qa.cjs';
 import { until } from '../tools/lib/qa-wait.cjs';
 
@@ -50,10 +50,9 @@ test('isolated server owns PORT 0, local empty storage and idempotent cleanup',a
   assert.ok(server.child.exitCode!==null||server.child.signalCode!==null);
 });
 
-test('the QA fixture can drive the workspace split and serves the built client',async()=>{
-  // Browser QA needs this before Playwright is even involved: the new server
-  // has to hand out the Vite build, its bundle and the game assets.
-  const server=await startIsolatedServer({recoveryMs:1500,stack:'next',startupMs:25000});
+test('the QA server serves the built client, its bundle and the game assets',async()=>{
+  // Browser QA needs this before Playwright is even involved.
+  const server=await startIsolatedServer({recoveryMs:1500,startupMs:25000});
   try {
     const health=await fetch(server.url+'/health');
     assert.equal(health.status,200);
@@ -71,16 +70,10 @@ test('the QA fixture can drive the workspace split and serves the built client',
   } finally {await server.close();}
 });
 
-test('the stack is chosen by flag first, then environment, then legacy',()=>{
-  assert.equal(requestedStack({},[ 'node','tool' ]),'legacy');
-  assert.equal(requestedStack({QA_STACK:'next'},['node','tool']),'next');
-  // The flag wins so package.json scripts work on Windows cmd.exe too
-  assert.equal(requestedStack({QA_STACK:'legacy'},['node','tool','--stack=next']),'next');
-});
-
-test('an unknown QA stack name is refused before anything is started',()=>{
-  assert.throws(()=>stackTarget('production'),/Unknown QA stack/);
-  for(const name of ['legacy','next']) assert.ok(stackTarget(name).entry);
+test('the QA server points at the workspace build, not the legacy tree',()=>{
+  // The legacy tree is a read-only fixture now; nothing serves it.
+  assert.equal(SERVER_ENTRY,'apps/server/dist/main.js');
+  assert.equal(CLIENT_DIST,'apps/client/dist');
 });
 
 test('browser override accepts loopback origins only and rejects embedded credentials or remote hosts',()=>{

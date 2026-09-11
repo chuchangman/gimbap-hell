@@ -28,9 +28,10 @@ let logs = '';
 
 const request = (
   pathname: string,
+  method = 'GET',
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer }> =>
   new Promise((resolve, reject) => {
-    const req = http.request(url, { path: pathname }, (res) => {
+    const req = http.request(url, { path: pathname, method }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () =>
@@ -140,10 +141,15 @@ it('게임 에셋이 Vite 번들과 섞이지 않고 /assets 에서 나온다', 
   // 실제 모델 파일도 나가야 한다 — 매니페스트만 있고 파일이 없으면 소용없다
   const glb = names.map((n) => manifest[n]).find((f) => f.endsWith('.glb'));
   expect(glb, 'glb 항목이 없다').toBeTruthy();
-  const model = await request('/assets/' + String(glb).replace(/^\/+/, ''));
+  const url = '/assets/' + String(glb).replace(/^\/+/, '');
+  const model = await request(url);
   expect(model.status).toBe(200);
   expect(model.headers['content-type']).toBe('model/gltf-binary');
   expect(model.body.length).toBeGreaterThan(100);
+  // HEAD 는 길이만 알려주고 본문을 보내지 않는다
+  const head = await request(url, 'HEAD');
+  expect(head.body.length).toBe(0);
+  expect(Number(head.headers['content-length'])).toBeGreaterThan(0);
 });
 
 it('컨트롤러 경로는 정적 서빙이 가로채지 않는다', async () => {

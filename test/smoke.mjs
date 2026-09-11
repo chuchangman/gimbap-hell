@@ -39,7 +39,8 @@ const done = (id, q) => ({ id, quality: q === undefined ? 100 : q });
 /* ═════════════════════════════════════════════ */
 head('[L] 모듈형 캐릭터 GLB');
 
-const assetRoot = path.resolve('public/assets');
+// 게임 에셋은 클라이언트의 publicDir 에 있다 (빌드하면 dist/assets 로 복사된다)
+const assetRoot = path.resolve('apps/client/public/assets');
 const manifest = JSON.parse(fs.readFileSync(path.join(assetRoot, 'manifest.json'), 'utf8'));
 const characterAssets = [
   'char/base',

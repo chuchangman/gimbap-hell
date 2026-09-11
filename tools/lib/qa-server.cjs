@@ -7,35 +7,19 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '../..');
 const TEMP_PREFIX = 'gimbap-qa-';
 
-// Which stack to exercise. 'legacy' is the deployed one; 'next' is the workspace split.
-// The split serves the Vite build instead of public/, so it needs GIMBAP_PUBLIC_ROOT.
-const STACKS = Object.freeze({
-  legacy: Object.freeze({entry:'server/index.mjs', publicRoot:null}),
-  next: Object.freeze({entry:'apps/server/dist/main.js', publicRoot:'apps/client/dist'}),
-});
-
-// Windows npm scripts run through cmd.exe, where `QA_STACK=next node ...` is not
-// a thing. Accept a flag too so package.json can stay cross-platform.
-function requestedStack(env=process.env, argv=process.argv) {
-  const flag=argv.find(a=>a.startsWith('--stack='));
-  return flag ? flag.slice('--stack='.length) : (env.QA_STACK || 'legacy');
-}
-
-function stackTarget(name) {
-  const target = STACKS[name];
-  if (!target) throw Error('Unknown QA stack "'+name+'" (use '+Object.keys(STACKS).join(' | ')+')');
-  return target;
-}
+// The deployed stack. The legacy tree survives only as a test fixture that is
+// read from disk — it is no longer served, so there is nothing else to run here.
+const SERVER_ENTRY = 'apps/server/dist/main.js';
+const CLIENT_DIST = 'apps/client/dist';
 
 // A missing build shows up as an opaque startup failure otherwise.
-async function requireBuilt(stack, target) {
-  const needed=[target.entry];
-  if(target.publicRoot) needed.push(path.join(target.publicRoot,'index.html'));
-  for(const rel of needed) {
+async function requireBuilt() {
+  for(const rel of [SERVER_ENTRY, path.join(CLIENT_DIST,'index.html')]) {
     try {await fs.access(path.join(ROOT,rel));}
-    catch {throw Error('QA stack "'+stack+'" is not built: missing '+rel+' — run `npm run build` first');}
+    catch {throw Error('QA needs a build first: missing '+rel+' — run `npm run build`');}
   }
 }
+
 const DEFAULT_STARTUP_MS = 10000;
 const DEFAULT_SHUTDOWN_MS = 6000;
 
@@ -83,10 +67,8 @@ function waitForExit(child, timeoutMs) {
   });
 }
 
-async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS,shutdownMs=DEFAULT_SHUTDOWN_MS,
-  stack=requestedStack()}={}) {
-  const target=stackTarget(stack);
-  await requireBuilt(stack,target);
+async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS,shutdownMs=DEFAULT_SHUTDOWN_MS}={}) {
+  await requireBuilt();
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),TEMP_PREFIX));
   let child, closing, logs='';
   async function close() {
@@ -109,8 +91,8 @@ async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS
   }
   try {
     const env=createTestEnvironment(folder,recoveryMs);
-    if(target.publicRoot) env.GIMBAP_PUBLIC_ROOT=path.join(ROOT,target.publicRoot);
-    child=fork(path.join(ROOT,target.entry),[],{cwd:ROOT,silent:true,env});
+    env.GIMBAP_PUBLIC_ROOT=path.join(ROOT,CLIENT_DIST);
+    child=fork(path.join(ROOT,SERVER_ENTRY),[],{cwd:ROOT,silent:true,env});
     const record=data=>{logs=(logs+data).slice(-8192);};
     child.stdout.on('data',record);child.stderr.on('data',record);
     const port=await waitForReady(child,startupMs,()=>logs);
@@ -122,4 +104,4 @@ async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS
 }
 
 module.exports={createTestEnvironment,ownedTemporaryPath,waitForReady,startIsolatedServer,
-  stackTarget,requestedStack,STACKS};
+  requireBuilt,SERVER_ENTRY,CLIENT_DIST};
