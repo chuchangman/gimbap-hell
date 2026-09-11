@@ -4,32 +4,21 @@
   "description": "김밥지옥 — 3D 1인칭 멀티플레이 김밥 웨이브 디펜스 (three.js + Socket.IO)",
   "type": "commonjs",
   "private": true,
-  "main": "legacy/server/index.mjs",
+  "main": "apps/server/dist/main.js",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "start": "node apps/server/dist/main.js",
-    "start:legacy": "node legacy/server/index.mjs",
-    "dev": "node legacy/server/index.mjs",
-    "test": "node test/smoke.mjs && node --test test/game-rules.test.mjs test/runtime-config.test.mjs test/protocol.test.mjs test/server.integration.test.mjs test/ranking-store.test.mjs test/spatial.test.mjs test/layout.test.mjs test/render-utils.test.mjs test/qa-fixtures.test.mjs test/parity.test.mjs test/release-config.test.mjs",
-    "test:spatial": "node --test test/spatial.test.mjs",
-    "test:storage": "node --test test/ranking-store.test.mjs",
-    "test:redis": "node --test test/redis.integration.test.mjs",
-    "test:protocol": "node --test test/protocol.test.mjs test/server.integration.test.mjs",
-    "test:qa-fixtures": "node --test test/qa-fixtures.test.mjs",
-    "test:workspaces": "turbo run test",
-    "verify": "npm test && npm run test:workspaces",
     "build": "turbo run build",
+    "start": "node apps/server/dist/main.js",
+    "dev": "npm run dev --workspace=@repo/client",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "qa:browser": "node tools/release-browser-qa.cjs",
-    "qa:character": "node tools/character-preview-qa.cjs",
-    "assets:food": "node tools/generate-low-poly-food-assets.mjs",
-    "pretest": "turbo run build"
+    "assets:hand": "node tools/generate-fps-hand-asset.mjs",
+    "assets:food": "node tools/generate-low-poly-food-assets.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

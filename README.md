@@ -39,22 +39,17 @@ npm start       # = node apps/server/dist/main.js
 netsh advfirewall firewall add rule name="Gimbap 3211" dir=in action=allow protocol=TCP localport=3211
 ```
 
-### 자동 검증
+### 개발
 
 ```bash
-npm test
-npm run test:redis   # 실제 Redis 검증: Docker 또는 REDIS_TEST_PORT 필요
+npm run dev        # 클라이언트 개발 서버 (API·소켓은 3211 로 넘어갑니다)
+npm run build      # 서버 + 클라이언트 빌드
+npm run typecheck
+npm run lint
 ```
 
-브라우저 없이 게임 규칙, 실제 HTTP/Socket.IO 통신, 저장 실패·복구를 검사합니다.
-재료 8종 공정 · 설비 개수 · 일반/진상 손님 구분 · 웨이브별 재료 해금 ·
-주문 자동 최적 매칭 · 빗자루 사거리/쿨다운/넉백 · 평판 0 폐업 · 10웨이브 완주 ·
-가게 이름 정리와 점수 순 랭킹까지 확인합니다.
-(랭킹 테스트는 임시 파일에 쓰므로 실제 기록을 건드리지 않습니다)
-
-Chrome 화면 검사는 `node tools/release-browser-qa.cjs`로 실행합니다.
-필요 환경과 검증 범위는 [운영·복구 문서](docs/OPERATIONS.md), 남은 출시 기준은
-[출시 준비 작업 기록](docs/RELEASE-READINESS.md)에 정리되어 있습니다.
+클라이언트 개발 서버를 쓰려면 다른 터미널에서 `npm start` 로 게임 서버를
+같이 띄워 두세요.
 
 ---
 
@@ -353,9 +348,7 @@ apps/
       app/         조립점 — 부팅 순서와 소켓 배선
 data/
   leaderboard.json  가게 랭킹 기록 (자동 생성)
-legacy/        옛 스택 — 배포하지 않습니다. 테스트가 대조하는 기준일 뿐입니다
-                (legacy/README.md 참고)
-test/          저장소 전체를 보는 검사 (배포 설정 · QA 픽스처 · 동등성)
+tools/         에셋 생성기 (GLB 를 새로 뽑을 때만)
 ```
 
 **`packages/game-core` 는 서버와 클라이언트가 함께 읽습니다.** 수치를 한 번만

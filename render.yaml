@@ -10,16 +10,14 @@ services:
     buildCommand: npm ci && npm run build
     startCommand: npm start # = node apps/server/dist/main.js
     healthCheckPath: /health # HealthController 가 제공하는 엔드포인트
-    # 푸시만으로 배포하지 않는다. GitHub Actions 가 테스트를 통과시킨 뒤
-    # Deploy Hook 을 호출해야 배포된다 (.github/workflows/ci.yml).
-    # 깨진 커밋이 프로덕션에 나가는 걸 막는 게 목적이다.
-    autoDeploy: false
+    # main 에 푸시하면 바로 배포된다.
+    autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: '22.12.0' # package.json 의 engines 와 같아야 한다
 
-      # 정적 파일 루트. 없으면 서버가 레거시 public/ 을 서빙한다 —
-      # 그러면 새 화면 대신 옛 화면이 나간다.
+      # 정적 파일 루트. 기본값과 같지만 명시해 둔다 — 빌드 산출물이
+      # 어디서 나가는지가 배포에서 가장 헷갈리는 지점이다.
       - key: GIMBAP_PUBLIC_ROOT
         value: apps/client/dist
 
