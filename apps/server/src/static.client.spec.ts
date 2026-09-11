@@ -92,7 +92,8 @@ it('첫 화면이 Vite 빌드 산출물로 나간다', async () => {
   expect(body).toBe(indexHtml);
   // React 가 붙을 자리와 번들이 실제로 들어 있어야 한다
   expect(body).toContain('<div id="app">');
-  expect(body).toMatch(/<script type="module" crossorigin src="\/bundle\/index-\w+\.js">/);
+  /* Vite 의 콘텐츠 해시는 base64url 이라 `-` 와 `_` 가 섞인다 — \w 만으로는 못 받는다 */
+  expect(body).toMatch(/<script type="module" crossorigin src="\/bundle\/index-[\w-]+\.js">/);
 });
 
 it('index.html 이 부르는 자원이 전부 같은 출처에서 실제로 나온다', async () => {

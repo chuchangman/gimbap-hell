@@ -27,9 +27,9 @@ assets-src/
 /artifacts/
 __pycache__/
 
-# Runtime manifest에서 쓰지 않는 원본 팩·승인용 시안
-/public/assets/packs/
-/public/assets/concepts/
+# Runtime manifest 에서 쓰지 않는 원본 팩·승인용 시안은 assets-src/ 에 둔다.
+# apps/client/public/ 아래에 두면 Vite 가 dist 로 복사해 배포까지 실려 나간다.
+# (실제로 그렇게 13.7MB 가 나가고 있었다.)
 
 # 워크스페이스 빌드 산출물
 dist/

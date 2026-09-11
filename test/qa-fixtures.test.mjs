@@ -61,7 +61,8 @@ test('the QA server serves the built client, its bundle and the game assets',asy
     assert.equal(page.status,200);
     const html=await page.text();
     assert.match(html,/<div id="app">/);
-    const bundle=html.match(/src="(\/bundle\/index-\w+\.js)"/);
+    // Vite content hashes are base64url: they can contain - and _
+    const bundle=html.match(/src="(\/bundle\/index-[\w-]+\.js)"/);
     assert.ok(bundle,'built bundle is not referenced');
     assert.equal((await fetch(server.url+bundle[1])).status,200);
     const manifest=await fetch(server.url+'/assets/manifest.json');
