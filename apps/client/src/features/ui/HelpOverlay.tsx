@@ -1,19 +1,48 @@
 /* ────────────────────────────────────────────────────────────
-   도움말 오버레이 — 레거시 index.html 230-288 줄. 전부 고정 문구다.
+   도움말 오버레이 — 조작법과 공정. 전부 고정 문구다.
 
-   `<tbody>` 를 직접 쓴다. 브라우저 HTML 파서는 `<table><tr>` 사이에
-   `<tbody>` 를 끼워 넣지만 JSX 는 쓴 그대로 만든다 — 안 쓰면 레거시와
-   트리 모양이 달라진다.
+   여닫는 상태를 React 가 들고, 컨트롤러(H · Esc)가 부를 콜백을
+   `player.state` 에 걸어 준다. 공정 시간은 `TIME` 에서 바로 읽으므로
+   예전처럼 `[data-time]` 자리를 나중에 채우는 기계장치가 필요 없다.
+
+   `<tbody>` 를 직접 쓴다 — JSX 는 HTML 파서처럼 끼워 넣어 주지 않는다.
    ──────────────────────────────────────────────────────────── */
+import { state as P, releaseLock } from '@/features/player/player';
+import { TIME } from '@repo/game-core';
+import { useEffect, useState } from 'react';
+
 export function HelpOverlay() {
+  const [open, setOpen] = useState(false);
+
+  /* 컨트롤러가 H 와 Esc 로 부른다 */
+  useEffect(() => {
+    P.onToggleHelp = () => setOpen((v) => !v);
+    P.onCloseOverlay = () => {
+      setOpen((wasOpen) => {
+        if (!wasOpen) releaseLock();
+        return false;
+      });
+    };
+    return () => {
+      P.onToggleHelp = () => {};
+      P.onCloseOverlay = () => {};
+    };
+  }, []);
+
+  /* 열려 있는 동안은 조준을 막는다 — 뒤에서 게임이 돌고 있다 */
+  useEffect(() => {
+    P.overlayOpen = open;
+    if (open) releaseLock();
+  }, [open]);
+
   return (
     <>
-      <div id="overlay-bg" className="hidden" />
-      <div id="overlay-help" className="overlay hidden">
+      <div id="overlay-bg" className={open ? '' : 'hidden'} onClick={() => setOpen(false)} />
+      <div id="overlay-help" className={'overlay' + (open ? '' : ' hidden')}>
         <div className="overlay-head">
           <h2>📖 조작법 &amp; 공정</h2>
           <span className="sub">H 또는 Esc 로 닫기</span>
-          <button id="btn-help-close" className="btn tiny">
+          <button id="btn-help-close" className="btn tiny" onClick={() => setOpen(false)}>
             닫기
           </button>
         </div>
@@ -69,16 +98,14 @@ export function HelpOverlay() {
               <td>
                 🚰 <b>싱크대</b>
               </td>
-              <td>
-                쌀을 <span data-time="riceRinse" />번 헹굽니다 (E 연타)
-              </td>
+              <td>쌀을 {TIME.riceRinse}번 헹굽니다 (E 연타)</td>
             </tr>
             <tr>
               <td>
                 🍚 <b>밥솥 ×2</b>
               </td>
               <td>
-                씻은 쌀 → <span data-time="riceCook" />초 취사 → 밥 <span data-time="riceYield" />
+                씻은 쌀 → {TIME.riceCook}초 취사 → 밥 {TIME.riceYield}
                 인분
               </td>
             </tr>
@@ -96,9 +123,7 @@ export function HelpOverlay() {
               <td>
                 🔪 <b>도마 ×3</b>
               </td>
-              <td>
-                🟡단무지 · 🥒오이 썰기 · 만 김밥 썰기 <span data-time="cutRoll" />초
-              </td>
+              <td>🟡단무지 · 🥒오이 썰기 · 만 김밥 썰기 {TIME.cutRoll}초</td>
             </tr>
             <tr>
               <td>
@@ -110,9 +135,7 @@ export function HelpOverlay() {
               <td>
                 🍙 <b>조립대 ×3</b>
               </td>
-              <td>
-                김 → 밥 → 속재료 → 말기 <span data-time="roll" />초
-              </td>
+              <td>김 → 밥 → 속재료 → 말기 {TIME.roll}초</td>
             </tr>
             <tr>
               <td>

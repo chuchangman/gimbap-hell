@@ -8,7 +8,7 @@
 import { preloadAssets } from '@/features/assets/assets';
 import { connect, on, S } from '@/features/net/net';
 import { applyKnockback, correctPose, initPlayer } from '@/features/player/player';
-import { initUI, route, toast } from '@/features/ui/ui';
+import { initUI, toast } from '@/features/ui/ui';
 import { buildWorld } from '@/features/world/build';
 import { remoteSwing } from '@/features/world/customers';
 import { startLoop, startRenderer } from '@/features/world/renderer';
@@ -63,6 +63,5 @@ export async function boot(): Promise<void> {
     }
   });
 
-  route();
   startLoop(root);
 }

@@ -1,30 +1,50 @@
 /* ────────────────────────────────────────────────────────────
-   대기실 뼈대 — 레거시 index.html 140-190 줄.
-   `#lobby-board-list` · `#player-list` · `#lobby-history` 는 `ui.ts` 가 칠한다.
-   `[data-time]` 자리도 `ui.ts` 의 initUI 가 공정 시간을 넣는다.
+   대기실 — 방 코드 · 참가자 · 공정 안내 · 지난 영업 · 가게 랭킹.
+   서버 스냅샷(`S.state`)을 그대로 읽어 그린다.
    ──────────────────────────────────────────────────────────── */
-export function LobbyScreen() {
+import { emit, isHost, S } from '@/features/net/net';
+import { CompactBoard } from '@/features/ui/Board';
+import { TIME } from '@repo/game-core';
+import { useState } from 'react';
+
+export function LobbyScreen({ active }: { active: boolean }) {
+  const st = S.state;
+  const host = isHost();
+  const [copied, setCopied] = useState<'good' | 'bad' | null>(null);
+
+  const copyInvite = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(location.origin + '/#' + (st?.code ?? ''));
+      setCopied('good');
+    } catch {
+      setCopied('bad');
+    }
+    setTimeout(() => setCopied(null), 2000);
+  };
+
   return (
-    <section id="screen-lobby" className="screen solid scrollable">
+    <section id="screen-lobby" className={'screen solid scrollable' + (active ? ' active' : '')}>
       <div className="lobby-layout">
         {/* 좌측 — 가게 랭킹 (이름은 첫 글자만) */}
         <aside className="card lobby-board">
           <h3>🏆 가게 랭킹</h3>
-          <ol className="board compact" id="lobby-board-list">
-            <li className="none">불러오는 중...</li>
-          </ol>
+          <CompactBoard active={active} />
           <p className="hint small">가게 이름은 첫 글자만 보입니다.</p>
         </aside>
 
         <div className="card wide">
           <h2 className="shop-name" id="lobby-shop">
-            🍣 김밥지옥
+            🍣 {st ? st.shop || st.code : '김밥지옥'}
           </h2>
           <div className="room-code">
             <span className="label">방 코드</span>
-            <strong id="lobby-code">----</strong>
-            <button id="btn-copy" className="btn tiny">
-              초대 링크 복사
+            <strong id="lobby-code">{st?.code ?? '----'}</strong>
+            <button id="btn-copy" className="btn tiny" onClick={() => void copyInvite()}>
+              {copied === 'good'
+                ? '복사했습니다'
+                : copied === 'bad'
+                  ? '복사 실패'
+                  : '초대 링크 복사'}
             </button>
           </div>
 
@@ -33,14 +53,22 @@ export function LobbyScreen() {
           </p>
 
           <h3>참가자</h3>
-          <ul id="player-list" className="player-list" />
+          <ul id="player-list" className="player-list">
+            {st?.players.map((p) => (
+              <li key={p.id}>
+                <span className="dot" style={{ background: p.color }} />
+                <span className={p.id === S.meId ? 'me' : ''}>{p.name}</span>
+                {p.id === st.hostId && <span className="tag">방장</span>}
+                {p.connected === false && <span className="tag">연결 복구 중</span>}
+              </li>
+            ))}
+          </ul>
 
           <div className="howto">
             <h3>이렇게 굴러갑니다</h3>
             <ol>
               <li>
-                <b>준비 시간</b>(<span data-time="riceCook" />초 취사 × 여러 번) 동안 밥과 속재료를
-                쌓아둡니다.
+                <b>준비 시간</b>({TIME.riceCook}초 취사 × 여러 번) 동안 밥과 속재료를 쌓아둡니다.
               </li>
               <li>
                 손님이 문으로 들어와 <b>카운터에 줄을 섭니다.</b> 주문은 모두 <b>김밥 1줄</b>이고,
@@ -63,17 +91,34 @@ export function LobbyScreen() {
             </ol>
           </div>
 
-          <div className="host-only" id="host-controls">
-            <p className="hint" id="party-desc" />
-            <button id="btn-start" className="btn primary big">
-              영업 시작
-            </button>
-          </div>
-          <p className="hint" id="not-host-hint">
-            방장이 시작하기를 기다리는 중...
-          </p>
+          {host ? (
+            <div className="host-only" id="host-controls">
+              <p className="hint" id="party-desc">
+                인원 {st?.players.length ?? 1}명 기준으로 손님 수가 자동 조정됩니다.
+              </p>
+              <button id="btn-start" className="btn primary big" onClick={() => emit('game:start')}>
+                영업 시작
+              </button>
+            </div>
+          ) : (
+            <p className="hint" id="not-host-hint">
+              방장이 시작하기를 기다리는 중...
+            </p>
+          )}
 
-          <div id="lobby-history" />
+          <div id="lobby-history">
+            {!!st?.history.length && (
+              <>
+                <h3>지난 영업</h3>
+                {st.history.map((h, i) => (
+                  <div className="row" key={h.at + '-' + i}>
+                    <span>{h.kind === 'victory' ? '🎉 완주' : '💀 웨이브 ' + h.wave}</span>
+                    <b>{h.score}점</b>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </section>
