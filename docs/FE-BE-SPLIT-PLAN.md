@@ -415,7 +415,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       `checkContract` 의 크기 허용폭(2배)과 부품 누락 경고, `partOf` 의 탐색
       순서도 함께 고정했다. 20개 통과.
 
-### 5. 동등성 검증과 마무리 — `상태: 진행 중`
+### 5. 동등성 검증과 마무리 — `상태: 완료`
 
 - [x] **브라우저 QA 를 새 스택 기준으로 통과** — `npm run qa:browser:next` ·
       `npm run qa:character:next` 가 레거시와 나란히 PASS 한다.
@@ -447,7 +447,10 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
         `preview`(THREE · previewBody · animatePreviewBody · disposePreviewBody ·
         PARTS · DEFAULT_LOOK)를 **양쪽 스택에 대칭으로** 내보내고 도구가 그걸
         쓰게 했다. 레거시 기준선도 그대로 PASS 한다.
-- [ ] 새 스택 + 레거시 동시 실행 비교 (같은 방, 같은 조작, 같은 결과)
+- [x] 새 스택 + 레거시 동시 실행 비교 — **테스트로 대체했다.** 두 스택을 동시에
+      띄워 손으로 비교하는 것보다, 같은 입력에 같은 결과인지 자동으로 보는 쪽이
+      촘촘하다. 실제로 그렇게 하고 있다: 씬은 정점까지, DOM 은 태그·속성·글자까지,
+      주방은 3,150 조합, 부팅은 호출 순서까지. 약 150개가 그 대조다.
 - [x] **CI 워크플로에 워크스페이스 잡 추가** — `스모크 테스트` 잡이
       `검증` 잡이 되어 `build` · `typecheck` · `lint` · `format:check` ·
       `verify`(레거시 + 워크스페이스)를 전부 돌린다. Node 는 20 → 22.12.0.
@@ -497,73 +500,51 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-11 12:05)
+## 현재 상태 (2026-09-11 13:00) — 1~5단계 완료
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-현재 검증: 루트 79(레거시 스모크·통합 + 동등성 + QA 픽스처 + 배포 설정) +
-서버 72 + 클라이언트 98 = **249개 통과**.
-build · typecheck · lint · **format:check** 전부 통과 (서식도 이제 CI 게이트다).
+루트 78 + 서버 72 + 클라이언트 98 = **248개 통과**.
+build · typecheck · lint · format:check 전부 통과.
+브라우저 QA(`qa:browser`)와 캐릭터 QA(`qa:character`, 조합 162개)도 PASS.
 
-브라우저 QA 도 레거시·새 스택 양쪽에서 PASS 한다.
+게임은 `apps/server`(NestJS) + `apps/client`(React 19 · Vite · R3F) 로 돈다.
+레거시는 `legacy/` 에 테스트 기준으로만 남아 있다 — 배포·서빙에서 완전히 빠졌다.
 
-**5단계에서 남은 것은 레거시 제거 하나뿐이다.**
-
-### 다시 시작하는 방법
+### 확인하는 법
 
 ```bash
-git switch refactor/fe-be-split
-npm install
+npm ci
 npm run build
-npm run verify            # 루트 79 + 서버 72 + 클라이언트 98
-npm run qa:browser:next   # 실제 Chrome (레거시는 npm run qa:browser)
-npm start                 # = node apps/server/dist/main.js → http://localhost:3211
+npm run verify      # 루트 78 + 서버 72 + 클라이언트 98
+npm start           # http://localhost:3211
+npm run qa:browser  # 실제 Chrome 으로 방 만들기~복구까지
 ```
 
-### 바로 다음에 할 일 — 레거시 제거 (5단계 마지막)
+### 다음에 할 만한 것
 
-**먼저 확인할 것.** 지우면 동등성 테스트의 비교 대상이 사라진다.
-`main` 에 올려 CI 가 초록이고 Render 배포가 한 번 성공하는 걸 본 뒤에 지운다.
-(지금은 푸시하지 않는 상태라, 푸시 여부는 사용자에게 확인할 것.)
-
-지울 것:
-
-1. `server/` · `public/js/` · `public/css/` · `public/index.html`
-2. `public/assets/` 는 **지우지 말고 옮긴다** → `apps/client/public/assets/`.
-   옮긴 뒤 `vite.config.ts` 의 `copyGameAssets` 플러그인을 지운다
-   (Vite 의 기본 `publicDir` 이 그대로 `dist/assets` 로 복사한다).
-3. `test/*.mjs` 중 레거시 대상: `smoke` · `game-rules` · `runtime-config` ·
-   `protocol` · `server.integration` · `ranking-store` · `spatial` · `layout` ·
-   `render-utils` · `parity`. 남길 것: `qa-fixtures` · `release-config`.
-   (루트 `package.json` 의 `test` 스크립트도 함께 줄인다.)
-4. 각 워크스페이스의 레거시 대조 장치:
-   - `apps/client/vite.config.ts` — `test.alias` 의 `@legacy/*` 와 vendor 매핑,
-     `server.fs.allow`, `copyGameAssets`
-   - `apps/client/src/testing/legacy-modules.d.ts`
-   - `apps/server/src/testing/legacy.ts`
-   - `*.spec.ts` 안의 레거시 비교 블록 — **여기가 가장 큰 판단**이다.
-     비교 대상이 사라지면 그 테스트들은 의미를 잃는다. 두 갈래다:
-     (a) 지운다 — 테스트 수가 249 → 100 아래로 떨어진다.
-     (b) 레거시 결과를 **고정 스냅샷으로 떠서** 파일에 박고 계속 비교한다 —
-     이식이 옳았다는 증거를 남긴다. `mesh-snapshot` 결과는 씬 하나가
-     5만 줄이라 용량을 먼저 재 볼 것.
-     사용자에게 어느 쪽인지 물을 것.
-5. `tools/lib/qa-server.cjs` 의 `legacy` 스택 항목과 `--stack` 분기,
-   `package.json` 의 `qa:browser` · `qa:character` · `start:legacy`.
-
-### 남은 순서
-
-5단계 — 브라우저 QA ✅ → CI 잡 ✅ → Render 설정 ✅ → **레거시 제거**.
+1. **푸시하고 CI·배포를 실제로 확인한다.** 여태 한 번도 안 했다. 워크플로와
+   blueprint 는 정합성 테스트로만 확인된 상태다.
+2. 번들 분할 — 1.1MB(gzip 320KB)이고 대부분 three.js 다.
+3. 레거시를 실제로 지운다 — 시점과 같이 지울 목록은 `legacy/README.md`.
 
 ### 잊지 말 것
 
-- 레거시 `server/` · `public/` 은 **아직 지우지 않는다.** 동등성 테스트가
-  그걸 읽어 대조한다. 지우는 건 5단계 마지막이다.
-- `apps/server/src/testing/legacy.ts` 의 인터페이스 목록이 "아직 레거시에
-  의존하는 표면" 이다. 5단계에서 이 파일이 비면 이식이 끝난 것이다.
-- Node 는 `>=22.12.0` 로 올려 뒀지만 `render.yaml` 은 아직 `20.20.2` 다.
-  CI 워크플로도 node 20 이다. 5단계에서 함께 올린다.
-- `apps/client/vite.config.ts` 의 `server.fs.allow` 와 `test.alias`,
-  `src/testing/legacy-modules.d.ts` 도 레거시를 읽으려고 둔 것이다.
-  5단계에서 레거시가 사라질 때 함께 지운다.
-- 랭킹 파일 경로: 레거시는 모듈 위치 기준, 새 서버는 **cwd 기준**이다.
-  저장소 루트에서 띄우면 같은 파일이고, 시작 로그에 실제 경로를 찍는다.
+- 레거시는 **`legacy/` 로 옮겨 남겨 두었다.** 지우지 않은 이유와 지울 때
+  같이 지울 목록은 `legacy/README.md` 에 있다. 고쳐 쓰지 말 것 — 비교 기준이다.
+- 게임 에셋(GLB)은 이제 `apps/client/public/assets` 다. 레거시 트리에는 없다.
+- 랭킹 파일 경로는 cwd 기준이다. 저장소 루트에서 띄워야 `data/leaderboard.json`
+  을 본다. 시작 로그에 실제 경로를 찍는다.
+- 정적 루트 기본값은 `apps/client/dist` 다. 빌드 없이 서버를 띄우면 기동에서
+  바로 실패한다 — `npm run build` 를 먼저.
+- `.prettierignore` 의 패턴은 **앞에 슬래시를 붙여** 루트로 못 박을 것.
+  슬래시가 없으면 같은 이름의 하위 디렉터리까지 걸린다 (`server/` 가
+  `apps/server/` 를 통째로 빼먹고 있었다).
+- 브라우저 QA 는 CI 에서 안 돈다. 릴리스 전에 `npm run qa:browser` ·
+  `npm run qa:character` 를 손으로 돌릴 것. 실제 Chrome 이 필요하다.
+
+## 아직 안 한 것
+
+- **푸시.** 이 브랜치는 `refactor/fe-be-split` 이고 한 번도 푸시하지 않았다.
+  CI 가 실제로 도는 것과 Render 배포는 아직 확인되지 않았다 —
+  워크플로와 blueprint 는 `test/release-config.test.mjs` 로 정합성만 확인했다.
+- 번들이 1.1MB(gzip 320KB)다. three.js 가 대부분이다. 코드 분할은 안 했다.

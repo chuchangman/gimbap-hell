@@ -188,7 +188,7 @@ Chrome 화면 검사는 `node tools/release-browser-qa.cjs`로 실행합니다.
 
 ### 재료를 더 넣고 싶다면
 
-`public/js/config.js` 의 `ITEMS` 에 항목을 추가하고
+`packages/game-core/src/items.ts` 의 `ITEMS` 에 항목을 추가하고
 `FRIDGE_ROW_A/B` · `EXTRA_FILLINGS` · `UNLOCKS` 에 id 를 넣으면 그대로 게임에 들어옵니다.
 
 ---
@@ -323,41 +323,51 @@ Chrome 화면 검사는 `node tools/release-browser-qa.cjs`로 실행합니다.
 
 ## 프로젝트 구조
 
+npm 워크스페이스 + turbo 모노레포입니다.
+
 ```
-server/
-  index.mjs    정적 파일 서버 + Socket.IO (방 관리, 5Hz 상태, 15Hz 위치)
-  room.mjs     Room — 플레이어 · 주방 · 웨이브 · 빗자루 판정 · 가게 이름
-  kitchen.mjs  주방 상태 머신 (서버 권위) — 사람마다 따로인 손
-  waves.mjs    웨이브 러너 — 손님 생성 · 인내심 · 이탈 · 평판
-  leaderboard.mjs  🏆 가게 랭킹 — data/leaderboard.json 읽고 쓰기
-public/
-  index.html   입장 · 대기실 · HUD · 결과 · 도움말
-  css/style.css
-  js/
-    config.js  ★ 재료 · 공정 시간 · 웨이브 표 · 점수 · 빗자루 수치
-               서버와 클라이언트가 이 파일 하나를 같이 읽습니다
-    net.js     소켓 + 공유 상태 S
-    kitchen.js 서버 스냅샷을 읽어 조준 문구·진행도를 만든다 (판정은 서버가)
-    world.js   three.js 씬 — 주방, 손님 대기열, 동료 아바타, 빗자루
-    player.js  1인칭 컨트롤러 — 이동/충돌/조준/스윙/넉백
-    ui.js      대기실 · HUD(웨이브·평판·손님줄) · 결과
-    main.js    엔트리 — 렌더 루프
-  vendor/      three.js r185 (동봉)
+packages/
+  game-core/   ★ 프론트·백이 함께 읽는 게임 계약
+    items.ts       재료 · 공정 시간(TIME) · 해금(UNLOCKS)
+    customers.ts   웨이브 표 · 손님 · 인내심 · 평판
+    scoring.ts     점수 · 주문 맞춤도 · 서빙 대상 고르기
+    stations.ts    설비 개수 · 빗자루 수치(COMBAT)
+    rules.ts       인원 · 이름 길이 · 방 코드
+    spatial.ts · layout.ts · render.ts · appearance.ts · colors.ts · net.ts
+  types/       서버가 뿌리는 스냅샷과 이벤트 타입
+apps/
+  server/      NestJS + Socket.IO (권위 서버)
+    domain/        room · kitchen · waves · movement — 판정은 전부 여기
+    modules/game/  게이트웨이 · 게임 루프 · 방 관리
+    modules/leaderboard/  🏆 가게 랭킹 (파일 / Upstash Redis)
+    common/static/ 정적 서빙 + 보안 헤더
+  client/      React 19 + Vite + React Three Fiber
+    public/assets/ 게임 GLB 모델 (빌드하면 dist/assets 로)
+    src/features/
+      net/         소켓 + 공유 상태 S
+      world/       three.js 씬 · 설비 · 손님 · 캐릭터 · 렌더러(R3F)
+      player/      1인칭 컨트롤러 — 이동/충돌/조준/스윙/넉백
+      kitchen/     서버 스냅샷 → 조준 문구·진행도 (판정은 서버가)
+      ui/          화면 뼈대(React) + HUD·로비·결과 칠하기
+      customize/   입장 화면 캐릭터 꾸미기
+      app/         조립점 — 부팅 순서와 소켓 배선
 data/
   leaderboard.json  가게 랭킹 기록 (자동 생성)
-test/
-  smoke.mjs    서버 로직 자동 검증 (npm test)
+legacy/        옛 스택 — 배포하지 않습니다. 테스트가 대조하는 기준일 뿐입니다
+                (legacy/README.md 참고)
+test/          저장소 전체를 보는 검사 (배포 설정 · QA 픽스처 · 동등성)
 ```
 
-**`public/js/config.js` 는 서버도 import 합니다.** 수치를 한 번만 고치면 양쪽에 반영됩니다.
-게임 규칙은 `server/kitchen.mjs` · `server/waves.mjs` 에만 있고,
-`public/js/kitchen.js` 는 같은 규칙으로 **안내 문구만** 만듭니다 — 실제 판정은 항상 서버입니다.
+**`packages/game-core` 는 서버와 클라이언트가 함께 읽습니다.** 수치를 한 번만
+고치면 양쪽에 반영됩니다. 게임 규칙은 `apps/server/src/domain/` 에만 있고,
+`apps/client/src/features/kitchen` 은 같은 규칙으로 **안내 문구만** 만듭니다 —
+실제 판정은 항상 서버입니다.
 
 ---
 
 ## 손보기 좋은 지점
 
-| 하고 싶은 것                      | 고칠 곳 (전부 `public/js/config.js`)                                     |
+| 하고 싶은 것                      | 고칠 곳 (`packages/game-core/src/`)                                      |
 | --------------------------------- | ------------------------------------------------------------------------ |
 | 웨이브 개수·손님 수·주문량·인내심 | `WAVES`                                                                  |
 | 인원수에 따른 손님 수 배율        | `scaleCount()`                                                           |
@@ -376,9 +386,9 @@ test/
 | 쫓아냈을 때 점수·평판 손해        | `SCORE.kick` · `SCORE.repLossKick`                                       |
 | 화구/도마/조립대/밥솥/빗자루 개수 | `BURNERS` · `BOARD_COUNT` · `MAT_COUNT` · `COOKER_COUNT` · `BROOM_COUNT` |
 | 손님 종류                         | `CUSTOMER_LOOKS`                                                         |
-| 가게 이름 길이 · 랭킹 보관 수     | `server/leaderboard.mjs` 의 `SHOP_MAX` · `MAX_ENTRIES`                   |
-| 이동 속도 · 점프 · 사거리         | `public/js/player.js` 의 `SPEED` `RUN` `JUMP_V` `REACH`                  |
-| 주방 배치 · 대기줄 위치           | `public/js/world.js` 의 `build*()` · `QUEUE_Z` · `DOOR`                  |
+| 가게 이름 길이 · 랭킹 보관 수     | `rules.ts` 의 `SHOP_MAX` · 서버 `ranking-policy.ts` 의 `maxEntries`      |
+| 이동 속도 · 점프 · 사거리         | `spatial.ts` 의 `MOVEMENT`                                               |
+| 주방 배치 · 대기줄 위치           | `layout.ts` · 클라이언트 `features/world/` 의 `build*()`                 |
 
 설비 개수를 늘리면 3D 배치도 자동으로 따라갑니다.
 
