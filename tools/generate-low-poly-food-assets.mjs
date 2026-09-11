@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'public', 'assets');
+// 게임 에셋은 클라이언트의 publicDir 에 있다 (빌드하면 dist/assets 로 복사된다)
+const OUT = path.join(ROOT, 'apps', 'client', 'public', 'assets');
 const ONLY = new Set(process.argv.slice(2));
 let generatedCount = 0;
 

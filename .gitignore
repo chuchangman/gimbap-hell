@@ -15,21 +15,11 @@ npm-debug.log*
 Thumbs.db
 desktop.ini
 
-# 외부 에셋 팩 원본 (49MB · .blend/.fbx/.rar)
-# 게임이 쓰는 건 여기서 뽑아낸 public/assets/**.glb 다. 원본까지 공개
-# 저장소에 재배포하면 용량도 문제고, 팩마다 재배포 허용 여부가 다르다.
+# 에셋 원본(.blend/.fbx/.obj)과 manifest 가 안 쓰는 팩. 여기서 뽑아낸
+# apps/client/public/assets/**.glb 만 저장소에 들어간다 — 용량 문제도 있고
+# 팩마다 재배포 허용 여부가 다르다. tools/ 의 생성기가 이 경로를 입력으로 읽는다.
 assets-src/
-
-# 에셋 미리보기 스냅샷 (작업용 산출물)
-/food-*-preview.png
-/clay-*-preview.png
-/clay-knife-closeup.png
-/artifacts/
 __pycache__/
-
-# Runtime manifest 에서 쓰지 않는 원본 팩·승인용 시안은 assets-src/ 에 둔다.
-# apps/client/public/ 아래에 두면 Vite 가 dist 로 복사해 배포까지 실려 나간다.
-# (실제로 그렇게 13.7MB 가 나가고 있었다.)
 
 # 워크스페이스 빌드 산출물
 dist/
