@@ -11,7 +11,6 @@
    (레거시 `initWorld` 의 `resize()` 와 같은 일).
    ──────────────────────────────────────────────────────────── */
 import { isSwinging, state as P, updatePlayer } from '@/features/player/player';
-import { renderHUD } from '@/features/ui/ui';
 import { stepWorld } from '@/features/world/build';
 import { camera, scene, setViewportHeight } from '@/features/world/scene';
 import { createRoot, useFrame, type ReconcilerRoot, type Size } from '@react-three/fiber';
@@ -57,10 +56,7 @@ export const viewportSize = (): Size => ({
 export function frameStep(delta: number, viewportPx: number): void {
   setViewportHeight(viewportPx);
   const dt = Math.min(MAX_DT, delta);
-  if (P.enabled) {
-    updatePlayer(dt);
-    renderHUD();
-  }
+  if (P.enabled) updatePlayer(dt);
   stepWorld(isSwinging());
 }
 

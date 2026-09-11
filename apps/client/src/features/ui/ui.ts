@@ -1,14 +1,8 @@
 /* ────────────────────────────────────────────────────────────
-   DOM UI — 입장 · 대기실 · HUD(웨이브/손님/평판) · 결과 · 토스트
+   DOM UI — 입장 · 대기실 · 결과 · 토스트 · 화면 전환.
 
-   레거시 ui.js 522줄을 그대로 옮겼다. 뼈대는 React(`Shell`)가 그리고
-   여기서는 id 로 잡아 칠한다 — 계획서 A안(충실한 이식) 그대로다.
-   HUD 는 매 프레임 불리므로 innerHTML 을 문자열 캐시와 비교해
-   바뀐 자리만 건드린다. 이 구조를 React 상태로 바꾸면 같은 그림이
-   나온다는 보장을 잃는다.
-
-   레거시와 다른 점은 하나다. 레거시는 `camera` 를 world.js 에서
-   import 만 하고 쓰지 않았다 — 여기서는 뺐다.
+   HUD 는 React 가 그린다(`features/ui/Hud.tsx`). 여기 남은 것은 아직
+   명령형인 화면들과, 입장 폼·소켓 이벤트 배선이다.
    ──────────────────────────────────────────────────────────── */
 import {
   currentLook,
@@ -16,23 +10,17 @@ import {
   resumeCustomizer,
   stopCustomizer,
 } from '@/features/customize/customize';
-import { bapReady, focusNow } from '@/features/kitchen/kitchen';
-import { emit, isHost, myHand, on, S, serverNow, wave as waveOf } from '@/features/net/net';
+import { emit, isHost, on, S } from '@/features/net/net';
 import { state as P, releaseLock, resetPose } from '@/features/player/player';
 import {
-  handHint,
-  ITEMS,
-  itemUnlockWave,
-  KIND,
   NAME_MAX,
   NAME_MIN,
   PLAYER_LIMIT,
-  REPUTATION_MAX,
   ROOM_CODE_LENGTH,
   SHOP_MAX,
   TIME,
 } from '@repo/game-core';
-import type { LeaderboardRow, ResultView, WaveEndPayload } from '@repo/types';
+import type { LeaderboardRow, ResultView } from '@repo/types';
 
 const $ = <T extends Element = HTMLElement>(s: string, r?: ParentNode): T | null =>
   (r || document).querySelector<T>(s);
@@ -69,11 +57,6 @@ export function toast(msg: string, kind?: string): void {
   }, 2600);
 }
 
-function fmt(sec: number): string {
-  const s = Math.max(0, Math.ceil(sec));
-  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-}
-
 /* ──────────────── 화면 ──────────────── */
 let curScreen = '';
 export function showScreen(id: string): void {
@@ -81,7 +64,6 @@ export function showScreen(id: string): void {
   curScreen = id;
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === id));
   const playing = id === 'screen-game';
-  req('#hud').classList.toggle('hidden', !playing);
   P.enabled = playing && S.connection === 'connected';
   if (!playing) releaseLock();
   // 판이 끝나고 돌아온 경우까지 포함해, 들어온 순간엔 무조건 새로 받는다
@@ -108,16 +90,10 @@ export function route(): void {
 }
 
 let pauseShown = false;
-function renderPause(): void {
+/** 일시정지가 시작되는 순간 마우스 잠금을 놓아준다. 화면은 React 가 그린다 */
+function releaseLockOnPause(): void {
   const paused = !!(S.state && S.state.phase === 'playing' && S.state.paused);
-  const overlay = $('#pause-overlay');
-  if (overlay) overlay.classList.toggle('hidden', !paused);
-  if (paused) {
-    req('#pause-hint').textContent = isHost()
-      ? 'P를 눌러 게임을 재개하세요.'
-      : '방장이 게임을 재개할 때까지 기다려 주세요.';
-    if (!pauseShown) releaseLock();
-  }
+  if (paused && !pauseShown) releaseLock();
   pauseShown = paused;
 }
 
@@ -155,17 +131,6 @@ export function renderLobby(): void {
         '</li>',
     )
     .join('');
-  /* 레거시가 여기서 같은 표를 한 번 더 붙인다 — 끊긴 사람 줄에는 '연결 복구 중'
-     이 두 개 달린다. 화면이 그대로여야 해서 고치지 않고 옮겼다. */
-  $$('#player-list li').forEach((row, i) => {
-    if (st.players[i].connected === false) {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = '연결 복구 중';
-      row.appendChild(tag);
-    }
-  });
-
   req('#party-desc').textContent =
     '인원 ' + st.players.length + '명 기준으로 손님 수가 자동 조정됩니다.';
 
@@ -188,268 +153,6 @@ export function renderLobby(): void {
   } else {
     req('#lobby-history').innerHTML = '';
   }
-}
-
-/* ──────────────── HUD ────────────────
-   매 프레임 호출되므로 변한 것만 DOM 에 반영한다.
-   ──────────────────────────────────────────────────────────── */
-const cache: Record<string, string | number> = {};
-const els: Record<string, HTMLElement> = {};
-/** DOM 조회를 매 프레임 하지 않는다 */
-const el = (sel: string): HTMLElement => (els[sel] ||= req(sel));
-
-function setHTML(sel: string, key: string, html: string): boolean {
-  if (cache[key] === html) return false;
-  cache[key] = html;
-  el(sel).innerHTML = html;
-  return true;
-}
-
-/* HUD 는 60Hz 로 다시 그릴 이유가 없다 — 약 15Hz 로 제한 */
-let lastHud = 0;
-const HUD_MS = 66;
-
-export function renderHUD(force?: boolean): void {
-  const w = waveOf();
-  if (!w) return;
-  const now = performance.now();
-  if (!force && now - lastHud < HUD_MS) return;
-  lastHud = now;
-  const t = serverNow();
-  renderPause();
-
-  /* 조준 문구 */
-  const p = P.prompt;
-  const promptEl = el('#prompt');
-  const pHtml = !p
-    ? ''
-    : p.disabled
-      ? '<span class="msg">' + esc(p.text) + '</span>'
-      : '<b class="key">' + (p.key || 'E') + '</b><span class="msg">' + esc(p.text) + '</span>';
-  if (setHTML('#prompt', 'prompt', pHtml)) {
-    promptEl.className = !p ? 'hidden' : p.disabled ? 'off' : p.danger ? 'danger' : '';
-  }
-
-  /* 손 */
-  const h = myHand();
-  const def = h ? ITEMS[h.id] : null;
-  const handHtml =
-    h && def
-      ? '<span class="emoji">' +
-        (def.emoji || '📦') +
-        '</span>' +
-        '<span class="nm">' +
-        esc((def.label && def.label[h.stage]) || def.name) +
-        '</span>' +
-        (h.stage === 'burnt'
-          ? '<span class="q bad">못 씀</span>'
-          : h.id !== 'broom' && h.quality < 100
-            ? '<span class="q">품질 ' + h.quality + '</span>'
-            : '')
-      : '<span class="nm empty">빈손</span>';
-  if (setHTML('#hand', 'hand', handHtml)) {
-    const handEl = el('#hand');
-    handEl.classList.toggle('has', !!h);
-    handEl.classList.toggle('spoiled', !!h && h.stage === 'burnt');
-  }
-
-  /* 뭘 해야 하는지 한 줄 — 그 재료가 풀리는 웨이브에만 띄운다.
-     계속 띄우면 잔소리가 되고, 처음 보는 재료일 때가 제일 아쉽다. */
-  const curWave = w.phase === 'prep' ? Math.min(w.wave + 1, w.totalWaves) : w.wave;
-  const hint = h && itemUnlockWave(h.id) === curWave ? handHint(h) : null;
-  if (setHTML('#hand-hint', 'handHint', hint ? esc(hint) : '')) {
-    el('#hand-hint').classList.toggle('hidden', !hint);
-  }
-
-  /* 웨이브 · 타이머 */
-  const prepping = w.phase === 'prep';
-  setHTML(
-    '#wave-chip',
-    'wave',
-    prepping
-      ? '준비 중 → 웨이브 ' + Math.min(w.wave + 1, w.totalWaves)
-      : '🌊 웨이브 ' + w.wave + ' / ' + w.totalWaves,
-  );
-  el('#wave-chip').classList.toggle('prep', prepping);
-
-  const left = prepping ? (w.phaseEndsAt - t) / 1000 : 0;
-  if (
-    setHTML('#timer', 'timer', prepping ? fmt(left) : w.customers.length + w.waiting + '명 남음')
-  ) {
-    el('#timer').classList.toggle('urgent', prepping && left < 6);
-  }
-
-  /* 평판 · 점수 */
-  const rep = w.reputation;
-  if (cache.rep !== rep) {
-    cache.rep = rep;
-    const bar = el('#rep-bar');
-    bar.style.width = (rep / REPUTATION_MAX) * 100 + '%';
-    bar.classList.toggle('low', rep < 40);
-    el('#rep-num').textContent = String(rep);
-  }
-  setHTML('#score', 'score', '<b>' + w.score + '</b> 점');
-  setHTML(
-    '#stat-rolls',
-    'rolls',
-    '🍣 ' + w.servedRolls + '줄 · ⭐ ' + w.avgQuality + ' · 😋 ' + w.happy + ' · 😡 ' + w.angry,
-  );
-
-  /* 📋 주문서 — 재료는 이름으로.
-     줄은 "지금 만드는(또는 들고 있는) 김밥에 가장 잘 맞고 가장 급한" 한 명에게만 긋는다. */
-  const aimed = (P.target?.userData.station ?? null) as { kind?: string; id?: string } | null;
-  const aimedId = aimed && aimed.kind === 'customer' ? aimed.id : null;
-  const f = focusNow();
-  const have = new Set<string>(f.fills.map((x) => x.id));
-
-  const rows = w.customers
-    .filter((c) => c.state === 'wait' || c.state === 'walkin')
-    .sort((a, b) => a.deadline - b.deadline)
-    .map((c) => {
-      const secs = Math.max(0, (c.deadline - t) / 1000);
-      const pct =
-        c.state === 'walkin' ? 100 : Math.max(0, Math.min(100, (secs / c.patienceMax) * 100));
-      const cls = pct > 50 ? '' : pct > 25 ? 'warn' : 'bad';
-      const counter = c.kind === KIND.COUNTER;
-      // 🧹 남은 체력 — 빗자루로 이만큼 더 때리면 쫓겨난다
-      const hp = c.hpMax
-        ? '<span class="hp">' +
-          '♥'.repeat(c.hp) +
-          '<b>' +
-          '♥'.repeat(Math.max(0, c.hpMax - c.hp)) +
-          '</b></span>'
-        : '';
-      const isFocus = c.id === f.focusId;
-      // 줄은 이 한 명에게만 — 다른 손님 행은 재료 이름 그대로 둔다
-      const items = c.fills
-        .map(
-          (id) =>
-            '<span class="' +
-            (isFocus && have.has(id) ? 'got' : '') +
-            '">' +
-            esc(ITEMS[id].name) +
-            '</span>',
-        )
-        .join('');
-      const mark = isFocus ? ' focus' : f.outline.has(c.id) ? ' match' : '';
-      return (
-        '<li class="' +
-        (counter ? 'counter' : 'kiosk') +
-        mark +
-        (aimedId === c.id ? ' aimed' : '') +
-        '">' +
-        '<div class="top">' +
-        '<span class="who">' +
-        esc(c.emoji + ' ' + c.name) +
-        '</span>' +
-        (isFocus ? '<span class="pin">◀ 다음</span>' : '') +
-        hp +
-        '<span class="secs">' +
-        (c.state === 'walkin' ? '입장' : Math.ceil(secs) + 's') +
-        '</span>' +
-        '</div>' +
-        '<div class="items">' +
-        items +
-        '</div>' +
-        '<i class="bar"><em class="' +
-        cls +
-        '" style="width:' +
-        pct.toFixed(0) +
-        '%"></em></i>' +
-        '</li>'
-      );
-    })
-    .join('');
-
-  setHTML(
-    '#queue',
-    'queue',
-    '<h4>📋 주문서' +
-      (w.waiting ? ' <em>+' + w.waiting + '명 대기</em>' : '') +
-      '</h4>' +
-      '<ul>' +
-      (rows ||
-        '<li class="none">' +
-          (prepping ? '준비 시간 — 밥부터 안치세요' : '손님이 오는 중...') +
-          '</li>') +
-      '</ul>' +
-      '<p class="tip">손님을 조준하고 <b>E</b> 로 서빙 · 🧹 들고 <b>좌클릭</b>이면 쫓아내기</p>',
-  );
-
-  /* 우측 — 밥 상태와 다음 해금 */
-  const b = bapReady();
-  const bap = b.servings
-    ? '🍚 밥 <b>' + b.servings + '인분</b> 준비됨' + (b.cooking ? ' · 취사 중 ' + b.cooking : '')
-    : b.cooking
-      ? '🍚 취사 중... (' + b.cooking + '대)'
-      : '<b class="warn">🍚 밥솥이 비었습니다</b>';
-  const nu = w.nextUnlock;
-  setHTML(
-    '#say',
-    'say',
-    bap + (nu ? '<br />🔓 웨이브 ' + nu.wave + ' 에 <b>' + esc(nu.name) + '</b> 해금' : ''),
-  );
-
-  /* 🍣 잘라놓은 김밥을 들고 있으면 무엇이 들었는지 우측에 펼쳐준다 */
-  const held = myHand();
-  const fills = held && held.id === 'gimbap' ? held.fills || [] : null;
-  const roll = !fills
-    ? ''
-    : '<h4>🍣 내 김밥</h4><div class="fills">' +
-      (fills.length
-        ? fills
-            .map((x) => {
-              const q = x.quality == null ? 100 : x.quality;
-              return (
-                '<span class="' +
-                (q >= 90 ? '' : q >= 60 ? 'mid' : 'bad') +
-                '">' +
-                esc(ITEMS[x.id].name) +
-                '</span>'
-              );
-            })
-            .join('')
-        : '<span class="none">속재료 없이 말았습니다</span>') +
-      '</div><p class="hint">' +
-      (f.outline.size
-        ? '테두리 친 손님 <b>' + f.outline.size + '명</b>에게 맞습니다'
-        : f.focusId
-          ? '속재료가 없어 대상을 못 고릅니다'
-          : '기다리는 주문이 없습니다') +
-      '</p>';
-  if (setHTML('#roll', 'roll', roll)) el('#roll').classList.toggle('hidden', !roll);
-}
-
-/* ────────────────────────────────────────────────────────────
-   🌊 웨이브 종료 팝업 — 화면 중앙 상단에 크게 한 번 띄웠다 사라진다.
-   토스트는 우르르 쌓여서 놓치기 쉬워 웨이브가 끝난 건 따로 알린다.
-   ──────────────────────────────────────────────────────────── */
-export function wavePop(d: WaveEndPayload | null | undefined): void {
-  const box = el('#wave-pop');
-  if (!box || !d) return;
-  const done = !!d.victory;
-  const happy = d.happy || 0;
-  const angry = d.angry || 0;
-
-  const tally =
-    happy || angry
-      ? (happy ? '😊 만족 <em>' + happy + '</em>' : '') +
-        (happy && angry ? ' · ' : '') +
-        (angry ? '😡 놓침 <i>' + angry + '</i>' : '')
-      : '손님이 모두 지나갔습니다';
-
-  box.className = 'wave-pop' + (done ? ' final' : '');
-  box.innerHTML =
-    '<b>' +
-    (done ? '🎉 ' + d.wave + '웨이브 완주!' : '✅ 웨이브 ' + d.wave + ' 클리어') +
-    '</b>' +
-    '<span>' +
-    tally +
-    (done ? '' : ' · 곧 웨이브 ' + (d.wave + 1)) +
-    '</span>';
-
-  void box.offsetWidth; // 연속으로 와도 애니메이션이 다시 돌게
-  box.classList.add('show');
 }
 
 /* ──────────────── 🏆 가게 랭킹 ──────────────── */
@@ -722,10 +425,9 @@ export function initUI(): void {
     }
     if (S.state!.phase === 'lobby') renderLobby();
     route();
-    renderPause();
+    releaseLockOnPause();
   });
   on('phase', (ph) => {
-    Object.keys(cache).forEach((k) => delete cache[k]);
     if (ph === 'playing') {
       const me = S.state?.players.find((p) => p.id === S.meId);
       resetPose(me?.spawn || S.positions.find((p) => p.id === S.meId) || { x: 0, z: 6.2 });
@@ -746,7 +448,7 @@ export function initUI(): void {
       releaseLock();
     } else {
       route();
-      renderPause();
+      releaseLockOnPause();
     }
   };
   on('connection', renderConnection);

@@ -8,7 +8,7 @@
 import { preloadAssets } from '@/features/assets/assets';
 import { connect, on, S } from '@/features/net/net';
 import { applyKnockback, correctPose, initPlayer } from '@/features/player/player';
-import { initUI, route, toast, wavePop } from '@/features/ui/ui';
+import { initUI, route, toast } from '@/features/ui/ui';
 import { buildWorld } from '@/features/world/build';
 import { remoteSwing } from '@/features/world/customers';
 import { startLoop, startRenderer } from '@/features/world/renderer';
@@ -49,9 +49,6 @@ export async function boot(): Promise<void> {
   initPlayer(canvas);
   initUI();
   on('position:correct', correctPose);
-
-  // 🌊 웨이브가 끝났다 — 중앙 상단에 크게 알린다
-  on('waveEnd', wavePop);
 
   // 누가 빗자루를 휘둘렀다 — 그 사람 아바타에 모션을 재생한다
   on('swing', (d) => {
