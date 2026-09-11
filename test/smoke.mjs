@@ -547,8 +547,19 @@ ok(typeof bd.total === 'number' && bd.total >= 3, '전체 기록 수가 함께 �
 ok(bd.top[0].at && !Number.isNaN(Date.parse(bd.top[0].at)), '기록 시각이 ISO 문자열로 저장된다');
 ok(Array.isArray(bd.top[0].players) && bd.top[0].players.length >= 1, '참가자 이름이 기록된다');
 
+/* 같은 밀리초에 두 기록이 들어가면 정렬이 `at` 이 아니라 id 순으로 떨어진다
+   (복제본끼리 같은 순서를 내려고 일부러 그렇게 정했다). "먼저 세운 기록이
+   앞선다" 를 보려면 시각이 실제로 달라야 한다 — 빠른 기계에서는 두 호출이
+   같은 밀리초에 끝나서 절반쯤 실패한다. 밀리초가 넘어갈 때까지 기다린다. */
+const nextMillisecond = () => {
+  const t = Date.now();
+  while (Date.now() === t);
+};
 const tie1 = finish('동점A', 500);
+nextMillisecond();
 const tie2 = finish('동점B', 500);
+const atOf = (id) => tie2.board.top.find((r) => r.id === id)?.at;
+ok(atOf(tie1.entryId) < atOf(tie2.entryId), '두 기록의 시각이 실제로 다르다');
 ok(tie1.rank < tie2.rank, '동점이면 먼저 세운 기록이 앞선다');
 
 /* 11개를 채워 10위 밖 처리 확인 */
