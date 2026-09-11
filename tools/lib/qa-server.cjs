@@ -6,6 +6,20 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '../..');
 const TEMP_PREFIX = 'gimbap-qa-';
+
+// The deployed stack. The legacy tree survives only as a test fixture that is
+// read from disk — it is no longer served, so there is nothing else to run here.
+const SERVER_ENTRY = 'apps/server/dist/main.js';
+const CLIENT_DIST = 'apps/client/dist';
+
+// A missing build shows up as an opaque startup failure otherwise.
+async function requireBuilt() {
+  for(const rel of [SERVER_ENTRY, path.join(CLIENT_DIST,'index.html')]) {
+    try {await fs.access(path.join(ROOT,rel));}
+    catch {throw Error('QA needs a build first: missing '+rel+' — run `npm run build`');}
+  }
+}
+
 const DEFAULT_STARTUP_MS = 10000;
 const DEFAULT_SHUTDOWN_MS = 6000;
 
@@ -54,6 +68,7 @@ function waitForExit(child, timeoutMs) {
 }
 
 async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS,shutdownMs=DEFAULT_SHUTDOWN_MS}={}) {
+  await requireBuilt();
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),TEMP_PREFIX));
   let child, closing, logs='';
   async function close() {
@@ -75,8 +90,9 @@ async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS
     return closing;
   }
   try {
-    child=fork(path.join(ROOT,'server/index.mjs'),[],{cwd:ROOT,silent:true,
-      env:createTestEnvironment(folder,recoveryMs)});
+    const env=createTestEnvironment(folder,recoveryMs);
+    env.GIMBAP_PUBLIC_ROOT=path.join(ROOT,CLIENT_DIST);
+    child=fork(path.join(ROOT,SERVER_ENTRY),[],{cwd:ROOT,silent:true,env});
     const record=data=>{logs=(logs+data).slice(-8192);};
     child.stdout.on('data',record);child.stderr.on('data',record);
     const port=await waitForReady(child,startupMs,()=>logs);
@@ -87,4 +103,5 @@ async function startIsolatedServer({recoveryMs=5000,startupMs=DEFAULT_STARTUP_MS
   }
 }
 
-module.exports={createTestEnvironment,ownedTemporaryPath,waitForReady,startIsolatedServer};
+module.exports={createTestEnvironment,ownedTemporaryPath,waitForReady,startIsolatedServer,
+  requireBuilt,SERVER_ENTRY,CLIENT_DIST};

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
-import { createTestEnvironment, ownedTemporaryPath, startIsolatedServer, waitForReady } from '../tools/lib/qa-server.cjs';
+import { CLIENT_DIST, SERVER_ENTRY, createTestEnvironment, ownedTemporaryPath, startIsolatedServer, waitForReady } from '../tools/lib/qa-server.cjs';
 import { localQaUrl, loadPlaywright, waitForGameState, waitForOwnPoseSynced } from '../tools/lib/browser-qa.cjs';
 import { until } from '../tools/lib/qa-wait.cjs';
 
@@ -48,6 +48,32 @@ test('isolated server owns PORT 0, local empty storage and idempotent cleanup',a
   } finally {await server.close();await server.close();}
   await assert.rejects(fs.stat(server.folder),{code:'ENOENT'});
   assert.ok(server.child.exitCode!==null||server.child.signalCode!==null);
+});
+
+test('the QA server serves the built client, its bundle and the game assets',async()=>{
+  // Browser QA needs this before Playwright is even involved.
+  const server=await startIsolatedServer({recoveryMs:1500,startupMs:25000});
+  try {
+    const health=await fetch(server.url+'/health');
+    assert.equal(health.status,200);
+    assert.equal((await health.json()).rooms,0);
+    const page=await fetch(server.url+'/');
+    assert.equal(page.status,200);
+    const html=await page.text();
+    assert.match(html,/<div id="app">/);
+    const bundle=html.match(/src="(\/bundle\/index-\w+\.js)"/);
+    assert.ok(bundle,'built bundle is not referenced');
+    assert.equal((await fetch(server.url+bundle[1])).status,200);
+    const manifest=await fetch(server.url+'/assets/manifest.json');
+    assert.equal(manifest.status,200);
+    assert.ok(Object.keys(await manifest.json()).length>10,'asset manifest is empty');
+  } finally {await server.close();}
+});
+
+test('the QA server points at the workspace build, not the legacy tree',()=>{
+  // The legacy tree is a read-only fixture now; nothing serves it.
+  assert.equal(SERVER_ENTRY,'apps/server/dist/main.js');
+  assert.equal(CLIENT_DIST,'apps/client/dist');
 });
 
 test('browser override accepts loopback origins only and rejects embedded credentials or remote hosts',()=>{

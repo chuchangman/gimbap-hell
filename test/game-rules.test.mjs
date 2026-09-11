@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Room, nameError, NAME_MIN, NAME_MAX } from '../server/room.mjs';
-import { cleanShopName, SHOP_MAX } from '../server/leaderboard.mjs';
-import { validEvent } from '../server/protocol.mjs';
+import { Room, nameError, NAME_MIN, NAME_MAX } from '../legacy/server/room.mjs';
+import { cleanShopName, SHOP_MAX } from '../legacy/server/leaderboard.mjs';
+import { validEvent } from '../legacy/server/protocol.mjs';
 
 test('wire and internal name rules retain their intentionally different normalization', () => {
   assert.equal(NAME_MIN, 2);
@@ -42,7 +42,7 @@ test('room codes retain four case-insensitive nonambiguous letters and outer tri
 });
 
 test('shared game contract names the existing client/server limits without server secrets', async () => {
-  const rules = await import('../public/js/game-rules.js');
+  const rules = await import('../legacy/public/js/game-rules.js');
   assert.equal(rules.PLAYER_LIMIT, 6);
   assert.equal(rules.NAME_MIN, NAME_MIN);
   assert.equal(rules.NAME_MAX, NAME_MAX);

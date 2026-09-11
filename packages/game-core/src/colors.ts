@@ -1,0 +1,40 @@
+/* 속재료 색은 눈대중이 아니라 CIEDE2000 으로 벌려 놓은 값이다.
+   예전 팔레트는 햄↔맛살 ΔE 4.8, 단무지↔계란 ΔE 6.1 로 사실상 같은 색이었다.
+   지금은 최소 ΔE 13.2 — 손대기 전에 거리부터 다시 재 볼 것.
+   ※ 그래도 적록색약에서는 8종이 한 대역에 몰려 색으로는 안 갈린다.
+     실제 구분은 렌더러의 fillPiece 가 형태로 한다. */
+export const C = {
+  gim: 0x1f3a26,
+  gimEdge: 0x2c5236,
+  riceRaw: 0xefe7d2,
+  riceWashed: 0xf7f2e4,
+  bap: 0xfbf7ec,
+  danmuji: 0xf5d020,
+  danmujiCut: 0xf5d020,
+  hamRaw: 0xf3c0c2,
+  hamDone: 0xf09a9e,
+  burnt: 0x30231a,
+  spinachRaw: 0x3f8f38,
+  spinachDone: 0x1f6b3a,
+  crab: 0xf7f3ec,
+  crabRed: 0xdc3c26,
+  cucumber: 0x8cc63f,
+  cucumberSkin: 0x2b6b26,
+  eggWhite: 0xfdf6e4,
+  eggYolk: 0xf7a815,
+  carrot: 0xe2661a,
+  fishcake: 0xe8d8b8,
+  fishcakeDone: 0xa77762,
+  wood: 0xd8ad74,
+  steel: 0xb9bec4,
+  steelDark: 0x7e858c,
+  counter: 0xcfc7b0,
+  counterTop: 0xf5f0e2,
+  fridge: 0xd6e6f2,
+  fridgeIn: 0x4d5760,
+  fridgeEdge: 0xd2d9df,
+  fire: 0xff8a3d,
+  water: 0x74c0e8,
+  broomStick: 0xb98b46,
+  broomHead: 0xd9b45a,
+} as const;

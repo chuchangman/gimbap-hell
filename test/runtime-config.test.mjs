@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 test('runtime config preserves PORT conversion including zero, empty string, and invalid bounds', async () => {
-  const { loadRuntimeConfig } = await import('../server/runtime-config.mjs');
+  const { loadRuntimeConfig } = await import('../legacy/server/runtime-config.mjs');
   for (const [env, expected] of [[{}, 3211], [{ PORT: '0' }, 0], [{ PORT: '' }, 0],
     [{ PORT: '65535' }, 65535], [{ PORT: '  4321 ' }, 4321], [{ PORT: '0xC8' }, 200]])
     assert.equal(loadRuntimeConfig(env).port, expected);
@@ -11,7 +11,7 @@ test('runtime config preserves PORT conversion including zero, empty string, and
 });
 
 test('recovery config preserves Number-or-default followed by one to sixty second clamp', async () => {
-  const { loadRuntimeConfig } = await import('../server/runtime-config.mjs');
+  const { loadRuntimeConfig } = await import('../legacy/server/runtime-config.mjs');
   for (const [value, expected] of [[undefined, 30000], ['', 30000], ['0', 30000], ['NaN', 30000],
     ['-1', 1000], ['100', 1000], ['1500.5', 1500.5], ['45000', 45000], ['99999', 60000],
     ['Infinity', 60000], ['-Infinity', 1000]])
@@ -19,7 +19,7 @@ test('recovery config preserves Number-or-default followed by one to sixty secon
 });
 
 test('server operational defaults remain unchanged and injected environment does not mutate', async () => {
-  const { loadRuntimeConfig } = await import('../server/runtime-config.mjs');
+  const { loadRuntimeConfig } = await import('../legacy/server/runtime-config.mjs');
   const env = Object.freeze({ PORT: '0', GIMBAP_ALLOWED_ORIGINS: 'https://example.invalid' });
   const config = loadRuntimeConfig(env);
   assert.equal(config.maxRooms, 64);
@@ -37,8 +37,8 @@ test('server operational defaults remain unchanged and injected environment does
 });
 
 test('ranking policy keeps capped exponential retry semantics and the same JS and Redis limit', async () => {
-  const { RANKING_POLICY, rankingRetryDelay } = await import('../server/ranking-policy.mjs');
-  const { mergeRankings, MERGE_RANKINGS_LUA } = await import('../server/ranking-store.mjs');
+  const { RANKING_POLICY, rankingRetryDelay } = await import('../legacy/server/ranking-policy.mjs');
+  const { mergeRankings, MERGE_RANKINGS_LUA } = await import('../legacy/server/ranking-store.mjs');
   assert.equal(RANKING_POLICY.maxEntries, 200);
   assert.equal(RANKING_POLICY.timeoutMs, 3000);
   assert.equal(RANKING_POLICY.retryMs, 1000);

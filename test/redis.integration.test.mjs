@@ -10,7 +10,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {createRankingStore,MERGE_RANKINGS_LUA} from '../server/ranking-store.mjs';
+import {createRankingStore,MERGE_RANKINGS_LUA} from '../legacy/server/ranking-store.mjs';
 
 let container,port,bridge,url,folder;
 let failRequests=false;

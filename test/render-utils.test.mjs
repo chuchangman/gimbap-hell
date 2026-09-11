@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CAMERA_VIEW,PLAYER_INPUT,CHARACTER_MOTION} from '../public/js/render-config.js';
-import {collectTintTargets,applyBurnTint} from '../public/js/render-utils.js';
+import {CAMERA_VIEW,PLAYER_INPUT,CHARACTER_MOTION} from '../legacy/public/js/render-config.js';
+import {collectTintTargets,applyBurnTint} from '../legacy/public/js/render-utils.js';
 
 test('shared visual constants retain the existing camera, input and swing timing',()=>{
   assert.deepEqual(CAMERA_VIEW,{fov:72,near:.05,far:140});

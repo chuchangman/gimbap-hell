@@ -36,10 +36,10 @@ const fs = require('node:fs');
   }
   await page.setViewportSize({width:1440,height:1100});
   // Use a dedicated WebGL canvas; no changes to the game state or other players.
-  const inspection=await page.evaluate(async()=>{
-    const THREE=await import('/vendor/three.module.min.js');
-    const W=await import('/js/world.js');
-    const C=await import('/js/config.js');
+  const inspection=await page.evaluate(()=>{
+    // Use the debug hook, not module paths: the bundled client has no /js/world.js.
+    const {THREE,...P}=window.GB.preview;
+    const W=P, C=P;
     const canvas=document.createElement('canvas');
     canvas.id='qa-character-gallery'; canvas.style='position:fixed;inset:0;z-index:10000;width:100vw;height:100vh'; document.body.append(canvas);
     const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setSize(1440,1100);renderer.setClearColor(0xd9d0bf);
@@ -147,13 +147,13 @@ const fs = require('node:fs');
     return {headColor:b.head.material.color.getHexString(),sleeve:b.arms[0].children.some(o=>o.name==='sleeveL'),pant:b.legs[0].children.some(o=>o.name==='trouserL')};
   });
   if(remote.headColor!=='81583f'||!remote.sleeve||!remote.pant) throw Error('Remote asset appearance: '+JSON.stringify(remote));
-  await guest.evaluate(async()=>{
+  await guest.evaluate(()=>{
     const g=window.GB;g.player.enabled=false;
     const av=g.scene.children.find(o=>o.userData.limbs);
     const direction=av.position.clone().set(0,0,1).applyQuaternion(av.quaternion);
     // Independent camera observes the actual remote avatar in the live game scene.
     // The normal first-person controller must not overwrite this inspection view.
-    const THREE=await import('/vendor/three.module.min.js');
+    const {THREE}=g.preview;
     const camera=g.camera.clone(); camera.position.copy(av.position).addScaledVector(direction,3.5);
     camera.position.x+=.6;camera.position.y=1.5;
     camera.lookAt(av.position.x,1.25,av.position.z);

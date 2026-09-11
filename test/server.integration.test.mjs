@@ -53,7 +53,7 @@ async function walk(s,points) {
 
 before(async()=>{
   folder=await fs.mkdtemp(path.join(os.tmpdir(),'gimbap-protocol-'));
-  child=fork(new URL('../server/index.mjs',import.meta.url),[],{silent:true,env:{...process.env,
+  child=fork(new URL('../legacy/server/index.mjs',import.meta.url),[],{silent:true,env:{...process.env,
     PORT:'0',NODE_ENV:'test',GIMBAP_RECOVERY_MS:'1500',GIMBAP_LEADERBOARD:path.join(folder,'leaderboard.json'),
     UPSTASH_REDIS_REST_URL:'',UPSTASH_REDIS_REST_TOKEN:'',GIMBAP_ALLOWED_ORIGINS:''}});
   child.stdout.on('data',d=>{logs+=d;});child.stderr.on('data',d=>{logs+=d;});
@@ -89,8 +89,9 @@ test('static asset responses have bounded caching, compression, MIME and script 
   assert.equal((await request('/js/world.js',{'If-None-Match':first.headers.etag})).status,304);
   const zipped=await request('/js/world.js',{'Accept-Encoding':'gzip'});
   assert.equal(zipped.headers['content-encoding'],'gzip');assert.ok(zipped.body.length<first.body.length/2);
-  assert.equal((await request('/assets/char/base.glb')).headers['content-type'],'model/gltf-binary');
-  const head=await request('/assets/char/base.glb',{},'HEAD');assert.equal(head.body.length,0);assert.ok(Number(head.headers['content-length'])>0);
+  // GLB MIME is checked by apps/server/src/static.client.spec.ts: the game assets
+  // now live in apps/client/public/assets, not in the legacy tree served here.
+  const head=await request('/js/world.js',{},'HEAD');assert.equal(head.body.length,0);assert.ok(Number(head.headers['content-length'])>0);
   assert.equal((await request('/ready')).status,200);
 });
 

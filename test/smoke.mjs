@@ -9,7 +9,7 @@ import {
   matchScore, servedQuality, grumbleFor, scaleCount,
   CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
   samplePath, shortestTurn, NET, PARTS, PART_COLORS, DEFAULT_LOOK, sanitizeLook, lookFromSeed
-} from '../public/js/config.js';
+} from '@repo/game-core';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,10 +19,30 @@ import fs from 'node:fs';
 process.env.GIMBAP_LEADERBOARD =
   path.join(os.tmpdir(), 'gimbap-test-lb-' + Date.now() + '.json');
 
-import { Room, nameError, NAME_MIN, NAME_MAX } from '../server/room.mjs';
-import { Kitchen } from '../server/kitchen.mjs';
-import { WaveRunner } from '../server/waves.mjs';
-import * as leaderboard from '../server/leaderboard.mjs';
+/* 여기만 절대적 기대값을 쓴다 — 나머지 검사는 전부 레거시와의 대조라,
+   레거시에 버그가 있으면 이식본도 같이 통과한다. 그래서 이 파일은
+   레거시가 아니라 **새 스택**을 겨눈다. 같은 이름을 내보내므로 import 만
+   바꾸면 되고, 랭킹만 Nest 서비스라 ConfigService 자리를 채워 준다. */
+import { Room as RoomCore, nameError, NAME_MIN, NAME_MAX } from '../apps/server/dist/domain/room.js';
+import { Kitchen } from '../apps/server/dist/domain/kitchen.js';
+import { WaveRunner } from '../apps/server/dist/domain/waves.js';
+import { LeaderboardService } from '../apps/server/dist/modules/leaderboard/leaderboard.service.js';
+import { maskShop, SHOP_MAX } from '../apps/server/dist/modules/leaderboard/leaderboard.util.js';
+import { loadRuntimeConfig } from '../apps/server/dist/config/runtime.config.js';
+
+/* 서비스는 생성자에서 설정을 읽는다 — 위에서 임시 경로를 정한 뒤에 만든다 */
+const leaderboard = Object.assign(
+  new LeaderboardService({ getOrThrow: () => loadRuntimeConfig(process.env) }),
+  { maskShop, SHOP_MAX },
+);
+
+/* 레거시 Room 은 랭킹 모듈을 직접 import 했고, 새 Room 은 주입받는다.
+   이 파일의 호출부는 그대로 두려고 여기서만 묶어 준다. */
+class Room extends RoomCore {
+  constructor(code, shopName) {
+    super(code, shopName, leaderboard);
+  }
+}
 
 let pass = 0, fail = 0;
 const failed = [];
@@ -39,7 +59,8 @@ const done = (id, q) => ({ id, quality: q === undefined ? 100 : q });
 /* ═════════════════════════════════════════════ */
 head('[L] 모듈형 캐릭터 GLB');
 
-const assetRoot = path.resolve('public/assets');
+// 게임 에셋은 클라이언트의 publicDir 에 있다 (빌드하면 dist/assets 로 복사된다)
+const assetRoot = path.resolve('apps/client/public/assets');
 const manifest = JSON.parse(fs.readFileSync(path.join(assetRoot, 'manifest.json'), 'utf8'));
 const characterAssets = [
   'char/base',
@@ -61,7 +82,7 @@ const baseGltf = JSON.parse(baseGlb.toString('utf8', 20, 20 + baseJsonLength));
 const baseNodeNames = new Set((baseGltf.nodes || []).map((node) => node.name));
 ok(baseNodeNames.has('baseTop') && baseNodeNames.has('baseBottom') && !baseNodeNames.has('baseClothes'),
   '베이스 GLB 안에서 상의와 하의 메시가 각각 분리됐다');
-const worldSource = fs.readFileSync(path.resolve('public/js/world.js'), 'utf8');
+const worldSource = fs.readFileSync(path.resolve('legacy/public/js/world.js'), 'utf8');
 ok(worldSource.includes('legRest: legs.map') && worldSource.includes('quaternion.copy(rest)'),
   'GLB 다리 뼈의 기본 축 회전을 보존한 채 걷기 각도를 더한다');
 const readGlb = (name) => {
@@ -526,8 +547,19 @@ ok(typeof bd.total === 'number' && bd.total >= 3, '전체 기록 수가 함께 �
 ok(bd.top[0].at && !Number.isNaN(Date.parse(bd.top[0].at)), '기록 시각이 ISO 문자열로 저장된다');
 ok(Array.isArray(bd.top[0].players) && bd.top[0].players.length >= 1, '참가자 이름이 기록된다');
 
+/* 같은 밀리초에 두 기록이 들어가면 정렬이 `at` 이 아니라 id 순으로 떨어진다
+   (복제본끼리 같은 순서를 내려고 일부러 그렇게 정했다). "먼저 세운 기록이
+   앞선다" 를 보려면 시각이 실제로 달라야 한다 — 빠른 기계에서는 두 호출이
+   같은 밀리초에 끝나서 절반쯤 실패한다. 밀리초가 넘어갈 때까지 기다린다. */
+const nextMillisecond = () => {
+  const t = Date.now();
+  while (Date.now() === t);
+};
 const tie1 = finish('동점A', 500);
+nextMillisecond();
 const tie2 = finish('동점B', 500);
+const atOf = (id) => tie2.board.top.find((r) => r.id === id)?.at;
+ok(atOf(tie1.entryId) < atOf(tie2.entryId), '두 기록의 시각이 실제로 다르다');
 ok(tie1.rank < tie2.rank, '동점이면 먼저 세운 기록이 앞선다');
 
 /* 11개를 채워 10위 밖 처리 확인 */
