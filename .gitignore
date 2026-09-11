@@ -25,3 +25,6 @@ __pycache__/
 dist/
 .turbo/
 *.tsbuildinfo
+
+# 스모크 스크린샷
+artifacts/

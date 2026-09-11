@@ -35,6 +35,7 @@
 | `raw/*`, `item/*` | 물건 한가운데             |
 | `char/*`          | **발바닥 한가운데 (y=0)** |
 | `station/*`       | **바닥 한가운데 (y=0)**   |
+| `hand/*`          | **손바닥 한가운데**       |
 
 원점이 틀리면 물건이 바닥에 파묻히거나 공중에 뜹니다.
 
@@ -104,6 +105,15 @@ Blender 라면 각 부품의 오리진을 관절 위치로 옮겨주세요.
 | `item/knife`     | 파일 전체 | 도마에서 써는 동안 좌우로 움직임 |
 | `station/pot`    | `water`   | 끓을 때 y 배율로 출렁임          |
 | `item/rice`      | `water`   | 씻을 때 보였다 안 보였다         |
+
+### 1인칭 손
+
+`hand/fps-right`는 `hand/fps-right-realistic.glb`를 불러옵니다.
+손목 중심이 원점이며 손가락 +y, 손등 +z, 미터 단위입니다.
+필수 노드는 `RightHand_Skin`, `Cuff`, `Sleeve`입니다. 스킨은 하나로 이어진
+인체 메시이며 사용자 손등 사진 기반 2K 텍스처와 normal map을 사용합니다.
+`Open` / `Grip` morph target으로 포즈를 바꾸며 물건을 들면 쥐는 포즈로 보간합니다.
+편집 원본, 재생성 방법, CC0 에셋 출처와 한계는 `tools/REALISTIC-HAND.md`를 보세요.
 
 ## 파일로 대체할 수 없는 것
 
