@@ -153,10 +153,6 @@ export function initPlayer(canvas: HTMLCanvasElement): void {
 export function releaseLock() {
   if (document.pointerLockElement) document.exitPointerLock();
 }
-export function isLocked() {
-  return locked;
-}
-
 const hasBroom = () => {
   const h = myHand();
   return !!h && h.id === 'broom';

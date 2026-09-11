@@ -99,7 +99,6 @@ export function boardInfo(i: number) {
 
 /* 내가 마지막으로 손댄 조립대 — 주문서 취소선의 기준이 된다 */
 let lastMat = 0;
-export const activeMatIndex = () => lastMat;
 export function activeMat() {
   const m = matAt(lastMat);
   if (m && (m.gim || m.bap || m.fills.length || m.rolling)) return m;

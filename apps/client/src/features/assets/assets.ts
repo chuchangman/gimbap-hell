@@ -142,11 +142,6 @@ export async function preloadAssets(): Promise<void> {
   }
 }
 
-/** 이 이름의 모델이 준비돼 있나 */
-export function hasAsset(name: string): boolean {
-  return models.has(name);
-}
-
 /**
  * 모델이 있으면 그 사본을, 없으면 build() 가 만든 것을 돌려준다.
  * 사본을 주는 이유 — 같은 재료가 화면에 여러 개 나오는데 원본을 그대로 주면
@@ -166,15 +161,4 @@ export function asset(name: string, build: () => THREE.Object3D): THREE.Object3D
  *  레거시의 `asset(name, () => null)` 관용구를 그대로 옮긴 것이다. */
 export function assetOrNull(name: string): THREE.Object3D | null {
   return models.has(name) ? asset(name, () => new THREE.Object3D()) : null;
-}
-
-/** 지금 코드 대신 모델을 쓰고 있는 이름들 (확인용) */
-export function loadedAssets(): string[] {
-  return loadedNames.slice();
-}
-
-/** 테스트 전용 — 불러온 모델을 비운다 */
-export function __resetAssets(): void {
-  models.clear();
-  loadedNames.length = 0;
 }

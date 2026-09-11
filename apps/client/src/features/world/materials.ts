@@ -90,8 +90,3 @@ export function tintAssetMaterials<T extends THREE.Object3D>(
 export function m1(o: THREE.Object3D): THREE.MeshLambertMaterial {
   return (o as THREE.Mesh).material as THREE.MeshLambertMaterial;
 }
-
-/** 테스트 전용 — 재질 캐시를 비운다 */
-export function __resetMaterialCache(): void {
-  matCache.clear();
-}

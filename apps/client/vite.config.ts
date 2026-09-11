@@ -12,6 +12,13 @@ export default defineConfig({
   build: {
     /* 기본값 'assets' 를 쓰면 publicDir 의 게임 에셋과 같은 폴더에 섞인다 */
     assetsDir: 'bundle',
+    rollupOptions: {
+      output: {
+        /* three.js 는 번들의 대부분이고 거의 안 바뀐다. 앱 코드와 갈라 두면
+           게임을 고쳐 배포해도 브라우저가 three 청크는 캐시에서 쓴다. */
+        manualChunks: (id) => (id.includes('node_modules/three') ? 'three' : undefined),
+      },
+    },
   },
   resolve: {
     alias: [{ find: '@', replacement: path.resolve(import.meta.dirname, './src') }],

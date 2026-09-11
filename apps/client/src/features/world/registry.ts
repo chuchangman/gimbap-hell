@@ -141,26 +141,5 @@ export const D: Registry = {
   handKey: null,
 };
 
-/** 테스트 전용 — 다시 지을 수 있게 비운다 */
-export function __resetRegistry(): void {
-  D.burners.length = 0;
-  D.boards.length = 0;
-  D.mats.length = 0;
-  D.brooms.length = 0;
-  D.cookers.length = 0;
-  D.fridge.length = 0;
-  D.sink = null;
-  D.outside.cars.length = 0;
-  D.outside.people.length = 0;
-  D.customers.clear();
-  D.remotes.clear();
-  D.hand = null;
-  D.handBase = null;
-  D.handKey = null;
-  delete D.arm;
-  delete D.armBase;
-  delete D.armSpeed;
-}
-
 /** Panel 을 담는 자리 — 설비마다 하나씩 */
 export type StationPanel = Panel;

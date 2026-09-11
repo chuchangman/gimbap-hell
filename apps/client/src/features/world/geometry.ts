@@ -133,9 +133,3 @@ export function sharedGeo(key: string, make: () => THREE.BufferGeometry): THREE.
   }
   return g;
 }
-
-/** 테스트 전용 — 캐시와 한 번 구한 껍질 연결을 비운다 */
-export function __resetGeometryCache(): void {
-  geoCache.clear();
-  bevelIndex = null;
-}
