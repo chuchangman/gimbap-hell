@@ -334,7 +334,21 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
 - [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
       CSS 는 Tailwind 로 다시 쓰지 않고 `style.css` 618줄을 그대로 옮긴다 —
       참고 프로젝트는 Tailwind 지만, 다시 쓰면 화면이 미묘하게 달라진다.
-- [ ] `features/customize` — 캐릭터 커스터마이즈 (`customize.js`)
+- [x] `features/customize` — `customize.js` 이식 (입장 화면 캐릭터 꾸미기).
+      `ui.js` 가 이 모듈을 의존해서 `ui` 보다 먼저 옮겼다.
+      3D 미리보기는 명령형 three 코드 그대로 둔다 — R3F 로 다시 짜면
+      `fitPreview` 의 카메라 맞춤이 미묘하게 달라져 고른 모습과 실제가 어긋난다.
+      DOM 은 5단계에서 React 가 그리고, 이 모듈이 그 위에 값을 칠한다.
+      검증은 **레거시 `index.html` 의 `.customize` 마크업을 그대로 읽어** 심고
+      같은 조작 22단계(화살표 · 색 견본 5줄 · 회전/걷기/정면 · 드래그 ·
+      ←→ 키 · 기본 조합 · 게 후드 · 랜덤)를 두 구현에 차례로 먹인 뒤,
+      단계마다 **렌더러에 넘어온 씬을 정점까지** · 카메라 투영행렬 ·
+      칠해진 DOM · `currentLook()` · `localStorage` 저장값을 대조한다.
+      랜덤 조합은 씨앗이 같은 LCG 를 양쪽에 물려 **난수 소비 순서까지** 본다.
+      저장값 되살리기 4종(정상 · 범위 초과 · 빈 객체 · 깨진 JSON)과
+      WebGL 실패 시 미리보기만 접는 경로도 함께 고정했다. 10개 통과.
+      (돌연변이 4종 — 카메라 여백 · 드래그 감도 · 받침 두께 · 기본 yaw —
+      을 심어 테스트가 실제로 잡는지 확인했다.)
 - [x] `features/assets` — `assets.js` 이식. import 경로만 바뀐다
       (동봉 vendor 사본 → `three` 패키지). `CONTRACT` 60여 항목·숫자 200개를
       레거시와 deep-equal 로 대조해 고정했다 — 손으로 옮기면 반드시 한둘 틀린다.
@@ -356,19 +370,20 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-10 17:50 중단)
+## 다음 세션 시작점 (2026-09-11 09:20)
 
-브랜치 `refactor/fe-be-split`, 커밋 9개, **푸시 안 함**. 워킹 트리 깨끗.
-중단 시점 검증: 레거시 58 + 동등성 12 + 서버 65 + 클라이언트 9 = **144개 통과**,
-build · typecheck · lint · prettier 전부 통과.
+브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
+현재 검증: 레거시 58 + 동등성 12 + 서버 65 + 클라이언트 74 = **209개 통과**,
+build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레거시 문서
+6개(`README.md` · `render.yaml` · `docs/*` · `ci.yml`)가 예전부터 안 맞는다 —
+5단계에서 한 번에 정리한다. 워크스페이스 코드는 전부 맞는다.
 
 ### 다시 시작하는 방법
 
 ```bash
 git switch refactor/fe-be-split
 npm install              # 워크스페이스 링크 (이미 되어 있으면 빨리 끝난다)
-npm test                 # 레거시 58 + 동등성 12
-npm run test:workspaces  # 서버 65 + 클라이언트 9 (turbo)
+npm run verify           # 레거시 58 + 동등성 12, 그리고 서버 65 + 클라이언트 74
 ```
 
 새 서버로 게임을 직접 띄워 보려면:
@@ -379,20 +394,36 @@ node apps/server/dist/main.js     # 저장소 루트에서 띄워야 data/·publ
 # → http://localhost:3211 에서 레거시 클라이언트가 새 백엔드로 돌아간다
 ```
 
-### 바로 다음에 할 일 — 4단계 두 번째 슬라이스
+### 바로 다음에 할 일 — 4단계 마지막 슬라이스 `features/ui`
 
-1. `features/assets` — `public/js/assets.js` (211줄) 이식.
-   GLB 매니페스트 로딩과 `asset()` · `partOf()` 조회. 에셋 161개가
-   `public/assets/manifest.json` 에 등록되어 있고 56개 항목의 파일 존재는
-   이미 확인된 상태다.
-2. `features/world` — `public/js/world.js` (2,975줄). 가장 큰 덩어리다.
-   충실한 이식(A)이므로 명령형 조형 코드를 `useMemo` 로 한 번 만들고
-   `<primitive object={...} />` 로 붙이는 방식이 기본이다.
-   덩어리별로 나눠 커밋할 것: 주방 설비 → 캐릭터/표정 → 재료/음식 → 손님.
+`ui.js` 522줄 + `index.html` 298줄 + `style.css` 618줄 = 1,438줄.
+지금까지와 성격이 다르다 — 3D 가 아니라 **DOM 과 CSS** 를 옮기는데,
+화면이 그대로여야 하므로 "렌더된 DOM 트리 비교" 를 새로 잡아야 한다.
+
+계획:
+
+1. `style.css` 618줄은 **그대로 복사**한다. Tailwind 로 다시 쓰지 않는다 —
+   참고 프로젝트(`~/Desktop/S15P21M101/web`)는 Tailwind 지만, 다시 쓰면
+   화면이 미묘하게 달라진다. 발표용이라 픽셀이 같아야 한다.
+2. `index.html` 의 화면 뼈대(입장 · 로비 · HUD · 일시정지 · 도움말 · 결과)를
+   **같은 id·class 로** React 컴포넌트에 옮긴다. `ui.js` 가 `$('#hud')` 처럼
+   id 로 직접 잡으므로 id 가 하나라도 어긋나면 조용히 죽는다.
+3. `ui.js` 는 지금까지처럼 명령형 그대로 `features/ui/ui.ts` 로 옮긴다.
+   `customize` 와 같은 구도다 — React 가 뼈대를 그리고, 이 모듈이 칠한다.
+4. 검증: 레거시(`index.html` body + `ui.js`) 와 새 스택(React 뼈대 + `ui.ts`)에
+   **같은 상태 스냅샷을 먹이고 `innerHTML` 을 통째로 비교**한다.
+   두 구현이 같은 element id 를 잡으므로 **차례로** 돌린다 —
+   `customize.spec.ts` 의 `runTrace` 구조를 그대로 쓰면 된다.
+5. 1,438줄이라 두 커밋으로 나눌 것: (a) 화면 뼈대 + CSS + `toast`/`showScreen`/
+   `route`/`toggleHelp`, (b) `renderLobby`/`renderHUD`/`wavePop`/
+   `loadLobbyBoard`/`renderResult`.
+
+`ui` 가 끝나면 4단계가 끝나고 5단계(브라우저 QA · CI 잡 · Render 설정 ·
+레거시 제거)만 남는다.
 
 ### 남은 순서
 
-`assets` → `world` → `player` → `kitchen` → `ui` → `customize` → 5단계
+`assets` → `world` → `player` → `kitchen` → `customize` → **`ui`** → 5단계
 (브라우저 QA · CI 잡 추가 · Render 설정 · 레거시 제거).
 
 ### 잊지 말 것
@@ -403,5 +434,8 @@ node apps/server/dist/main.js     # 저장소 루트에서 띄워야 data/·publ
   의존하는 표면" 이다. 5단계에서 이 파일이 비면 이식이 끝난 것이다.
 - Node 는 `>=22.12.0` 로 올려 뒀지만 `render.yaml` 은 아직 `20.20.2` 다.
   CI 워크플로도 node 20 이다. 5단계에서 함께 올린다.
+- `apps/client/vite.config.ts` 의 `server.fs.allow` 와 `test.alias`,
+  `src/testing/legacy-modules.d.ts` 도 레거시를 읽으려고 둔 것이다.
+  5단계에서 레거시가 사라질 때 함께 지운다.
 - 랭킹 파일 경로: 레거시는 모듈 위치 기준, 새 서버는 **cwd 기준**이다.
   저장소 루트에서 띄우면 같은 파일이고, 시작 로그에 실제 경로를 찍는다.

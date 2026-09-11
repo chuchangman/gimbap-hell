@@ -41,6 +41,12 @@ declare module '@legacy/world.js' {
   export function stats(): Record<string, number> | null;
 }
 
+declare module '@legacy/customize.js' {
+  export function initCustomizer(): void;
+  export function currentLook(): Record<string, number>;
+  export function stopCustomizer(): void;
+}
+
 declare module '@legacy/net.js' {
   /** 레거시 net.js 의 공유 상태. 동등성 테스트가 여기에 같은 스냅샷을 심는다. */
   export const S: Record<string, unknown>;
