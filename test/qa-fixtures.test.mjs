@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
-import { createTestEnvironment, ownedTemporaryPath, startIsolatedServer, waitForReady } from '../tools/lib/qa-server.cjs';
+import { createTestEnvironment, ownedTemporaryPath, requestedStack, startIsolatedServer, stackTarget, waitForReady } from '../tools/lib/qa-server.cjs';
 import { localQaUrl, loadPlaywright, waitForGameState, waitForOwnPoseSynced } from '../tools/lib/browser-qa.cjs';
 import { until } from '../tools/lib/qa-wait.cjs';
 
@@ -48,6 +48,39 @@ test('isolated server owns PORT 0, local empty storage and idempotent cleanup',a
   } finally {await server.close();await server.close();}
   await assert.rejects(fs.stat(server.folder),{code:'ENOENT'});
   assert.ok(server.child.exitCode!==null||server.child.signalCode!==null);
+});
+
+test('the QA fixture can drive the workspace split and serves the built client',async()=>{
+  // Browser QA needs this before Playwright is even involved: the new server
+  // has to hand out the Vite build, its bundle and the game assets.
+  const server=await startIsolatedServer({recoveryMs:1500,stack:'next',startupMs:25000});
+  try {
+    const health=await fetch(server.url+'/health');
+    assert.equal(health.status,200);
+    assert.equal((await health.json()).rooms,0);
+    const page=await fetch(server.url+'/');
+    assert.equal(page.status,200);
+    const html=await page.text();
+    assert.match(html,/<div id="app">/);
+    const bundle=html.match(/src="(\/bundle\/index-\w+\.js)"/);
+    assert.ok(bundle,'built bundle is not referenced');
+    assert.equal((await fetch(server.url+bundle[1])).status,200);
+    const manifest=await fetch(server.url+'/assets/manifest.json');
+    assert.equal(manifest.status,200);
+    assert.ok(Object.keys(await manifest.json()).length>10,'asset manifest is empty');
+  } finally {await server.close();}
+});
+
+test('the stack is chosen by flag first, then environment, then legacy',()=>{
+  assert.equal(requestedStack({},[ 'node','tool' ]),'legacy');
+  assert.equal(requestedStack({QA_STACK:'next'},['node','tool']),'next');
+  // The flag wins so package.json scripts work on Windows cmd.exe too
+  assert.equal(requestedStack({QA_STACK:'legacy'},['node','tool','--stack=next']),'next');
+});
+
+test('an unknown QA stack name is refused before anything is started',()=>{
+  assert.throws(()=>stackTarget('production'),/Unknown QA stack/);
+  for(const name of ['legacy','next']) assert.ok(stackTarget(name).entry);
 });
 
 test('browser override accepts loopback origins only and rejects embedded credentials or remote hosts',()=>{

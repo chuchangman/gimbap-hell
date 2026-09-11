@@ -412,7 +412,36 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       순서도 함께 고정했다. 20개 통과.
 
 ### 5. 동등성 검증과 마무리 — `상태: 진행 중`
-- [ ] 브라우저 QA (`tools/release-browser-qa.cjs`) 를 새 스택 기준으로 통과
+- [x] **브라우저 QA 를 새 스택 기준으로 통과** — `npm run qa:browser:next` ·
+      `npm run qa:character:next` 가 레거시와 나란히 PASS 한다.
+      QA 픽스처(`tools/lib/qa-server.cjs`)에 스택 선택을 넣었다 —
+      `--stack=next` 플래그(윈도우 npm 스크립트용) 또는 `QA_STACK` 환경변수.
+      새 스택은 `apps/server/dist/main.js` 를 띄우고
+      `GIMBAP_PUBLIC_ROOT=apps/client/dist` 로 Vite 빌드를 서빙한다.
+      빌드가 없으면 기동 실패 대신 "빌드부터 하라" 고 먼저 알려 준다.
+  - [x] **에셋 경로 분리** — Vite 산출물을 `dist/bundle/` 로 보내고
+        게임 GLB 166개는 `dist/assets/` 로 복사한다(`vite.config.ts` 의
+        `copyGameAssets`). 기본값 `assets` 를 쓰면 둘이 한 폴더에 섞인다.
+  - [x] **서빙 검사**(`apps/server/src/static.client.spec.ts`, 6개) — 브라우저
+        없이 확인 가능한 것 전부: index.html · 번들 · CSS · `/assets/manifest.json` ·
+        실제 GLB · 컨트롤러 경로 · 404/디렉터리 탈출. CSP 는 브라우저에서만
+        터지므로 index.html 이 부르는 자원을 전부 훑어 같은 출처인지, 인라인
+        `<script>`·`<style>` 이 없는지 본다. (`@repo/server` 가 `@repo/client` 를
+        devDependency 로 잡는다 — 서버가 클라이언트 빌드를 서빙하니 turbo 가
+        순서를 알아야 한다.)
+  - [x] **찾은 버그 1: 카메라 종횡비** — R3F 에 크기를 맡기면
+        `canvas.parentElement`(`#app`)를 재는데 그 안이 전부 `position: fixed`
+        라 높이가 0 이다. `camera.aspect` 가 Infinity 가 되어 투영행렬이 깨지고
+        **화면은 멀쩡한데 조준(레이캐스트)이 통째로 죽었다.** 브라우저 QA 가
+        냉장고를 못 집고 멈춰서 드러났다. 레거시 `resize()` 처럼 창 크기를
+        직접 주고, 창 크기가 바뀌면 `setSize` 로 따라가게 고쳤다.
+        회귀 테스트를 붙였다(`renderer.spec.ts` — 높이 0 인 부모를 흉내 낸다).
+  - [x] **찾은 버그 2: QA 도구가 모듈 경로에 묶여 있었다** — 도구가
+        `/js/net.js` · `/vendor/three.module.min.js` · `/js/world.js` 를 직접
+        import 했다. 번들러가 붙으면 그런 경로가 없다. `window.GB` 에 `emit` 과
+        `preview`(THREE · previewBody · animatePreviewBody · disposePreviewBody ·
+        PARTS · DEFAULT_LOOK)를 **양쪽 스택에 대칭으로** 내보내고 도구가 그걸
+        쓰게 했다. 레거시 기준선도 그대로 PASS 한다.
 - [ ] 새 스택 + 레거시 동시 실행 비교 (같은 방, 같은 조작, 같은 결과)
 - [ ] CI 워크플로에 워크스페이스 잡 추가
 - [ ] Render 배포 설정 갱신 (빌드: 클라이언트 build → 서버 build)
@@ -426,60 +455,61 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-11 10:50)
+## 다음 세션 시작점 (2026-09-11 11:30)
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-현재 검증: 레거시 58 + 동등성 13 + 서버 65 + 클라이언트 97 = **233개 통과**,
+현재 검증: 레거시 58 + 동등성 16 + 서버 71 + 클라이언트 98 = **243개 통과**,
 build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레거시 문서
-6개(`README.md` · `render.yaml` · `docs/*` · `ci.yml`)가 예전부터 안 맞는다 —
-5단계에서 한 번에 정리한다. 워크스페이스 코드는 전부 맞는다.
+6개가 예전부터 안 맞는다 — 5단계 마지막에 한 번에 정리한다.
 
-**4단계가 끝났다.** 이제 `apps/client` 만으로 게임이 선다(브라우저에서 아직
-직접 확인하지 않았다 — 그게 5단계 첫 항목이다).
+**브라우저 QA 가 새 스택에서 PASS 한다.** 실제 Chrome 으로 두 창을 열어
+방 만들기 → 입장 → 시작 → 걷기 → 조준 → 집기 → 연결 끊김 복구 → 세션 만료 →
+재입장까지 훑는다. 캐릭터 QA 도 조합 162개를 통과한다.
 
 ### 다시 시작하는 방법
 
 ```bash
 git switch refactor/fe-be-split
 npm install
-npm run verify           # 레거시 58 + 동등성 13, 그리고 서버 65 + 클라이언트 97
+npm run verify            # 레거시 58 + 동등성 16, 그리고 서버 71 + 클라이언트 98
+npm run build             # 브라우저 QA 는 빌드 산출물을 서빙한다
+npm run qa:browser:next   # 새 스택 (레거시는 npm run qa:browser)
+npm run qa:character:next
 ```
 
-새 스택을 통째로 띄워 보려면 (터미널 둘):
+새 스택을 직접 띄워 보려면:
 
 ```bash
-npm run build --workspace=@repo/server
-node apps/server/dist/main.js          # 저장소 루트에서 — data/ 와 public/ 이 맞아야 한다
-npm run dev --workspace=@repo/client   # 소켓·API 는 3211 로 넘어간다
+npm run build
+node apps/server/dist/main.js   # 저장소 루트에서. GIMBAP_PUBLIC_ROOT 없이 띄우면 레거시 public/ 을 본다
+# 새 클라이언트를 보려면 (PowerShell) $env:GIMBAP_PUBLIC_ROOT="apps/client/dist"
 ```
 
-### 바로 다음에 할 일 — 5단계 첫 항목: 브라우저 QA
+### 바로 다음에 할 일 — 5단계 나머지
 
-`tools/release-browser-qa.cjs` 가 레거시 서버를 직접 띄우고 Playwright 로
-두 창을 열어 방 만들기 → 입장 → 이동 → 조리 → 서빙까지 훑는다.
-이걸 **새 스택 기준으로** 통과시키는 게 남은 일의 핵심이다.
-
-봐야 할 것:
-1. 도구가 지금은 `node server/index.mjs` + `public/` 을 띄운다. 새 스택은
-   클라이언트를 따로 빌드해야 한다 — `vite build` 결과를 서버가 서빙하도록
-   `GIMBAP_PUBLIC_ROOT` 를 `apps/client/dist` 로 주는 길이 가장 단순하다
-   (`runtime.config.ts` 의 `publicRoot`).
-2. `apps/client/index.html` 은 `<div id="app">` 하나뿐이고 `#gl` 은 React 가
-   그린다. 도구가 `window.GB` 를 기다리므로 부팅이 끝나야 잡힌다 —
-   `waitForFunction` 타임아웃이 넉넉한지 확인할 것.
-3. 레거시 `index.html` 이 쓰던 importmap·`/socket.io/socket.io.js`·`/vendor/*`
-   는 새 빌드에 없다. 서버의 CSP(정적 미들웨어)가 Vite 번들 해시를 허용하는지
-   봐야 한다 — `static.middleware.ts` 의 importmap sha256 처리와 충돌 가능.
-4. 통과하면 `qa:character` 도 같은 방식으로 돌린다.
-
-그다음: CI 워크플로에 워크스페이스 잡 추가 → `render.yaml` 빌드 명령과
-Node 버전(20.20.2 → ≥22) 갱신 → 레거시 `server/` · `public/js/` ·
-`test/*.mjs` · `testing/legacy*` 제거.
+1. **CI 워크플로에 워크스페이스 잡 추가** (`.github/workflows/ci.yml`).
+   지금은 레거시 `npm test` 만 돈다. `npm run verify`(레거시 + 워크스페이스) ·
+   `npm run typecheck` · `npm run lint` · `npm run build` 를 넣는다.
+   Node 버전도 20 → 22 로 올려야 한다 (`engines` 가 `>=22.12.0`).
+2. **`render.yaml` 갱신** — Node 20.20.2 → ≥22, 빌드 명령을
+   `npm ci && npm run build`, 시작 명령을 `node apps/server/dist/main.js` 로.
+   `GIMBAP_PUBLIC_ROOT=apps/client/dist` 를 환경변수로 박아야 한다 —
+   안 그러면 레거시 `public/` 을 서빙한다.
+3. **레거시 제거** — `server/` · `public/js/` · `public/css/` · `public/index.html` ·
+   `test/*.mjs` 중 동등성 테스트만 남기고 정리. 이때 함께 지울 것:
+   - `apps/client/vite.config.ts` 의 `test.alias`(`@legacy/*`) · `server.fs.allow` ·
+     `copyGameAssets` 플러그인 (에셋은 `apps/client/public/assets` 로 옮긴다)
+   - `apps/client/src/testing/legacy-modules.d.ts`
+   - `apps/server/src/testing/legacy.ts`
+   - `tools/lib/qa-server.cjs` 의 `legacy` 스택 항목
+   - `test/parity.test.mjs` 와 `*.spec.ts` 안의 레거시 대조 (이식이 끝나면
+     비교 대상이 사라진다 — 남길지 지울지 여기서 판단할 것)
+   순서: 레거시를 지우면 동등성 테스트 240여 개가 함께 사라진다. **먼저**
+   CI 와 Render 를 새 스택으로 돌려 한 번 배포가 되는 걸 확인하고 지운다.
 
 ### 남은 순서
 
-4단계 **완료**. 5단계만 남았다 —
-브라우저 QA → CI 잡 → Render 설정 → 레거시 제거.
+5단계 — **브라우저 QA 완료** → CI 잡 → Render 설정 → 레거시 제거.
 
 ### 잊지 말 것
 

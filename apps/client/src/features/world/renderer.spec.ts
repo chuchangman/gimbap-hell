@@ -71,7 +71,8 @@ vi.stubGlobal(
 vi.stubGlobal('devicePixelRatio', 3);
 
 const legacyWorld = await import('@legacy/world.js');
-const { RENDERER_PROPS, PIXEL_RATIO_CAP, createRenderer, startRenderer } =
+const { camera } = await import('@/features/world/scene');
+const { RENDERER_PROPS, PIXEL_RATIO_CAP, createRenderer, startRenderer, startLoop } =
   await import('@/features/world/renderer');
 
 /** 화면에 실제로 영향을 주는 값만 뽑는다 */
@@ -112,5 +113,37 @@ describe('렌더러 설정 — 레거시 initWorld 와 같은 값', () => {
     await startRenderer(document.createElement('canvas'));
     expect(made.list, 'R3F 도 렌더러를 하나 만들어야 한다').toHaveLength(3);
     expect(look(made.list[2])).toEqual(legacy);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────
+   화면 크기 — 조준이 여기에 걸린다.
+
+   R3F 에 크기를 맡기면 `canvas.parentElement`(= `#app`)를 재는데, 그 안은
+   전부 `position: fixed` 라 높이가 0 이다. 그러면 `camera.aspect` 가
+   Infinity 가 되어 투영행렬이 깨지고, 레이캐스트(조준)가 통째로 죽는다 —
+   화면은 멀쩡해 보이는데 아무것도 집을 수 없다. 브라우저 QA 가 실제로
+   여기서 멈췄다. 레거시 `resize()` 처럼 창 크기를 기준으로 준다.
+   ──────────────────────────────────────────────────────────── */
+describe('화면 크기', () => {
+  it('카메라 종횡비가 창 크기에서 나온다 (부모 높이 0 에 걸리지 않는다)', async () => {
+    const host = document.createElement('div');
+    // `#app` 처럼 안이 전부 fixed 라 높이가 0 인 부모를 흉내 낸다
+    host.getBoundingClientRect = () => ({ width: 1024, height: 0, top: 0, left: 0 }) as DOMRect;
+    const canvas = document.createElement('canvas');
+    host.appendChild(canvas);
+    document.body.appendChild(host);
+
+    made.list.length = 0;
+    const root = await startRenderer(canvas);
+    startLoop(root);
+
+    const expected = window.innerWidth / window.innerHeight;
+    expect(expected).toBeGreaterThan(0);
+    expect(Number.isFinite(camera.aspect)).toBe(true);
+    expect(camera.aspect).toBe(expected);
+    // 렌더러도 창 크기로 잡혀야 한다
+    expect(made.list[0].size).toEqual([window.innerWidth, window.innerHeight]);
+    root.unmount();
   });
 });

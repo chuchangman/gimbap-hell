@@ -14,7 +14,7 @@ import { isSwinging, state as P, updatePlayer } from '@/features/player/player';
 import { renderHUD } from '@/features/ui/ui';
 import { stepWorld } from '@/features/world/build';
 import { camera, scene, setViewportHeight } from '@/features/world/scene';
-import { createRoot, useFrame, type ReconcilerRoot } from '@react-three/fiber';
+import { createRoot, useFrame, type ReconcilerRoot, type Size } from '@react-three/fiber';
 import * as THREE from 'three';
 
 /** 레거시 initWorld 가 렌더러에 걸던 설정 그대로 */
@@ -29,6 +29,22 @@ export const PIXEL_RATIO_CAP = 2;
 
 /** 탭이 쉬었다 돌아와도 한 프레임에 0.1초 넘게 굴리지 않는다 */
 export const MAX_DT = 0.1;
+
+/**
+ * 레거시 `resize()` 와 같은 기준 — 창 크기.
+ * `#gl` 이 `position: fixed; inset: 0` 이라 창과 같은 크기다.
+ *
+ * R3F 에 맡기면 안 된다. R3F 는 `canvas.parentElement`(= `#app`)를 재는데,
+ * 그 안은 전부 fixed 라 높이가 0 이다. 그러면 `camera.aspect` 가 Infinity 가
+ * 되어 투영행렬이 깨지고, 화면은 멀쩡해 보이는데 조준(레이캐스트)이 통째로
+ * 죽는다 — 브라우저 QA 가 실제로 여기서 멈췄다.
+ */
+export const viewportSize = (): Size => ({
+  width: window.innerWidth,
+  height: window.innerHeight,
+  top: 0,
+  left: 0,
+});
 
 /**
  * 한 프레임. 레거시 main.js 의 `loop()` 에서 `requestAnimationFrame` 예약만
@@ -83,13 +99,24 @@ export async function startRenderer(
     gl: () => createRenderer(canvas),
     dpr: Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP),
     shadows: false,
+    size: viewportSize(),
     /* R3F 의 포인터 이벤트는 붙이지 않는다 — 조준과 마우스 잠금은
        player.ts 가 캔버스에서 직접 처리한다. 둘이 겹치면 안 된다. */
   });
   return root;
 }
 
-/** 루프를 시작한다. 레거시가 boot() 맨 끝에서 `loop()` 를 부르던 자리다. */
-export function startLoop(root: ReconcilerRoot<HTMLCanvasElement>): void {
-  root.render(<Frame />);
+/**
+ * 루프를 시작한다. 레거시가 boot() 맨 끝에서 `loop()` 를 부르던 자리다.
+ * 창 크기가 바뀌면 렌더러와 카메라를 따라가게 한다 (레거시 `resize()`).
+ */
+export function startLoop(root: ReconcilerRoot<HTMLCanvasElement>): () => void {
+  const store = root.render(<Frame />);
+  const onResize = (): void => {
+    const { width, height } = viewportSize();
+    store.getState().setSize(width, height);
+  };
+  window.addEventListener('resize', onResize);
+  onResize();
+  return () => window.removeEventListener('resize', onResize);
 }

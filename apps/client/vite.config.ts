@@ -1,9 +1,34 @@
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs/promises';
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+
+const HERE = import.meta.dirname;
+
+/* 게임 에셋(GLB 166개, 19MB)은 아직 레거시 `public/assets/` 에 있다.
+   Vite 산출물은 `dist/bundle/` 로 보내고(아래 build.assetsDir), 에셋은
+   `dist/assets/` 로 그대로 복사한다 — 클라이언트가 `/assets/manifest.json`
+   으로 찾으므로 경로가 바뀌면 안 된다.
+   5단계에서 레거시 `public/` 이 사라질 때 `public/assets` 를
+   `apps/client/public/assets` 로 옮기고 이 플러그인을 지운다. */
+function copyGameAssets(): Plugin {
+  return {
+    name: 'gimbap-copy-game-assets',
+    apply: 'build',
+    async closeBundle() {
+      const from = path.resolve(HERE, '../../public/assets');
+      const to = path.resolve(HERE, 'dist/assets');
+      await fs.cp(from, to, { recursive: true });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), copyGameAssets()],
+  build: {
+    /* 기본값 'assets' 를 쓰면 게임 에셋과 같은 폴더에 섞인다 — 갈라 둔다 */
+    assetsDir: 'bundle',
+  },
   resolve: {
     alias: [{ find: '@', replacement: path.resolve(import.meta.dirname, './src') }],
   },

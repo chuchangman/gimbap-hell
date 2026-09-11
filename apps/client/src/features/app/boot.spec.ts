@@ -56,6 +56,9 @@ vi.mock('@legacy/world.js', () => ({
   }) as never),
   render: rec.spy('L', 'render'),
   remoteSwing: rec.spy('L', 'remoteSwing'),
+  previewBody: rec.spy('L', 'previewBody'),
+  animatePreviewBody: rec.spy('L', 'animatePreviewBody'),
+  disposePreviewBody: rec.spy('L', 'disposePreviewBody'),
   scene: legacyScene,
   camera: legacyCamera,
   interactables: legacyInteractables,
@@ -81,6 +84,7 @@ vi.mock('@legacy/kitchen.js', () => ({ resolveAction: rec.spy('L', 'resolveActio
 vi.mock('@legacy/net.js', () => ({
   connect: rec.spy('L', 'connect', (() =>
     rec.fail.connect ? Promise.reject(new Error('서버 없음')) : Promise.resolve()) as never),
+  emit: rec.spy('L', 'emit', (() => true) as never),
   on: rec.on('L'),
   S: legacyS,
 }));
@@ -102,6 +106,11 @@ vi.mock('@/features/world/build', () => ({
   stepWorld: rec.spy('P', 'stepWorld'),
 }));
 vi.mock('@/features/world/customers', () => ({ remoteSwing: rec.spy('P', 'remoteSwing') }));
+vi.mock('@/features/world/character', () => ({
+  previewBody: rec.spy('P', 'previewBody'),
+  animatePreviewBody: rec.spy('P', 'animatePreviewBody'),
+  disposePreviewBody: rec.spy('P', 'disposePreviewBody'),
+}));
 vi.mock('@/features/world/scene', () => ({
   scene: portScene,
   camera: portCamera,
@@ -139,6 +148,7 @@ vi.mock('@/features/kitchen/kitchen', () => ({ resolveAction: rec.spy('P', 'reso
 vi.mock('@/features/net/net', () => ({
   connect: rec.spy('P', 'connect', (() =>
     rec.fail.connect ? Promise.reject(new Error('서버 없음')) : Promise.resolve()) as never),
+  emit: rec.spy('P', 'emit', (() => true) as never),
   on: rec.on('P'),
   S: portS,
 }));

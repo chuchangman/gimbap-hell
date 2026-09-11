@@ -11,7 +11,7 @@
    ──────────────────────────────────────────────────────────── */
 import { preloadAssets } from '@/features/assets/assets';
 import { resolveAction } from '@/features/kitchen/kitchen';
-import { connect, on, S } from '@/features/net/net';
+import { connect, emit, on, S } from '@/features/net/net';
 import {
   applyKnockback,
   correctPose,
@@ -24,9 +24,12 @@ import {
 } from '@/features/player/player';
 import { initUI, renderHUD, route, toast, wavePop } from '@/features/ui/ui';
 import { buildWorld, stepWorld } from '@/features/world/build';
+import { animatePreviewBody, disposePreviewBody, previewBody } from '@/features/world/character';
 import { remoteSwing } from '@/features/world/customers';
 import { startLoop, startRenderer } from '@/features/world/renderer';
 import { camera, interactables, scene } from '@/features/world/scene';
+import { DEFAULT_LOOK, PARTS } from '@repo/game-core';
+import * as THREE from 'three';
 
 /** 더 갈 수 없을 때 화면에 그대로 붙인다 — 레거시와 같은 마크업 */
 function fatal(head: string, err: unknown): void {
@@ -40,6 +43,7 @@ function fatal(head: string, err: unknown): void {
 /** 브라우저 QA(`tools/release-browser-qa.cjs`)가 잡는 훅 */
 export interface DebugHooks {
   S: typeof S;
+  emit: typeof emit;
   scene: typeof scene;
   camera: typeof camera;
   interactables: typeof interactables;
@@ -49,6 +53,15 @@ export interface DebugHooks {
   resolveAction: typeof resolveAction;
   applyKnockback: typeof applyKnockback;
   remoteSwing: typeof remoteSwing;
+  /** 캐릭터 미리보기 QA 가 쓰는 작업대 */
+  preview: {
+    THREE: typeof THREE;
+    previewBody: typeof previewBody;
+    animatePreviewBody: typeof animatePreviewBody;
+    disposePreviewBody: typeof disposePreviewBody;
+    PARTS: typeof PARTS;
+    DEFAULT_LOOK: typeof DEFAULT_LOOK;
+  };
   step: (dt?: number) => void;
 }
 
@@ -105,6 +118,10 @@ export async function boot(): Promise<void> {
   // 디버깅/자동 검증용 훅
   window.GB = {
     S,
+    /* QA 도구가 "끊긴 동안 보낸 명령이 큐에 쌓이지 않는다" 를 확인할 때 쓴다.
+       예전엔 도구가 /js/net.js 를 직접 import 했는데, 번들러가 붙으면
+       그런 경로가 없다 — 훅으로 내보낸다. */
+    emit,
     scene,
     camera,
     interactables,
@@ -114,6 +131,8 @@ export async function boot(): Promise<void> {
     resolveAction,
     applyKnockback,
     remoteSwing,
+    // 캐릭터 미리보기 QA 가 쓰는 작업대. 예전엔 도구가 모듈을 직접 import 했다.
+    preview: { THREE, previewBody, animatePreviewBody, disposePreviewBody, PARTS, DEFAULT_LOOK },
     /* 레거시는 여기서 renderer.render 까지 했지만, 그리기는 R3F 가 맡는다.
        QA 가 읽는 것은 좌표와 상태뿐이라 논리 한 프레임이면 된다. */
     step(dt?: number) {

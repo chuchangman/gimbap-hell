@@ -30,6 +30,7 @@
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
+    "@repo/client": "*",
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@types/express": "^5.0.0",

@@ -1,6 +1,9 @@
 /* 엔트리 — 소켓 · 월드 · 플레이어 · UI 를 연결하고 루프를 돈다 */
-import { connect, on, S } from './net.js';
-import { initWorld, render, remoteSwing, scene, camera, interactables } from './world.js';
+import { connect, emit, on, S } from './net.js';
+import * as THREE from '/vendor/three.module.min.js';
+import { initWorld, render, remoteSwing, scene, camera, interactables,
+  previewBody, animatePreviewBody, disposePreviewBody } from './world.js';
+import { PARTS, DEFAULT_LOOK } from './config.js';
 import {
   initPlayer, updatePlayer, applyKnockback, isSwinging, setLook, getPose, correctPose, state as P
 } from './player.js';
@@ -68,8 +71,10 @@ async function boot() {
 
   // 디버깅/자동 검증용 훅
   window.GB = {
-    S, scene, camera, interactables, player: P, setLook, getPose, resolveAction,
+    S, emit, scene, camera, interactables, player: P, setLook, getPose, resolveAction,
     applyKnockback, remoteSwing,
+    // 캐릭터 미리보기 QA 가 쓰는 작업대. 예전엔 도구가 모듈을 직접 import 했다.
+    preview: {THREE, previewBody, animatePreviewBody, disposePreviewBody, PARTS, DEFAULT_LOOK},
     step(dt) { updatePlayer(dt || 0.016); renderHUD(); render(isSwinging()); }
   };
 

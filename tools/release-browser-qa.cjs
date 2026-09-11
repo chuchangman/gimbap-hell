@@ -91,10 +91,11 @@ const {chromium}=loadPlaywright();
     await guest.waitForFunction(()=>window.GB.S.state.paused);
     assert.equal(await host.locator('#connection-status').isVisible(),true);
     assert.equal(await host.evaluate(()=>window.GB.player.enabled),false);
-    const rejected=await host.evaluate(async()=>{
-      const N=await import('/js/net.js');
-      return {sent:N.emit('kitchen:act',{action:'drop',payload:{}}),queued:N.S.socket.sendBuffer.length};
-    });
+    // Use the debug hook, not a module path: the bundled client has no /js/net.js.
+    const rejected=await host.evaluate(()=>({
+      sent:window.GB.emit('kitchen:act',{action:'drop',payload:{}}),
+      queued:window.GB.S.socket.sendBuffer.length,
+    }));
     assert.deepEqual(rejected,{sent:false,queued:0});
     await host.screenshot({path:path.join(output,'connection-interrupted.png')});
     await hostContext.setOffline(false);
