@@ -20,15 +20,15 @@
 
 `~/Desktop/S15P21M101/web` 이 같은 팀의 현행 컨벤션이다. 거기에 맞춘다.
 
-| 항목 | 참고 프로젝트 | 여기 |
-|---|---|---|
-| 구조 | `apps/{client,server}` + `packages/*` | 같음 |
-| 패키지 스코프 | `@repo/*` | 같음 |
-| 클라이언트 | React 19 · Vite · R3F(`@react-three/fiber` 9 / `drei` 10) · three 0.185 | 같음 (동봉 vendor 도 r185) |
-| 서버 | NestJS 12 · `@nestjs/platform-socket.io` · vitest | 같음 |
-| 태스크 러너 | turbo | 같음 |
-| 포맷/린트 | prettier 100칸 · single quote · trailing comma / eslint flat config | 같음 |
-| 패키지 매니저 | pnpm 11 | **npm workspaces** (아래 참고) |
+| 항목          | 참고 프로젝트                                                           | 여기                           |
+| ------------- | ----------------------------------------------------------------------- | ------------------------------ |
+| 구조          | `apps/{client,server}` + `packages/*`                                   | 같음                           |
+| 패키지 스코프 | `@repo/*`                                                               | 같음                           |
+| 클라이언트    | React 19 · Vite · R3F(`@react-three/fiber` 9 / `drei` 10) · three 0.185 | 같음 (동봉 vendor 도 r185)     |
+| 서버          | NestJS 12 · `@nestjs/platform-socket.io` · vitest                       | 같음                           |
+| 태스크 러너   | turbo                                                                   | 같음                           |
+| 포맷/린트     | prettier 100칸 · single quote · trailing comma / eslint flat config     | 같음                           |
+| 패키지 매니저 | pnpm 11                                                                 | **npm workspaces** (아래 참고) |
 
 **한 가지 다른 점 — 패키지 매니저.** 이 PC 에는 pnpm 이 없고, Node 26 에서
 corepack 이 빠져 전역 설치가 필요하다. 게다가 Render 배포가 `npm ci` 로 묶여 있다.
@@ -46,13 +46,15 @@ corepack 이 빠져 전역 설치가 필요하다. 게다가 Render 배포가 `n
 
 ## 단계
 
-### 1. 워크스페이스 뼈대  — `상태: 완료`
+### 1. 워크스페이스 뼈대 — `상태: 완료`
+
 - [x] 루트 npm workspaces + turbo + prettier
 - [x] `@repo/typescript-config` (base / react-library / vite / nest)
 - [x] `@repo/eslint-config` (base / react / nest-js / prettier-base)
 - [x] 레거시 `npm test` 가 그대로 통과하는지 확인
 
 ### 2. 공용 계약 패키지 — `상태: 완료`
+
 - [x] `@repo/game-core` — `config.js` · `game-rules.js` · `spatial.js` ·
       `kitchen-layout.js` · `render-config.js` 를 TS 로 이식 (12개 모듈)
 - [x] `@repo/types` — 소켓 와이어 타입 (`state` · `kitchen` · `positions` · 이벤트 페이로드,
@@ -99,7 +101,7 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
       시계와 난수도 주입 가능하다.
 - [x] `GameGateway` + `GameLoopService` — 지금과 **완전히 같은** 이벤트/페이로드
       (`hello` `state` `kitchen` `positions` `toast` `waveEnd` `swing` `hit`
-       `position:correct` `server:closing`). 틱 두 개(200ms 상태 · 67ms 위치)와
+      `position:correct` `server:closing`). 틱 두 개(200ms 상태 · 67ms 위치)와
       서명 기반 중복 제거, volatile 위치 전송까지 그대로다.
 - [x] 소켓 어댑터 — origin 검사 · connectionStateRecovery · 수용량 · 레이트 리밋
 - [x] `LeaderboardService` + `RankingStore` (파일 / Upstash Redis).
@@ -315,6 +317,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
 손님 2명 + 설비 전부 + 손에 든 김밥이 있는 프레임을 3프레임 연속으로,
 손님 상태 5종(입장·대기·만족·화남·쫓겨남) 각각, 빗자루 스윙 on/off,
 손님이 사라진 뒤 정리까지.
+
 - [x] `features/player` — `player.js` 이식 (1인칭 이동 · 충돌 · 조준 · 스윙).
       메시가 아니라 **같은 입력에 같은 자세**로 검증한다. 두 구현이 같은 jsdom
       document 에 리스너를 달아서 키 이벤트 한 번에 양쪽이 함께 반응한다 —
@@ -390,6 +393,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       렌더러 설정 7종 — 을 심어 전부 잡히는지 확인했다.) 13개 통과.
 
 **4단계 완료.** `apps/client` 만으로 화면 · 3D · 입력 · 주방 · UI 가 전부 선다.
+
 - [x] `features/customize` — `customize.js` 이식 (입장 화면 캐릭터 꾸미기).
       `ui.js` 가 이 모듈을 의존해서 `ui` 보다 먼저 옮겼다.
       3D 미리보기는 명령형 three 코드 그대로 둔다 — R3F 로 다시 짜면
@@ -412,6 +416,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       순서도 함께 고정했다. 20개 통과.
 
 ### 5. 동등성 검증과 마무리 — `상태: 진행 중`
+
 - [x] **브라우저 QA 를 새 스택 기준으로 통과** — `npm run qa:browser:next` ·
       `npm run qa:character:next` 가 레거시와 나란히 PASS 한다.
       QA 픽스처(`tools/lib/qa-server.cjs`)에 스택 선택을 넣었다 —
@@ -443,8 +448,26 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
         PARTS · DEFAULT_LOOK)를 **양쪽 스택에 대칭으로** 내보내고 도구가 그걸
         쓰게 했다. 레거시 기준선도 그대로 PASS 한다.
 - [ ] 새 스택 + 레거시 동시 실행 비교 (같은 방, 같은 조작, 같은 결과)
-- [ ] CI 워크플로에 워크스페이스 잡 추가
-- [ ] Render 배포 설정 갱신 (빌드: 클라이언트 build → 서버 build)
+- [x] **CI 워크플로에 워크스페이스 잡 추가** — `스모크 테스트` 잡이
+      `검증` 잡이 되어 `build` · `typecheck` · `lint` · `format:check` ·
+      `verify`(레거시 + 워크스페이스)를 전부 돌린다. Node 는 20 → 22.12.0.
+      **워크플로 전체에서 Node 버전을 `env.NODE_VERSION` 한 곳에만 적는다** —
+      잡마다 적으면 한쪽만 올리고 잊는다.
+      브라우저 QA 는 CI 에서 안 돌린다(실제 Chrome + Playwright 가 필요한
+      로컬 전용 도구다). 릴리스 전에 손으로 돌린다.
+- [x] **Render 배포 설정 갱신** — 빌드 `npm ci && npm run build`,
+      시작 `npm start`(= `node apps/server/dist/main.js`), Node 22.12.0,
+      그리고 `GIMBAP_PUBLIC_ROOT=apps/client/dist`.
+      정적 루트 **기본값도** 레거시 `public/` 에서 `apps/client/dist` 로 옮겼다 —
+      기본값이 레거시면 배포는 성공하는데 옛 화면이 나가서 알아채기 어렵다.
+      루트 `npm start` 가 새 서버를 가리키고, 레거시는 `npm run start:legacy` 다.
+  - [x] **설정 어긋남을 테스트로 막는다**(`test/release-config.test.mjs`, 5개) —
+        Node 버전이 `engines` · CI · Render 세 곳에서 같은 값인지, CI 가 부르는
+        npm 스크립트가 실제로 있는지(오타 하나면 CI 가 통째로 건너뛴다),
+        Render 가 빌드한 뒤 새 서버를 띄우고 새 화면을 서빙하는지,
+        `autoDeploy: false` 와 `needs: [verify, redis-test]` 로 배포 게이트가
+        살아 있는지. (돌연변이 9종을 심어 전부 잡히는지 확인했다.)
+  - [x] 저장소 루트의 문서 6개 서식 정리 — 이제 `format:check` 가 CI 게이트다.
 - [ ] 레거시 `server/` · `public/js/` · `test/*.mjs` 제거
 
 ## 완료 조건
@@ -455,61 +478,62 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-11 11:30)
+## 다음 세션 시작점 (2026-09-11 12:05)
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-현재 검증: 레거시 58 + 동등성 16 + 서버 71 + 클라이언트 98 = **243개 통과**,
-build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레거시 문서
-6개가 예전부터 안 맞는다 — 5단계 마지막에 한 번에 정리한다.
+현재 검증: 루트 79(레거시 스모크·통합 + 동등성 + QA 픽스처 + 배포 설정) +
+서버 72 + 클라이언트 98 = **249개 통과**.
+build · typecheck · lint · **format:check** 전부 통과 (서식도 이제 CI 게이트다).
 
-**브라우저 QA 가 새 스택에서 PASS 한다.** 실제 Chrome 으로 두 창을 열어
-방 만들기 → 입장 → 시작 → 걷기 → 조준 → 집기 → 연결 끊김 복구 → 세션 만료 →
-재입장까지 훑는다. 캐릭터 QA 도 조합 162개를 통과한다.
+브라우저 QA 도 레거시·새 스택 양쪽에서 PASS 한다.
+
+**5단계에서 남은 것은 레거시 제거 하나뿐이다.**
 
 ### 다시 시작하는 방법
 
 ```bash
 git switch refactor/fe-be-split
 npm install
-npm run verify            # 레거시 58 + 동등성 16, 그리고 서버 71 + 클라이언트 98
-npm run build             # 브라우저 QA 는 빌드 산출물을 서빙한다
-npm run qa:browser:next   # 새 스택 (레거시는 npm run qa:browser)
-npm run qa:character:next
-```
-
-새 스택을 직접 띄워 보려면:
-
-```bash
 npm run build
-node apps/server/dist/main.js   # 저장소 루트에서. GIMBAP_PUBLIC_ROOT 없이 띄우면 레거시 public/ 을 본다
-# 새 클라이언트를 보려면 (PowerShell) $env:GIMBAP_PUBLIC_ROOT="apps/client/dist"
+npm run verify            # 루트 79 + 서버 72 + 클라이언트 98
+npm run qa:browser:next   # 실제 Chrome (레거시는 npm run qa:browser)
+npm start                 # = node apps/server/dist/main.js → http://localhost:3211
 ```
 
-### 바로 다음에 할 일 — 5단계 나머지
+### 바로 다음에 할 일 — 레거시 제거 (5단계 마지막)
 
-1. **CI 워크플로에 워크스페이스 잡 추가** (`.github/workflows/ci.yml`).
-   지금은 레거시 `npm test` 만 돈다. `npm run verify`(레거시 + 워크스페이스) ·
-   `npm run typecheck` · `npm run lint` · `npm run build` 를 넣는다.
-   Node 버전도 20 → 22 로 올려야 한다 (`engines` 가 `>=22.12.0`).
-2. **`render.yaml` 갱신** — Node 20.20.2 → ≥22, 빌드 명령을
-   `npm ci && npm run build`, 시작 명령을 `node apps/server/dist/main.js` 로.
-   `GIMBAP_PUBLIC_ROOT=apps/client/dist` 를 환경변수로 박아야 한다 —
-   안 그러면 레거시 `public/` 을 서빙한다.
-3. **레거시 제거** — `server/` · `public/js/` · `public/css/` · `public/index.html` ·
-   `test/*.mjs` 중 동등성 테스트만 남기고 정리. 이때 함께 지울 것:
-   - `apps/client/vite.config.ts` 의 `test.alias`(`@legacy/*`) · `server.fs.allow` ·
-     `copyGameAssets` 플러그인 (에셋은 `apps/client/public/assets` 로 옮긴다)
+**먼저 확인할 것.** 지우면 동등성 테스트의 비교 대상이 사라진다.
+`main` 에 올려 CI 가 초록이고 Render 배포가 한 번 성공하는 걸 본 뒤에 지운다.
+(지금은 푸시하지 않는 상태라, 푸시 여부는 사용자에게 확인할 것.)
+
+지울 것:
+
+1. `server/` · `public/js/` · `public/css/` · `public/index.html`
+2. `public/assets/` 는 **지우지 말고 옮긴다** → `apps/client/public/assets/`.
+   옮긴 뒤 `vite.config.ts` 의 `copyGameAssets` 플러그인을 지운다
+   (Vite 의 기본 `publicDir` 이 그대로 `dist/assets` 로 복사한다).
+3. `test/*.mjs` 중 레거시 대상: `smoke` · `game-rules` · `runtime-config` ·
+   `protocol` · `server.integration` · `ranking-store` · `spatial` · `layout` ·
+   `render-utils` · `parity`. 남길 것: `qa-fixtures` · `release-config`.
+   (루트 `package.json` 의 `test` 스크립트도 함께 줄인다.)
+4. 각 워크스페이스의 레거시 대조 장치:
+   - `apps/client/vite.config.ts` — `test.alias` 의 `@legacy/*` 와 vendor 매핑,
+     `server.fs.allow`, `copyGameAssets`
    - `apps/client/src/testing/legacy-modules.d.ts`
    - `apps/server/src/testing/legacy.ts`
-   - `tools/lib/qa-server.cjs` 의 `legacy` 스택 항목
-   - `test/parity.test.mjs` 와 `*.spec.ts` 안의 레거시 대조 (이식이 끝나면
-     비교 대상이 사라진다 — 남길지 지울지 여기서 판단할 것)
-   순서: 레거시를 지우면 동등성 테스트 240여 개가 함께 사라진다. **먼저**
-   CI 와 Render 를 새 스택으로 돌려 한 번 배포가 되는 걸 확인하고 지운다.
+   - `*.spec.ts` 안의 레거시 비교 블록 — **여기가 가장 큰 판단**이다.
+     비교 대상이 사라지면 그 테스트들은 의미를 잃는다. 두 갈래다:
+     (a) 지운다 — 테스트 수가 249 → 100 아래로 떨어진다.
+     (b) 레거시 결과를 **고정 스냅샷으로 떠서** 파일에 박고 계속 비교한다 —
+     이식이 옳았다는 증거를 남긴다. `mesh-snapshot` 결과는 씬 하나가
+     5만 줄이라 용량을 먼저 재 볼 것.
+     사용자에게 어느 쪽인지 물을 것.
+5. `tools/lib/qa-server.cjs` 의 `legacy` 스택 항목과 `--stack` 분기,
+   `package.json` 의 `qa:browser` · `qa:character` · `start:legacy`.
 
 ### 남은 순서
 
-5단계 — **브라우저 QA 완료** → CI 잡 → Render 설정 → 레거시 제거.
+5단계 — 브라우저 QA ✅ → CI 잡 ✅ → Render 설정 ✅ → **레거시 제거**.
 
 ### 잊지 말 것
 

@@ -10,9 +10,10 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "node server/index.mjs",
+    "start": "node apps/server/dist/main.js",
+    "start:legacy": "node server/index.mjs",
     "dev": "node server/index.mjs",
-    "test": "node test/smoke.mjs && node --test test/game-rules.test.mjs test/runtime-config.test.mjs test/protocol.test.mjs test/server.integration.test.mjs test/ranking-store.test.mjs test/spatial.test.mjs test/layout.test.mjs test/render-utils.test.mjs test/qa-fixtures.test.mjs test/parity.test.mjs",
+    "test": "node test/smoke.mjs && node --test test/game-rules.test.mjs test/runtime-config.test.mjs test/protocol.test.mjs test/server.integration.test.mjs test/ranking-store.test.mjs test/spatial.test.mjs test/layout.test.mjs test/render-utils.test.mjs test/qa-fixtures.test.mjs test/parity.test.mjs test/release-config.test.mjs",
     "test:spatial": "node --test test/spatial.test.mjs",
     "test:storage": "node --test test/ranking-store.test.mjs",
     "test:redis": "node --test test/redis.integration.test.mjs",

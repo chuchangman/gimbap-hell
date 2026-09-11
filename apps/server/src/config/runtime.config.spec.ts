@@ -63,6 +63,15 @@ describe('loadRuntimeConfig', () => {
     expect(fallback.redis).toEqual({ url: '', token: '', key: 'gimbap:leaderboard' });
   });
 
+  it('정적 루트 기본값은 클라이언트 빌드다 (레거시 public/ 이 아니다)', () => {
+    /* 기본값이 레거시 public/ 이면 배포는 성공하는데 옛 화면이 나간다 —
+       알아채기 어려운 실패라 기본값을 새 빌드로 둔다. */
+    expect(loadRuntimeConfig({}).publicRoot).toBe(
+      path.join(process.cwd(), 'apps', 'client', 'dist'),
+    );
+    expect(loadRuntimeConfig({ GIMBAP_PUBLIC_ROOT: '/srv/www' }).publicRoot).toBe('/srv/www');
+  });
+
   it('운영 기본값이 그대로이고 주입한 환경을 변형하지 않는다', () => {
     const env = Object.freeze({ PORT: '0', GIMBAP_ALLOWED_ORIGINS: 'https://example.invalid' });
     const config = loadRuntimeConfig(env);
