@@ -17,6 +17,7 @@ import {
   CUSTOMER_LOOKS,
   ITEMS,
   KIND,
+  kioskExtraMax,
   matchScore,
   NORMAL_LOOKS,
   PREP_BETWEEN,
@@ -184,7 +185,7 @@ export class WaveRunner {
   /** 일반 손님 — 기본 3종 위에 해금된 재료를 얹는다 */
   kioskOrder(wave: number): ItemId[] {
     const extras = unlockedExtras(wave);
-    const maxAdd = Math.min(extras.length, wave >= 7 ? 2 : wave >= 3 ? 1 : 0);
+    const maxAdd = Math.min(extras.length, kioskExtraMax(wave));
     const add = maxAdd > 0 ? this.sample(extras, 1 + Math.floor(this.random() * maxAdd)) : [];
     return [...BASE_FILLINGS, ...add];
   }

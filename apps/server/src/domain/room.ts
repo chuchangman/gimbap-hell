@@ -11,6 +11,7 @@ import {
   MOVEMENT,
   NAME_MAX,
   NAME_MIN,
+  PLAYER_COLORS,
   PLAYER_LIMIT,
   QUEUE_Z,
   REPUTATION_MAX,
@@ -18,6 +19,7 @@ import {
   SCORE,
   SHOP_MAX,
   slotX,
+  SPAWN_POINTS,
   type ItemId,
   type Look,
 } from '@repo/game-core';
@@ -70,18 +72,6 @@ export function nameError(name: unknown): string | null {
   if (s.length > NAME_MAX) return '이름은 ' + NAME_MAX + '글자를 넘을 수 없습니다.';
   return null;
 }
-
-const COLORS = ['#f5b942', '#63a8e8', '#58c07a', '#e0728f', '#a98ae0', '#e08a4a'];
-
-/* 라운드 시작 위치 — 주방 가운데 통로에 흩어놓는다 */
-const SPAWNS = [
-  { x: -1.6, z: 5.6 },
-  { x: 1.6, z: 5.6 },
-  { x: 0, z: 6.6 },
-  { x: -3.2, z: 5.0 },
-  { x: 3.2, z: 5.0 },
-  { x: 0, z: 4.4 },
-];
 
 export interface Player {
   id: string;
@@ -156,12 +146,12 @@ export class Room {
     if (this.players.has(id)) return this.players.get(id)!;
     if (this.players.size >= PLAYER_LIMIT || typeof name !== 'string') return null;
     const i = this.freeSlot();
-    const spawn = SPAWNS[i % SPAWNS.length];
+    const spawn = SPAWN_POINTS[i % SPAWN_POINTS.length];
     this.players.set(id, {
       id,
       slot: i,
       name: (name || '').trim().slice(0, NAME_MAX) || '알바' + (i + 1),
-      color: COLORS[i % COLORS.length],
+      color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       // 클라이언트가 보낸 값은 그대로 믿지 않는다 — 범위를 벗어나면 잘라낸다
       look: sanitizeLook(look || DEFAULT_LOOK),
       x: spawn.x,
@@ -219,7 +209,7 @@ export class Room {
     this.result = null;
     let i = 0;
     for (const p of this.players.values()) {
-      const s = SPAWNS[i++ % SPAWNS.length];
+      const s = SPAWN_POINTS[i++ % SPAWN_POINTS.length];
       p.x = s.x;
       p.z = s.z;
       p.y = 0;

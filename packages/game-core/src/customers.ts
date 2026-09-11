@@ -29,6 +29,17 @@ export const SPECIAL_RATIO = 0.2;
 /* 진상 손님이 요구하는 재료 개수 범위 */
 export const SPECIAL_FILLS: [number, number] = [3, 5];
 
+/** 일반 손님이 기본 3종 위에 얹을 수 있는 재료 수 — 웨이브가 갈수록 늘어난다.
+ *  `[이 웨이브부터, 몇 개까지]` 를 큰 웨이브부터 적는다. */
+export const KIOSK_EXTRA_BY_WAVE: [number, number][] = [
+  [7, 2],
+  [3, 1],
+];
+
+/** 그 웨이브에서 얹을 수 있는 최대 개수 */
+export const kioskExtraMax = (wave: number): number =>
+  KIOSK_EXTRA_BY_WAVE.find(([from]) => wave >= from)?.[1] ?? 0;
+
 export interface WaveDef {
   n: number;
   orders: number[];
