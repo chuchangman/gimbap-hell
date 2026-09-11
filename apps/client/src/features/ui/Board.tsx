@@ -1,13 +1,11 @@
 /* 🏆 가게 랭킹 — 대기실 좌측(간략)과 결과 화면(상세)이 같은 조각을 쓴다.
    가게 이름은 서버가 이미 첫 글자만 남겨서 준다. */
+import { UI } from '@/config';
 import type { LeaderboardRow } from '@repo/types';
 import { useEffect, useState } from 'react';
 
 export const medal = (n: number): string =>
   n === 1 ? '🥇' : n === 2 ? '🥈' : n === 3 ? '🥉' : n + '위';
-
-/** 대기실에 앉아 있는 동안 30초마다 다시 받는다 */
-const REFRESH_MS = 30000;
 
 export function useLeaderboard(active: boolean): {
   rows: LeaderboardRow[] | null;
@@ -31,7 +29,7 @@ export function useLeaderboard(active: boolean): {
       }
     };
     void load();
-    const id = setInterval(() => void load(), REFRESH_MS);
+    const id = setInterval(() => void load(), UI.leaderboardRefreshMs);
     return () => {
       alive = false;
       clearInterval(id);

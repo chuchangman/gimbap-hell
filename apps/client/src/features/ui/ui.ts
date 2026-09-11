@@ -6,6 +6,7 @@
    "스냅샷이 왔을 때 그리기 말고 해야 하는 일" 뿐이다 — 자세 복구,
    토스트 띄우기, 일시정지 시 마우스 잠금 해제, 꾸미기 초기화.
    ──────────────────────────────────────────────────────────── */
+import { UI } from '@/config';
 import { initCustomizer } from '@/features/customize/customize';
 import { on, S } from '@/features/net/net';
 import { releaseLock, resetPose } from '@/features/player/player';
@@ -13,10 +14,6 @@ import { releaseLock, resetPose } from '@/features/player/player';
 /* ──────────────── 토스트 ────────────────
    React 가 그리는 `#toast-area` 에 직접 붙인다. 사라지는 타이밍이
    제각각이라 목록으로 들고 있을 이유가 없다. */
-const TOAST_MAX = 5;
-const TOAST_MS = 2600;
-const TOAST_FADE_MS = 320;
-
 export function toast(msg: string, kind?: string): void {
   const area = document.getElementById('toast-area');
   if (!area) return;
@@ -24,11 +21,11 @@ export function toast(msg: string, kind?: string): void {
   el.className = 'toast ' + (kind || '');
   el.textContent = msg;
   area.appendChild(el);
-  while (area.children.length > TOAST_MAX) area.removeChild(area.firstChild!);
+  while (area.children.length > UI.toastMax) area.removeChild(area.firstChild!);
   setTimeout(() => {
     el.style.opacity = '0';
-    setTimeout(() => el.remove(), TOAST_FADE_MS);
-  }, TOAST_MS);
+    setTimeout(() => el.remove(), UI.toastFadeMs);
+  }, UI.toastMs);
 }
 
 /** 일시정지가 시작되는 순간 마우스 잠금을 놓아준다. 화면은 React 가 그린다 */

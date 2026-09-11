@@ -20,6 +20,7 @@
 
    레거시와 다른 점은 import 경로뿐이다 — vendor 사본 대신 three 패키지를 쓴다.
    ──────────────────────────────────────────────────────────── */
+import { PATHS } from '@/config';
 import { CONTRACT, CUSTOMER_CONTRACT, type AssetSpec } from '@/features/assets/contract';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -27,7 +28,7 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 
 export { CONTRACT, type AssetSpec };
 
-const MANIFEST_URL = '/assets/manifest.json';
+const MANIFEST_URL = PATHS.assetManifest;
 
 /** 이름 → 원본 Object3D (씬에는 넣지 않는다) */
 const models = new Map<string, THREE.Object3D>();

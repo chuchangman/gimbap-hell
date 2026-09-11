@@ -81,6 +81,13 @@ export const CONTRACT: Record<string, AssetSpec> = {
   'item/broom': { size: [0.34, 1.6, 0.14], origin: '자루 한가운데', parts: [] },
   'item/knife': { size: [0.12, 0.05, 0.58], origin: '칼날 바닥 한가운데', parts: [] },
 
+  /* ── 1인칭 손 — 손목 원점, 손가락 +y, 손등 +z ── */
+  'hand/fps-right': {
+    size: [0.15, 0.4, 0.13],
+    origin: '손목 중심, 손가락 +y, 손등 +z, 단위 m',
+    parts: ['RightHand_Skin', 'Cuff', 'Sleeve'],
+  },
+
   /* ── 설비 — 바닥 한가운데가 원점(y=0). 충돌·상호작용·이름표는 코드가 맡는다 ── */
   'station/counter': { size: [1.0, 1.04, 1.0], origin: '바닥 한가운데', parts: [] },
   'station/cabinet': { size: [0.9, 0.67, 1.0], origin: '바닥 한가운데', parts: [] },

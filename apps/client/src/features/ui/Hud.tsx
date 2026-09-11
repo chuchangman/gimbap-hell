@@ -10,6 +10,7 @@
      흐르고, 조준 문구는 매 프레임 바뀌는 `player.state` 에서 나온다.
      60Hz 로 다시 그릴 이유는 없다.
    ──────────────────────────────────────────────────────────── */
+import { UI } from '@/config';
 import { bapReady, focusNow } from '@/features/kitchen/kitchen';
 import { myHand, on, S, serverNow, wave as waveOf } from '@/features/net/net';
 import { state as P } from '@/features/player/player';
@@ -23,9 +24,6 @@ import {
 } from '@repo/game-core';
 import type { CustomerView, WaveEndPayload, WaveSnapshot } from '@repo/types';
 import { useEffect, useState } from 'react';
-
-/** 게임 중 HUD 갱신 주기 — 60Hz 로 다시 그릴 이유가 없다 */
-const TICK_MS = 66;
 
 const mmss = (sec: number): string => {
   const s = Math.max(0, Math.ceil(sec));
@@ -44,7 +42,7 @@ function useHudClock(playing: boolean): void {
 
   useEffect(() => {
     if (!playing) return;
-    const id = setInterval(redraw, TICK_MS);
+    const id = setInterval(redraw, UI.hudTickMs);
     return () => clearInterval(id);
   }, [playing]);
 }

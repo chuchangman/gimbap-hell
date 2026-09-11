@@ -12,6 +12,7 @@
    (입장 화면 컴포넌트), 이 모듈은 그 위에서 값을 칠한다 —
    3D 미리보기가 three 명령형 코드라 R3F 로 다시 짜면 화면이 달라진다.
    ──────────────────────────────────────────────────────────── */
+import { PATHS, RENDER } from '@/config';
 import { animatePreviewBody, disposePreviewBody, previewBody } from '@/features/world/character';
 import {
   DEFAULT_LOOK,
@@ -23,7 +24,7 @@ import {
 } from '@repo/game-core';
 import * as THREE from 'three';
 
-const STORE_KEY = 'gimbap:look';
+const STORE_KEY = PATHS.lookStore;
 
 type ColorSlot = keyof typeof PART_COLORS;
 
@@ -60,12 +61,12 @@ function save(): void {
 
 function initPreview(canvas: HTMLCanvasElement): void {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, RENDER.pixelRatioCap));
   renderer.setSize(canvas.clientWidth || 280, canvas.clientHeight || 376, false);
   /* 게임과 같은 톤매핑·노출을 쓴다. 안 맞추면 여기서 고른 색이
      실제로는 다르게 보여서 고르는 의미가 없어진다. */
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.18;
+  renderer.toneMapping = RENDER.toneMapping;
+  renderer.toneMappingExposure = RENDER.toneMappingExposure;
 
   scene = new THREE.Scene();
   scene.add(new THREE.AmbientLight(0xffffff, 0.9));

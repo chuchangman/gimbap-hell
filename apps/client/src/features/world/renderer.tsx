@@ -10,24 +10,12 @@
    만들지 않고 이걸 쓰고, 리사이즈 때 `camera.aspect` 를 갱신한다
    (레거시 `initWorld` 의 `resize()` 와 같은 일).
    ──────────────────────────────────────────────────────────── */
+import { RENDER } from '@/config';
 import { isSwinging, state as P, updatePlayer } from '@/features/player/player';
 import { stepWorld } from '@/features/world/build';
 import { camera, scene, setViewportHeight } from '@/features/world/scene';
 import { createRoot, useFrame, type ReconcilerRoot, type Size } from '@react-three/fiber';
 import * as THREE from 'three';
-
-/** 레거시 initWorld 가 렌더러에 걸던 설정 그대로 */
-export const RENDERER_PROPS = {
-  antialias: true,
-  toneMapping: THREE.ACESFilmicToneMapping,
-  toneMappingExposure: 1.18,
-} as const;
-
-/** 레거시 `setPixelRatio(Math.min(devicePixelRatio, 2))` */
-export const PIXEL_RATIO_CAP = 2;
-
-/** 탭이 쉬었다 돌아와도 한 프레임에 0.1초 넘게 굴리지 않는다 */
-export const MAX_DT = 0.1;
 
 /**
  * 레거시 `resize()` 와 같은 기준 — 창 크기.
@@ -55,7 +43,7 @@ export const viewportSize = (): Size => ({
  */
 export function frameStep(delta: number, viewportPx: number): void {
   setViewportHeight(viewportPx);
-  const dt = Math.min(MAX_DT, delta);
+  const dt = Math.min(RENDER.maxDeltaSec, delta);
   if (P.enabled) updatePlayer(dt);
   stepWorld(isSwinging());
 }
@@ -73,10 +61,10 @@ function Frame(): null {
  * 면 대비가 통째로 죽는다 — 화면이 그대로여야 하니 여기서 못 박는다.
  */
 export function createRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
-  const gl = new THREE.WebGLRenderer({ canvas, antialias: RENDERER_PROPS.antialias });
-  gl.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP));
-  gl.toneMapping = RENDERER_PROPS.toneMapping;
-  gl.toneMappingExposure = RENDERER_PROPS.toneMappingExposure;
+  const gl = new THREE.WebGLRenderer({ canvas, antialias: RENDER.antialias });
+  gl.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.pixelRatioCap));
+  gl.toneMapping = RENDER.toneMapping;
+  gl.toneMappingExposure = RENDER.toneMappingExposure;
   gl.shadowMap.enabled = false;
   return gl;
 }
@@ -93,7 +81,7 @@ export async function startRenderer(
     scene,
     camera,
     gl: () => createRenderer(canvas),
-    dpr: Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP),
+    dpr: Math.min(window.devicePixelRatio, RENDER.pixelRatioCap),
     shadows: false,
     size: viewportSize(),
     /* R3F 의 포인터 이벤트는 붙이지 않는다 — 조준과 마우스 잠금은

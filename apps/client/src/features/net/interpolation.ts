@@ -8,13 +8,14 @@
    레거시 net.js 안에 모듈 전역으로 있던 것을 그대로 옮겨 담았다.
    알고리즘은 같고, 테스트가 직접 먹일 수 있게 되었을 뿐이다.
    ──────────────────────────────────────────────────────────── */
+import { NETWORK } from '@/config';
 import { NET, samplePath, type PathSample } from '@repo/game-core';
 import type { PositionTuple } from '@repo/types';
 
 /** 받는 쪽이 재생하는 지연 */
 const INTERP_MS = NET.interpMs;
 /** 이보다 오래된 표본은 버린다 */
-const KEEP_MS = 1000;
+const KEEP_MS = NETWORK.poseKeepMs;
 
 export interface UnpackedPosition {
   slot: number;
