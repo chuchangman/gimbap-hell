@@ -61,7 +61,11 @@ export function createStaticMiddleware(root: string, metrics: MetricsService) {
       'Content-Security-Policy',
       "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self'" +
         hash +
-        "; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
+        /* connect-src 에 blob: 이 필요하다 — GLTFLoader 가 GLB 안에 박힌
+           리소스를 blob URL 로 만들어 fetch 한다. 없으면 그 에셋만 조용히
+           로드에 실패한다(브라우저 콘솔에만 남는다). 우리 페이지가 스스로
+           만든 blob 이고, 외부 출처는 여전히 막힌다. */
+        "; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:; worker-src 'self' blob:",
     );
     if (!['GET', 'HEAD'].includes(req.method)) {
       res.setHeader('Allow', 'GET, HEAD');

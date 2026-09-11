@@ -17,6 +17,7 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "smoke": "node tools/smoke-play.mjs",
     "assets:hand": "node tools/generate-fps-hand-asset.mjs",
     "assets:food": "node tools/generate-low-poly-food-assets.mjs"
   },
