@@ -54,6 +54,20 @@ test('CI 가 Node 버전을 한 곳에서만 정한다', () => {
   for (const value of hardcoded) assert.equal(value, '${{ env.NODE_VERSION }}');
 });
 
+test('같은 액션이 잡마다 다른 버전을 쓰지 않는다', () => {
+  /* 한 잡만 올리고 잊으면 어느 잡이 어느 런타임에서 도는지 알 수 없게 된다.
+     버전을 고정하지 않은 `uses:` 도 막는다 — 말없이 바뀌면 원인을 못 찾는다. */
+  const uses = [...ci.matchAll(/uses:\s*([\w./-]+)@([\w.-]+)/g)].map((m) => [m[1], m[2]]);
+  assert.ok(uses.length >= 4, '워크플로에서 액션을 못 긁었다');
+  const byAction = new Map();
+  for (const [name, version] of uses) {
+    assert.match(version, /^v\d+/, name + ' 의 버전이 고정돼 있지 않다: ' + version);
+    const seen = byAction.get(name);
+    if (seen) assert.equal(version, seen, name + ' 이 잡마다 다른 버전을 쓴다');
+    byAction.set(name, version);
+  }
+});
+
 test('CI 가 부르는 npm 스크립트가 전부 존재한다', () => {
   const called = [...ci.matchAll(/- run:\s*npm (?:run )?([\w:-]+)/g)].map((m) => m[1]);
   assert.ok(called.length > 4, `워크플로에서 npm 실행을 못 긁었다 (${called.length}개)`);
