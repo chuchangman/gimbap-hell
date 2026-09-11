@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import * as spatial from '../public/js/spatial.js';
+import * as spatial from '../legacy/public/js/spatial.js';
 
 // Captured before extracting the kitchen layout. Includes exact floating-point
 // values so a cosmetic refactor cannot silently shift server interaction boxes.

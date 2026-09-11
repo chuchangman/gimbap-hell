@@ -1,11 +1,3 @@
-import { fork, type ChildProcess } from 'node:child_process';
-import { once } from 'node:events';
-import fs from 'node:fs/promises';
-import http from 'node:http';
-import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { io, type Socket } from 'socket.io-client';
 import type {
   HealthResponse,
   HelloPayload,
@@ -14,6 +6,14 @@ import type {
   PublicState,
   RoomAck,
 } from '@repo/types';
+import { fork, type ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
+import fs from 'node:fs/promises';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { io, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 
 /* 레거시 test/server.integration.test.mjs 를 새 서버 기준으로 옮겼다.
@@ -172,7 +172,7 @@ beforeAll(async () => {
       NODE_ENV: 'test',
       GIMBAP_RECOVERY_MS: '1500',
       GIMBAP_LEADERBOARD: path.join(folder, 'leaderboard.json'),
-      GIMBAP_PUBLIC_ROOT: path.join(REPO_ROOT, 'public'),
+      GIMBAP_PUBLIC_ROOT: path.join(REPO_ROOT, 'legacy', 'public'),
       UPSTASH_REDIS_REST_URL: '',
       UPSTASH_REDIS_REST_TOKEN: '',
       GIMBAP_ALLOWED_ORIGINS: '',
@@ -231,7 +231,9 @@ it('정적 응답의 캐시 · 압축 · MIME · 스크립트 정책이 그대�
   expect(first.status).toBe(200);
   expect(first.headers['x-content-type-options']).toBe('nosniff');
   expect(first.headers['content-security-policy']).toMatch(/script-src 'self' 'sha256-/);
-  expect((await request('/js/world.js', { 'If-None-Match': String(first.headers.etag) })).status).toBe(304);
+  expect(
+    (await request('/js/world.js', { 'If-None-Match': String(first.headers.etag) })).status,
+  ).toBe(304);
   const zipped = await request('/js/world.js', { 'Accept-Encoding': 'gzip' });
   expect(zipped.headers['content-encoding']).toBe('gzip');
   expect(zipped.body.length).toBeLessThan(first.body.length / 2);
@@ -271,117 +273,101 @@ it('한 소켓이 방을 흘리거나 중복 입장으로 다른 방을 받지 �
   await until(async () => (await health()).rooms === 0);
 });
 
-it(
-  '6인 정원 · 방장 권한 · 해금 · 인덱스 검증이 와이어에서 동작한다',
-  async () => {
-    const host = await client();
-    const room = expectOk(await create(host));
-    const guests: TestSocket[] = [];
-    for (let i = 0; i < 6; i++) {
-      const g = await client();
-      guests.push(g);
-      const result = await emit(g, 'room:join', { name: '동료' + i, code: room.code });
-      expect(result.ok, 'guest ' + i).toBe(i < 5);
-    }
-    guests[0].emit('game:start');
-    await delay(100);
-    expect(host.lastState!.phase).toBe('lobby');
-    host.emit('game:start');
-    await until(() => host.lastState!.phase === 'playing');
-    guests[0].emit('game:pause');
-    await delay(50);
-    expect(host.lastState!.paused).toBe(false);
-    host.emit('kitchen:act', { action: 'fridge:take', payload: { item: 'fishcake' } });
-    await delay(75);
-    expect(host.lastKitchen!.hands.find((h) => h.id === host.id)!.holding).toBe(null);
-    host.emit('kitchen:act', { action: 'mat:roll', payload: { mat: 'constructor' } });
-    await walk(host, [
-      { x: -4.4, z: 5.6 },
-      { x: -4.4, z: -5.4 },
-    ]);
-    host.emit('kitchen:act', { action: 'fridge:take', payload: { item: 'gim' } });
-    await until(
-      () => host.lastKitchen!.hands.find((h) => h.id === host.id)!.holding?.id === 'gim',
-    );
-    host.emit('game:lobby');
-    await delay(50);
-    expect(host.lastState!.phase).toBe('playing');
-    close(host);
-    for (const g of guests) close(g);
-    await until(async () => (await health()).rooms === 0);
-  },
-  30000,
-);
+it('6인 정원 · 방장 권한 · 해금 · 인덱스 검증이 와이어에서 동작한다', async () => {
+  const host = await client();
+  const room = expectOk(await create(host));
+  const guests: TestSocket[] = [];
+  for (let i = 0; i < 6; i++) {
+    const g = await client();
+    guests.push(g);
+    const result = await emit(g, 'room:join', { name: '동료' + i, code: room.code });
+    expect(result.ok, 'guest ' + i).toBe(i < 5);
+  }
+  guests[0].emit('game:start');
+  await delay(100);
+  expect(host.lastState!.phase).toBe('lobby');
+  host.emit('game:start');
+  await until(() => host.lastState!.phase === 'playing');
+  guests[0].emit('game:pause');
+  await delay(50);
+  expect(host.lastState!.paused).toBe(false);
+  host.emit('kitchen:act', { action: 'fridge:take', payload: { item: 'fishcake' } });
+  await delay(75);
+  expect(host.lastKitchen!.hands.find((h) => h.id === host.id)!.holding).toBe(null);
+  host.emit('kitchen:act', { action: 'mat:roll', payload: { mat: 'constructor' } });
+  await walk(host, [
+    { x: -4.4, z: 5.6 },
+    { x: -4.4, z: -5.4 },
+  ]);
+  host.emit('kitchen:act', { action: 'fridge:take', payload: { item: 'gim' } });
+  await until(() => host.lastKitchen!.hands.find((h) => h.id === host.id)!.holding?.id === 'gim');
+  host.emit('game:lobby');
+  await delay(50);
+  expect(host.lastState!.phase).toBe('playing');
+  close(host);
+  for (const g of guests) close(g);
+  await until(async () => (await health()).rooms === 0);
+}, 30000);
 
-it(
-  '짧은 방장 끊김이 신원 · 자세 · 손을 지키고 타이머를 멈췄다 재개한다',
-  async () => {
-    const host = await client();
-    const guest = await client();
-    const r = expectOk(await create(host));
-    await emit(guest, 'room:join', { name: '복구동료', code: r.code });
-    host.emit('game:start');
-    await until(() => host.lastState!.phase === 'playing');
-    const expected = await walk(host, [
-      { x: -4.4, z: 5.6 },
-      { x: -4.4, z: -4.25, ry: 1 },
-    ]);
-    host.emit('kitchen:act', { action: 'fridge:take', payload: { item: 'rice' } });
-    await until(
-      () => host.lastKitchen!.hands.find((h) => h.id === host.id)!.holding?.id === 'rice',
-    );
-    const id = host.id!;
-    const prepEnd = host.lastState!.wave!.phaseEndsAt;
-    const disconnected = onceSocket(host, 'disconnect');
-    host.io.engine.close();
-    await disconnected;
-    await until(
-      () =>
-        guest.lastState!.paused === true &&
-        guest.lastState!.players.find((p) => p.id === id)!.connected === false,
-    );
-    await delay(150);
-    const reconnected = onceSocket(host, 'connect');
-    host.connect();
-    await reconnected;
-    await until(() => host.hello!.restored === true && host.lastState!.paused === false);
-    expect(host.id).toBe(id);
-    expect(host.hello!.pose!.x).toBe(expected.x);
-    expect(host.hello!.pose!.ry).toBe(1);
-    expect(host.lastKitchen!.hands.find((h) => h.id === id)!.holding!.id).toBe('rice');
-    if (prepEnd) expect(host.lastState!.wave!.phaseEndsAt).toBeGreaterThanOrEqual(prepEnd + 100);
-    expect((await health()).rejected.recovered).toBeGreaterThanOrEqual(1);
-    close(host);
-    close(guest);
-    await until(async () => (await health()).rooms === 0);
-  },
-  30000,
-);
+it('짧은 방장 끊김이 신원 · 자세 · 손을 지키고 타이머를 멈췄다 재개한다', async () => {
+  const host = await client();
+  const guest = await client();
+  const r = expectOk(await create(host));
+  await emit(guest, 'room:join', { name: '복구동료', code: r.code });
+  host.emit('game:start');
+  await until(() => host.lastState!.phase === 'playing');
+  const expected = await walk(host, [
+    { x: -4.4, z: 5.6 },
+    { x: -4.4, z: -4.25, ry: 1 },
+  ]);
+  host.emit('kitchen:act', { action: 'fridge:take', payload: { item: 'rice' } });
+  await until(() => host.lastKitchen!.hands.find((h) => h.id === host.id)!.holding?.id === 'rice');
+  const id = host.id!;
+  const prepEnd = host.lastState!.wave!.phaseEndsAt;
+  const disconnected = onceSocket(host, 'disconnect');
+  host.io.engine.close();
+  await disconnected;
+  await until(
+    () =>
+      guest.lastState!.paused === true &&
+      guest.lastState!.players.find((p) => p.id === id)!.connected === false,
+  );
+  await delay(150);
+  const reconnected = onceSocket(host, 'connect');
+  host.connect();
+  await reconnected;
+  await until(() => host.hello!.restored === true && host.lastState!.paused === false);
+  expect(host.id).toBe(id);
+  expect(host.hello!.pose!.x).toBe(expected.x);
+  expect(host.hello!.pose!.ry).toBe(1);
+  expect(host.lastKitchen!.hands.find((h) => h.id === id)!.holding!.id).toBe('rice');
+  if (prepEnd) expect(host.lastState!.wave!.phaseEndsAt).toBeGreaterThanOrEqual(prepEnd + 100);
+  expect((await health()).rejected.recovered).toBeGreaterThanOrEqual(1);
+  close(host);
+  close(guest);
+  await until(async () => (await health()).rooms === 0);
+}, 30000);
 
-it(
-  '만료된 방장 예약이 권한을 넘기고 남은 사람을 묶어두지 않는다',
-  async () => {
-    const host = await client();
-    const guest = await client();
-    const r = expectOk(await create(host));
-    await emit(guest, 'room:join', { name: '새로운방장', code: r.code });
-    host.emit('game:start');
-    await until(() => guest.lastState?.phase === 'playing');
-    host.io.engine.close();
-    await until(() => guest.lastState!.paused);
-    await until(
-      () => guest.lastState!.players.length === 1 && guest.lastState!.hostId === guest.id,
-      6000,
-    );
-    guest.emit('game:pause');
-    await until(() => guest.lastState!.paused === false);
-    expect((await health()).recoveryPending).toBe(0);
-    close(host);
-    close(guest);
-    await until(async () => (await health()).rooms === 0);
-  },
-  30000,
-);
+it('만료된 방장 예약이 권한을 넘기고 남은 사람을 묶어두지 않는다', async () => {
+  const host = await client();
+  const guest = await client();
+  const r = expectOk(await create(host));
+  await emit(guest, 'room:join', { name: '새로운방장', code: r.code });
+  host.emit('game:start');
+  await until(() => guest.lastState?.phase === 'playing');
+  host.io.engine.close();
+  await until(() => guest.lastState!.paused);
+  await until(
+    () => guest.lastState!.players.length === 1 && guest.lastState!.hostId === guest.id,
+    6000,
+  );
+  guest.emit('game:pause');
+  await until(() => guest.lastState!.paused === false);
+  expect((await health()).recoveryPending).toBe(0);
+  close(host);
+  close(guest);
+  await until(async () => (await health()).rooms === 0);
+}, 30000);
 
 it('레이트 리밋과 오리진 검사가 정상 클라이언트를 막지 않고 적용된다', async () => {
   const s = await client();

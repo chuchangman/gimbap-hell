@@ -9,7 +9,7 @@ import {
   matchScore, servedQuality, grumbleFor, scaleCount,
   CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
   samplePath, shortestTurn, NET, PARTS, PART_COLORS, DEFAULT_LOOK, sanitizeLook, lookFromSeed
-} from '../public/js/config.js';
+} from '../legacy/public/js/config.js';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,10 +19,10 @@ import fs from 'node:fs';
 process.env.GIMBAP_LEADERBOARD =
   path.join(os.tmpdir(), 'gimbap-test-lb-' + Date.now() + '.json');
 
-import { Room, nameError, NAME_MIN, NAME_MAX } from '../server/room.mjs';
-import { Kitchen } from '../server/kitchen.mjs';
-import { WaveRunner } from '../server/waves.mjs';
-import * as leaderboard from '../server/leaderboard.mjs';
+import { Room, nameError, NAME_MIN, NAME_MAX } from '../legacy/server/room.mjs';
+import { Kitchen } from '../legacy/server/kitchen.mjs';
+import { WaveRunner } from '../legacy/server/waves.mjs';
+import * as leaderboard from '../legacy/server/leaderboard.mjs';
 
 let pass = 0, fail = 0;
 const failed = [];
@@ -62,7 +62,7 @@ const baseGltf = JSON.parse(baseGlb.toString('utf8', 20, 20 + baseJsonLength));
 const baseNodeNames = new Set((baseGltf.nodes || []).map((node) => node.name));
 ok(baseNodeNames.has('baseTop') && baseNodeNames.has('baseBottom') && !baseNodeNames.has('baseClothes'),
   '베이스 GLB 안에서 상의와 하의 메시가 각각 분리됐다');
-const worldSource = fs.readFileSync(path.resolve('public/js/world.js'), 'utf8');
+const worldSource = fs.readFileSync(path.resolve('legacy/public/js/world.js'), 'utf8');
 ok(worldSource.includes('legRest: legs.map') && worldSource.includes('quaternion.copy(rest)'),
   'GLB 다리 뼈의 기본 축 회전을 보존한 채 걷기 각도를 더한다');
 const readGlb = (name) => {

@@ -53,7 +53,7 @@ async function walk(s,points) {
 
 before(async()=>{
   folder=await fs.mkdtemp(path.join(os.tmpdir(),'gimbap-protocol-'));
-  child=fork(new URL('../server/index.mjs',import.meta.url),[],{silent:true,env:{...process.env,
+  child=fork(new URL('../legacy/server/index.mjs',import.meta.url),[],{silent:true,env:{...process.env,
     PORT:'0',NODE_ENV:'test',GIMBAP_RECOVERY_MS:'1500',GIMBAP_LEADERBOARD:path.join(folder,'leaderboard.json'),
     UPSTASH_REDIS_REST_URL:'',UPSTASH_REDIS_REST_TOKEN:'',GIMBAP_ALLOWED_ORIGINS:''}});
   child.stdout.on('data',d=>{logs+=d;});child.stderr.on('data',d=>{logs+=d;});

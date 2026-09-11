@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { validKitchenAction, validEvent, createEventLimiter, allowedOrigin } from '../server/protocol.mjs';
-import { resolvePublicPath } from '../server/http.mjs';
-import { Room, nameError } from '../server/room.mjs';
-import { Kitchen } from '../server/kitchen.mjs';
+import { validKitchenAction, validEvent, createEventLimiter, allowedOrigin } from '../legacy/server/protocol.mjs';
+import { resolvePublicPath } from '../legacy/server/http.mjs';
+import { Room, nameError } from '../legacy/server/room.mjs';
+import { Kitchen } from '../legacy/server/kitchen.mjs';
 
 test('malformed paths cannot escape the public root on POSIX or Windows',()=>{
-  const root=path.resolve('public');
+  const root=path.resolve('legacy/public');
   for(const input of ['/%','/%E0%A4%A','/..%5cserver%5cindex.mjs','/../server/index.mjs',
     '/%2e%2e/server/index.mjs','/.env','/%00','/C:/Windows/win.ini','/vendor/../../package.json'])
     assert.equal(resolvePublicPath(root,input),null,input);

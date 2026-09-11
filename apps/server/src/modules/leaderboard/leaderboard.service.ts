@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -8,10 +7,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { LeaderboardRow, PublicBoard, StorageStatus } from '@repo/types';
+import { randomUUID } from 'node:crypto';
 import type { RuntimeConfig } from '../../config/runtime.config.js';
+import { buildEntry, cleanShopName, maskRow, type RunResult } from './leaderboard.util.js';
 import { RANKING_POLICY } from './ranking-policy.js';
 import { createRankingStore, type RankingStore } from './ranking-store.js';
-import { buildEntry, cleanShopName, maskRow, type RunResult } from './leaderboard.util.js';
 
 /** 저장소 주입 토큰. 인터페이스는 런타임에 없으므로 Nest 가 타입만으로는
  *  못 찾는다. 테스트가 { provide: RANKING_STORE, useValue: … } 로 갈아끼운다. */

@@ -479,7 +479,15 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
         서빙할 것이 없어 **파일로만 읽는 픽스처**가 된다.
         QA 서버 픽스처에서 `legacy` 스택을 걷어냈다 — 새 스택 하나만 띄운다.
         GLB MIME/HEAD 검사는 `static.client.spec.ts` 로 옮겼다.
-  - [ ] 레거시 트리를 `legacy/` 로 옮겨 "테스트 전용" 임을 분명히 한다
+  - [x] **레거시 트리를 `legacy/` 로 옮겼다** — `public/` → `legacy/public/`,
+        `server/` → `legacy/server/`. `legacy/README.md` 에 왜 남아 있는지,
+        고치지 말 것, 언제 지울지를 적었다. 레거시 서버는 자기 위치 기준으로
+        `../public` 을 찾으므로 같이 옮기면 그대로 돈다(`npm run start:legacy`).
+  - [x] **`.prettierignore` 의 `server/` 가 `apps/server/` 까지 빼먹고 있었다** —
+        슬래시 없는 패턴은 같은 이름의 하위 디렉터리에도 걸린다. 지난 반복에
+        넣은 서식 게이트가 서버 워크스페이스를 통째로 안 보고 있었다.
+        패턴을 `/legacy/` · `/test/` · `/tools/` 로 못 박고 서버 23개 파일을
+        정리했다.
 
 ## 완료 조건
 

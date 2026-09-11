@@ -18,7 +18,26 @@ const ctrl = (code: number): string => String.fromCharCode(code);
 const CONTROL_SAMPLES = [0, 1, 9, 10, 13, 27, 31, 127].map(ctrl);
 
 const PAYLOAD_VALUES: unknown[] = [
-  0, 1, 2, 3, 4, 5, 9, -1, 1.5, NaN, Infinity, '0', '2', true, false, null, undefined, {}, [], [0],
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  9,
+  -1,
+  1.5,
+  NaN,
+  Infinity,
+  '0',
+  '2',
+  true,
+  false,
+  null,
+  undefined,
+  {},
+  [],
+  [0],
   '__proto__',
 ];
 

@@ -19,8 +19,8 @@ import {
 import { PLAYER_LIMIT, WAVES } from '@repo/game-core';
 import type { ClientToServerEvents, ServerToClientEvents, ToastKind } from '@repo/types';
 import type { Server, Socket } from 'socket.io';
-import { createEventLimiter, validEvent } from '../../common/protocol.js';
 import { MetricsService } from '../../common/metrics.service.js';
+import { createEventLimiter, validEvent } from '../../common/protocol.js';
 import type { RuntimeConfig } from '../../config/runtime.config.js';
 import { nameError, type Room } from '../../domain/room.js';
 import { RoomsService } from './rooms.service.js';
@@ -83,18 +83,14 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
     this.server.to(room.code).emit('toast', { msg, kind: kind || 'good' });
   }
   private pushPositions(room: Room): void {
-    this.server
-      .to(room.code)
-      .emit('positions', {
-        t: room.paused ? room.pausedAt : Date.now(),
-        list: room.positions(),
-      });
+    this.server.to(room.code).emit('positions', {
+      t: room.paused ? room.pausedAt : Date.now(),
+      list: room.positions(),
+    });
   }
   /** 위치는 50ms 뒤 새 값이 덮으므로 밀린 옛 좌표는 버린다 (volatile) */
   pushVolatilePositions(room: Room): void {
-    this.server
-      .to(room.code)
-      .volatile.emit('positions', { t: Date.now(), list: room.positions() });
+    this.server.to(room.code).volatile.emit('positions', { t: Date.now(), list: room.positions() });
   }
 
   private roomOf(socket: GameSocket): Room | undefined {
@@ -207,10 +203,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
   private onSocketDisconnect(socket: GameSocket, reason: string): void {
     const room = this.roomOf(socket);
     if (!room) return;
-    if (
-      !this.stopping &&
-      ['transport close', 'transport error', 'ping timeout'].includes(reason)
-    ) {
+    if (!this.stopping && ['transport close', 'transport error', 'ping timeout'].includes(reason)) {
       const autoPaused = room.isHost(socket.id) && room.phase === 'playing' && !room.paused;
       if (autoPaused) room.togglePause(socket.id);
       room.players.get(socket.id)!.connected = false;

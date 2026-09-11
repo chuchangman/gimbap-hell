@@ -1,14 +1,14 @@
-import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
 import { Controller, Get, Res, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { HealthResponse, LeaderboardResponse, ReadyResponse } from '@repo/types';
 import type { Response } from 'express';
+import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
+import { MetricsService } from '../common/metrics.service.js';
 import type { RuntimeConfig } from '../config/runtime.config.js';
-import { RANKING_POLICY } from '../modules/leaderboard/ranking-policy.js';
-import { LeaderboardService } from '../modules/leaderboard/leaderboard.service.js';
 import { GameGateway } from '../modules/game/game.gateway.js';
 import { RoomsService } from '../modules/game/rooms.service.js';
-import { MetricsService } from '../common/metrics.service.js';
+import { LeaderboardService } from '../modules/leaderboard/leaderboard.service.js';
+import { RANKING_POLICY } from '../modules/leaderboard/ranking-policy.js';
 
 /* 응답 형태는 레거시 server/index.mjs 와 같아야 한다 — 운영이 밖에서 긁어 간다.
    /health · /ready · /leaderboard.json 모두 캐시하지 않는다. */

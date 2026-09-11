@@ -1,8 +1,8 @@
-import os from 'node:os';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { PLAYER_LIMIT, ROOM_CODE_LENGTH, WAVES } from '@repo/game-core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { PLAYER_LIMIT, ROOM_CODE_LENGTH, WAVES } from '@repo/game-core';
+import os from 'node:os';
 import { AppModule } from './app.module.js';
 import { GameIoAdapter } from './common/adapters/game-io.adapter.js';
 import { MetricsService } from './common/metrics.service.js';
@@ -33,9 +33,7 @@ async function bootstrap(): Promise<void> {
      NestFactory.create 는 아직 라우터를 붙이지 않았으므로 여기가 앞이다. */
   app.use(createStaticMiddleware(runtime.publicRoot, metrics));
 
-  app.useWebSocketAdapter(
-    new GameIoAdapter(app, runtime, metrics, () => gateway.isStopping),
-  );
+  app.useWebSocketAdapter(new GameIoAdapter(app, runtime, metrics, () => gateway.isStopping));
 
   // 느린 클라이언트 하나가 이벤트 루프를 붙잡지 못하게 한다.
   Object.assign(app.getHttpServer(), runtime.http);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {createRankingStore,mergeRankings} from '../server/ranking-store.mjs';
+import {createRankingStore,mergeRankings} from '../legacy/server/ranking-store.mjs';
 
 const row=(id,score=100)=>({id,shop:'검사 가게',score,wave:1,at:'2026-09-08T00:00:00.000Z'});
 async function fixture(t) {

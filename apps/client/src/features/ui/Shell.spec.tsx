@@ -3,10 +3,10 @@ import { collectIds, countElements, describeElement } from '@/testing/dom-snapsh
 import { firstDifference } from '@/testing/mesh-snapshot';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import LEGACY_CUSTOMIZE_JS from '../../../../../public/js/customize.js?raw';
-import LEGACY_UI_JS from '../../../../../public/js/ui.js?raw';
+import LEGACY_CUSTOMIZE_JS from '../../../../../legacy/public/js/customize.js?raw';
+import LEGACY_UI_JS from '../../../../../legacy/public/js/ui.js?raw';
 /* 레거시 화면 그 자체를 읽어 비교한다. 손으로 옮겨 적으면 검사가 무의미하다. */
-import INDEX_HTML from '../../../../../public/index.html?raw';
+import INDEX_HTML from '../../../../../legacy/public/index.html?raw';
 
 /* ────────────────────────────────────────────────────────────
    화면 뼈대 동등성 검사

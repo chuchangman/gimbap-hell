@@ -1,12 +1,7 @@
 import { MOVEMENT } from '@repo/game-core';
 import { describe, expect, it } from 'vitest';
 import { loadLegacy } from '../testing/legacy.js';
-import {
-  grantKnockback,
-  movementState,
-  validateMove,
-  type MoveRequest,
-} from './movement.js';
+import { grantKnockback, movementState, validateMove, type MoveRequest } from './movement.js';
 
 const legacy = await loadLegacy('movement.mjs');
 
@@ -92,7 +87,12 @@ describe('validateMove', () => {
     let now = 0;
     for (let i = 0; i < 30; i++) {
       now += 67;
-      step(p, { x: -1.6, y: 0.5, z: 5.6, ry: 0, version: p.mine.motion.version }, now, 'hover#' + i);
+      step(
+        p,
+        { x: -1.6, y: 0.5, z: 5.6, ry: 0, version: p.mine.motion.version },
+        now,
+        'hover#' + i,
+      );
     }
   });
 

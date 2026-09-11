@@ -1,6 +1,5 @@
 /* 신뢰할 수 없는 와이어 데이터는 게임 상태에 닿기 전에 검증한다.
  * 객체·배열·프로토타입 속성 이름을 인덱스나 식별자로 강제 변환하지 않는다. */
-import type { IncomingMessage } from 'node:http';
 import {
   BOARD_COUNT,
   BROOM_COUNT,
@@ -15,6 +14,7 @@ import {
   SHOP_INPUT_MAX,
   type ItemId,
 } from '@repo/game-core';
+import type { IncomingMessage } from 'node:http';
 
 export const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -39,9 +39,10 @@ const stationEntries: [string, StationSpec][] = [
   ...['cooker:put', 'cooker:take'].map((a): [string, StationSpec] => [a, ['cooker', COOKER_COUNT]]),
   ...['burner:put', 'burner:take'].map((a): [string, StationSpec] => [a, ['slot', BURNERS.length]]),
   ...['board:put', 'board:take'].map((a): [string, StationSpec] => [a, ['board', BOARD_COUNT]]),
-  ...['mat:put', 'mat:undo', 'mat:roll', 'mat:take'].map(
-    (a): [string, StationSpec] => [a, ['mat', MAT_COUNT]],
-  ),
+  ...['mat:put', 'mat:undo', 'mat:roll', 'mat:take'].map((a): [string, StationSpec] => [
+    a,
+    ['mat', MAT_COUNT],
+  ]),
   ['broom:take', ['rack', BROOM_COUNT]],
 ];
 const stationActions = new Map<string, StationSpec>(stationEntries);

@@ -48,7 +48,7 @@ export default defineConfig({
          (src/testing/legacy-modules.d.ts)을 써 준다. */
       {
         find: /^@legacy\//,
-        replacement: path.resolve(import.meta.dirname, '../../public/js/') + '/',
+        replacement: path.resolve(import.meta.dirname, '../../legacy/public/js/') + '/',
       },
       { find: '/vendor/three.module.min.js', replacement: 'three' },
       {

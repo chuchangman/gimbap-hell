@@ -216,10 +216,13 @@ export function createRankingStore<T extends RankingRow = RankingRow>({
 
   function schedule(): void {
     if (closed || timer) return;
-    timer = setTimeout(() => {
-      timer = null;
-      void flush();
-    }, rankingRetryDelay(retryMs, consecutive));
+    timer = setTimeout(
+      () => {
+        timer = null;
+        void flush();
+      },
+      rankingRetryDelay(retryMs, consecutive),
+    );
     timer.unref?.();
   }
 

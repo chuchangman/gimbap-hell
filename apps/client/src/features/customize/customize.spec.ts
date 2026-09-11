@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 /* 레거시 index.html 을 문자열로 그대로 읽어 온다 (Vite 의 ?raw).
    node:fs 로 읽으면 브라우저용 tsconfig 에 node 타입을 끌어와야 한다. */
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import INDEX_HTML from '../../../../../public/index.html?raw';
+import INDEX_HTML from '../../../../../legacy/public/index.html?raw';
 
 /* ────────────────────────────────────────────────────────────
    캐릭터 꾸미기 동등성 검사

@@ -35,8 +35,8 @@ import type {
   StorageStatus,
   ToastKind,
 } from '@repo/types';
-import type { RunResult } from '../modules/leaderboard/leaderboard.util.js';
 import { validKitchenAction } from '../common/protocol.js';
+import type { RunResult } from '../modules/leaderboard/leaderboard.util.js';
 import { Kitchen, nowMs } from './kitchen.js';
 import {
   grantKnockback,
@@ -265,8 +265,7 @@ export class Room {
   tick(): RoomEvent[] {
     if (this.phase !== 'playing' || this.paused) return [];
     const events: RoomEvent[] = [];
-    for (const n of this.kitchen.tick())
-      events.push({ type: 'toast', msg: n.msg, kind: n.kind });
+    for (const n of this.kitchen.tick()) events.push({ type: 'toast', msg: n.msg, kind: n.kind });
 
     for (const e of this.waves!.tick()) {
       events.push(e);
@@ -457,17 +456,15 @@ export class Room {
       paused: this.paused,
       pausedAt: this.pausedAt,
       hostId: this.hostId,
-      players: [...this.players.values()].map(
-        (p): PlayerView => ({
-          id: p.id,
-          slot: p.slot,
-          name: p.name,
-          color: p.color,
-          look: p.look,
-          connected: p.connected,
-          spawn: p.spawn,
-        }),
-      ),
+      players: [...this.players.values()].map((p): PlayerView => ({
+        id: p.id,
+        slot: p.slot,
+        name: p.name,
+        color: p.color,
+        look: p.look,
+        connected: p.connected,
+        spawn: p.spawn,
+      })),
       wave: this.waves ? this.waves.snapshot() : null,
       result,
       history: this.history,

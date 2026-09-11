@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {Room} from '../server/room.mjs';
-import {movementState,validateMove,grantKnockback} from '../server/movement.mjs';
-import {MOVEMENT,STATION_BOXES,WORLD_SOLIDS,actionBox,stationBox,clearPosition,clearPath} from '../public/js/spatial.js';
+import {Room} from '../legacy/server/room.mjs';
+import {movementState,validateMove,grantKnockback} from '../legacy/server/movement.mjs';
+import {MOVEMENT,STATION_BOXES,WORLD_SOLIDS,actionBox,stationBox,clearPosition,clearPath} from '../legacy/public/js/spatial.js';
 const player=(x=-4.4,z=8)=>({x,z,y:0,ry:0,motion:movementState(0)});
 const send=(p,values,now)=>validateMove(p,{x:p.x,z:p.z,y:p.y,ry:p.ry,version:p.motion.version,...values},now);
 

@@ -40,10 +40,7 @@ export function movementState(now: number = performance.now()): MotionState {
   return { at: now, tokens: BURST, version: 0, airAt: null, impulseUntil: 0 };
 }
 
-export function grantKnockback(
-  p: { motion: MotionState },
-  now: number = performance.now(),
-): void {
+export function grantKnockback(p: { motion: MotionState }, now: number = performance.now()): void {
   // 서버가 확인한 타격만 추가 이동을 허락한다. 클라이언트의 주장으로는 안 된다.
   p.motion.impulseUntil = now + 1100;
   p.motion.airAt = null;

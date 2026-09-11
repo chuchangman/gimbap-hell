@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadLegacy } from '../../testing/legacy.js';
-import { createRankingStore, mergeRankings, MERGE_RANKINGS_LUA } from './ranking-store.js';
 import { RANKING_POLICY } from './ranking-policy.js';
+import { createRankingStore, MERGE_RANKINGS_LUA, mergeRankings } from './ranking-store.js';
 
 const legacy = await loadLegacy('ranking-store.mjs');
 
@@ -194,8 +194,7 @@ describe('Redis 저장소', () => {
 
     redis.failWrite = false;
     const end = Date.now() + 2000;
-    while (store.health().pending && Date.now() < end)
-      await new Promise((r) => setTimeout(r, 10));
+    while (store.health().pending && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
     expect(store.health().pending).toBe(0);
     expect(store.health().ready).toBe(true);
     expect(redis.rows.length).toBe(1);
@@ -266,9 +265,10 @@ describe('순수 병합과 Lua', () => {
         }));
       const a = make(Math.floor(rnd() * 12));
       const b = make(Math.floor(rnd() * 12));
-      expect(mergeRankings(a, b).map((r) => r.id), 'round ' + round).toEqual(
-        legacy.mergeRankings(a, b).map((r) => r.id),
-      );
+      expect(
+        mergeRankings(a, b).map((r) => r.id),
+        'round ' + round,
+      ).toEqual(legacy.mergeRankings(a, b).map((r) => r.id));
     }
   });
 

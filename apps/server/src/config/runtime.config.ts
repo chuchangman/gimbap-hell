@@ -1,5 +1,5 @@
-import path from 'node:path';
 import { DEFAULT_RECOVERY_MS } from '@repo/game-core';
+import path from 'node:path';
 import { RANKING_POLICY } from '../modules/leaderboard/ranking-policy.js';
 
 // 서버 전용 튜닝값. 클라이언트로 나가지 않고 공개 디렉터리에서 읽지도 않는다.
@@ -30,7 +30,11 @@ export interface RuntimeConfig {
   readonly gameTickMs: number;
   readonly heartbeatMs: number;
   readonly shutdownTimeoutMs: number;
-  readonly http: { readonly requestTimeout: number; readonly headersTimeout: number; readonly keepAliveTimeout: number };
+  readonly http: {
+    readonly requestTimeout: number;
+    readonly headersTimeout: number;
+    readonly keepAliveTimeout: number;
+  };
   readonly socket: {
     readonly maxHttpBufferSize: number;
     readonly connectTimeout: number;
@@ -65,8 +69,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     port,
     recoveryMs,
     allowedOrigins: env.GIMBAP_ALLOWED_ORIGINS || '',
-    leaderboardFile:
-      env.GIMBAP_LEADERBOARD || path.join(process.cwd(), 'data', 'leaderboard.json'),
+    leaderboardFile: env.GIMBAP_LEADERBOARD || path.join(process.cwd(), 'data', 'leaderboard.json'),
     publicRoot: env.GIMBAP_PUBLIC_ROOT || path.join(process.cwd(), 'apps', 'client', 'dist'),
     redis: Object.freeze({
       url: (env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, ''),

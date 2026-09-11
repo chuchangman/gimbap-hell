@@ -36,7 +36,9 @@ export class GameIoAdapter extends IoAdapter {
         if (!originOk) this.metrics.count('rejectedOrigins');
         cb(
           null,
-          originOk && !this.isStopping() && server.engine.clientsCount < this.runtime.maxConnections,
+          originOk &&
+            !this.isStopping() &&
+            server.engine.clientsCount < this.runtime.maxConnections,
         );
       },
     } as ServerOptions);

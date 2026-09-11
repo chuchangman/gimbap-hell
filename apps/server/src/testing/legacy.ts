@@ -9,7 +9,7 @@
 import type { IncomingMessage } from 'node:http';
 import type { MotionState, MovablePlayer, MoveResult } from '../domain/movement.js';
 
-const LEGACY_ROOT = new URL('../../../../server/', import.meta.url).href;
+const LEGACY_ROOT = new URL('../../../../legacy/server/', import.meta.url).href;
 
 export interface LegacyProtocol {
   validKitchenAction(action: unknown, payload?: unknown): boolean;

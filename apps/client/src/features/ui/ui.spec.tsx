@@ -3,7 +3,7 @@ import { countElements, describeElement } from '@/testing/dom-snapshot';
 import { firstDifference } from '@/testing/mesh-snapshot';
 import { render } from '@testing-library/react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import INDEX_HTML from '../../../../../public/index.html?raw';
+import INDEX_HTML from '../../../../../legacy/public/index.html?raw';
 
 /* ────────────────────────────────────────────────────────────
    DOM UI 동등성 검사

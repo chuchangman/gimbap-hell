@@ -47,11 +47,7 @@ const makePair = (code: string, shop: unknown, seed: number) => {
 };
 
 /** 두 방의 관측 가능한 상태를 전부 비교한다 */
-const same = (
-  mine: Room,
-  theirs: ReturnType<typeof makePair>['theirs'],
-  where: string,
-) => {
+const same = (mine: Room, theirs: ReturnType<typeof makePair>['theirs'], where: string) => {
   expect(mine.publicState(), where + ' publicState').toEqual(theirs.publicState());
   expect(mine.kitchenState(), where + ' kitchenState').toEqual(theirs.kitchenState());
   expect(mine.positions(), where + ' positions').toEqual(theirs.positions());
@@ -249,7 +245,10 @@ describe('Room 실제 플레이', () => {
       // 5번 헹구면 완료 문구가 뜨고, 6번째는 거절된다
       if (i < 4) expect(r, 'rinse#' + i).toMatchObject({ ok: true, msg: undefined });
       else if (i === 4)
-        expect(r, 'rinse#4').toMatchObject({ ok: true, msg: '쌀을 다 씻었습니다. 밥솥에 안치세요.' });
+        expect(r, 'rinse#4').toMatchObject({
+          ok: true,
+          msg: '쌀을 다 씻었습니다. 밥솥에 안치세요.',
+        });
       else expect(r, 'rinse#5').toMatchObject({ ok: false, msg: '이미 다 씻었습니다.' });
     }
     expect(act(mine, theirs, 'p1', 'sink:take', {}, 'sink take').ok).toBe(true);

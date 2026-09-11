@@ -1,9 +1,9 @@
+import type { NextFunction, Request, Response } from 'express';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream';
 import { createBrotliCompress, createGzip, constants as zlibConstants } from 'node:zlib';
-import type { NextFunction, Request, Response } from 'express';
 import type { MetricsService } from '../metrics.service.js';
 import { resolvePublicPath } from './resolve-path.js';
 
@@ -79,7 +79,8 @@ export function createStaticMiddleware(root: string, metrics: MetricsService) {
     if (!type) return json(res, 404, { error: 'Not found' }, head);
     try {
       const actual = await fs.promises.realpath(file);
-      if (!actual.startsWith(realRoot + path.sep)) return json(res, 404, { error: 'Not found' }, head);
+      if (!actual.startsWith(realRoot + path.sep))
+        return json(res, 404, { error: 'Not found' }, head);
       const stat = await fs.promises.stat(actual);
       if (!stat.isFile()) return json(res, 404, { error: 'Not found' }, head);
       const etag = 'W/"' + stat.size.toString(16) + '-' + stat.mtimeMs.toString(16) + '"';
@@ -98,7 +99,10 @@ export function createStaticMiddleware(root: string, metrics: MetricsService) {
         return;
       }
       const compressible = /^(text\/|application\/json)/.test(type) && stat.size > 1024;
-      const encodings = (req.headers['accept-encoding'] || '').toString().split(',').map((s) => s.trim());
+      const encodings = (req.headers['accept-encoding'] || '')
+        .toString()
+        .split(',')
+        .map((s) => s.trim());
       const accepted = (e: string) =>
         encodings.some((s) => s.split(';')[0] === e && !/;\s*q=0(?:\.0*)?\s*$/.test(s));
       const coding = compressible && (accepted('br') ? 'br' : accepted('gzip') ? 'gzip' : null);

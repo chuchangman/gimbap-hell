@@ -52,9 +52,7 @@ export function buildEntry(result: RunResult, id: string, at: string): Leaderboa
     kind: result.kind === 'victory' ? 'victory' : 'defeat',
     players: (Array.isArray(result.players) ? (result.players as unknown[]) : [])
       .slice(0, PLAYER_LIMIT)
-      .map((p) =>
-        stripControl(String((p as { name?: unknown })?.name || p)).slice(0, NAME_MAX),
-      ),
+      .map((p) => stripControl(String((p as { name?: unknown })?.name || p)).slice(0, NAME_MAX)),
     rolls: Math.floor(finite(result.servedRolls)),
     avgQuality: finite(result.avgQuality, 100),
     at,

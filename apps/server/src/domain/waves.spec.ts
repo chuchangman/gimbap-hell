@@ -1,7 +1,7 @@
+import type { Fill } from '@repo/game-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadLegacy } from '../testing/legacy.js';
 import { WaveRunner } from './waves.js';
-import type { Fill } from '@repo/game-core';
 
 const legacy = await loadLegacy('waves.mjs');
 
@@ -90,8 +90,7 @@ describe('WaveRunner 서빙과 타격', () => {
   };
 
   /** 주문대로 만든 김밥 */
-  const exactRoll = (fills: string[]): Fill[] =>
-    fills.map((id) => ({ id, quality: 100 }) as Fill);
+  const exactRoll = (fills: string[]): Fill[] => fills.map((id) => ({ id, quality: 100 }) as Fill);
 
   it('주문대로 · 재료 빠짐 · 더 넣음 세 경우의 점수와 문구가 레거시와 같다', () => {
     const { mine, theirs } = makePair(3, 777);

@@ -1,4 +1,4 @@
-/* 레거시 public/js/*.js 와 새 @repo/game-core 가 같은 값을 내는지 고정한다.
+/* 레거시 legacy/public/js/*.js 와 새 @repo/game-core 가 같은 값을 내는지 고정한다.
  *
  * 두 스택이 공존하는 동안 이 테스트가 유일한 안전장치다. 이식본이 조용히
  * 벌어지면 서버는 옛 규칙으로, 새 클라이언트는 새 규칙으로 돌게 된다.
@@ -6,11 +6,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as legacyConfig from '../public/js/config.js';
-import * as legacyRules from '../public/js/game-rules.js';
-import * as legacySpatial from '../public/js/spatial.js';
-import * as legacyLayout from '../public/js/kitchen-layout.js';
-import * as legacyRender from '../public/js/render-config.js';
+import * as legacyConfig from '../legacy/public/js/config.js';
+import * as legacyRules from '../legacy/public/js/game-rules.js';
+import * as legacySpatial from '../legacy/public/js/spatial.js';
+import * as legacyLayout from '../legacy/public/js/kitchen-layout.js';
+import * as legacyRender from '../legacy/public/js/render-config.js';
 import * as core from '@repo/game-core';
 
 /** 두 구현에 같은 입력을 넣고 결과가 같은지 본다 */
@@ -422,7 +422,7 @@ test('style.css 는 새 클라이언트로 한 글자도 안 바뀌고 옮겨졌
   const { readFileSync } = await import('node:fs');
   const { fileURLToPath } = await import('node:url');
   const at = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
-  const legacy = at('../public/css/style.css');
+  const legacy = at('../legacy/public/css/style.css');
   const ported = at('../apps/client/src/styles/style.css');
   // 엉뚱한 빈 파일끼리 비교하고 있지 않은지
   assert.ok(legacy.length > 10_000, '레거시 CSS 를 못 읽었다');

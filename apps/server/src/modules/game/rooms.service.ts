@@ -1,7 +1,7 @@
-import { randomInt } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PLAYER_LIMIT, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from '@repo/game-core';
+import { randomInt } from 'node:crypto';
 import type { RuntimeConfig } from '../../config/runtime.config.js';
 import { Room } from '../../domain/room.js';
 import { LeaderboardService } from '../leaderboard/leaderboard.service.js';
