@@ -154,11 +154,18 @@ describe('한 프레임 갱신', () => {
     vi.spyOn(performance, 'now').mockImplementation(() => mono);
   });
   afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+    /* 정리 프레임을 "가짜 시계를 되돌리기 전에" 돌려야 한다.
+       먼저 useRealTimers/restoreAllMocks 를 하면 stepWorld 와 render 가
+       실제 시각 몇 마이크로초 차이로 각각 animateStreet(serverNow()) 를
+       타서 두 씬이 갈린 채 다음 테스트로 넘어간다 — 그 어긋남이 그대로
+       남아 간헐적으로 터졌다. */
     seedBoth(null, null, []);
+    mono += 16;
+    vi.advanceTimersByTime(16);
     stepWorld(false);
     legacyMod.render(false);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   const state = (customers: unknown[], over: Record<string, unknown> = {}) => ({

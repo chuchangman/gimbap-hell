@@ -289,7 +289,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       눈에 잘 안 보이는 규칙 셋을 spec 으로 고정했다: 자리를 새 사람이
       물려받으면 옛 표본 버리기 · 늦게 온 패킷 버리기 · 오래된 표본을 정리하되
       앞뒤 두 개는 남기기(없는 미래를 지어내지 않도록). 9개 통과.
-- [ ] `features/world` — `world.js` 2,975줄. 6개 슬라이스로 나눈다.
+- [x] `features/world` — `world.js` 2,975줄. 6개 슬라이스로 나눴다.
   - [x] **기반** — `scene` · `geometry`(모서리 깎은 상자) · `materials`(공유 재질) ·
         `primitives`(box/cap/cyl/dispose/station/hitProxy)
   - [x] **음식/재료** — `fillPiece` · `fillLaid` · `rollFace` · `gimbapSlice` ·
@@ -331,8 +331,8 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       훑어 레거시와 문구·키·disabled·danger 까지 대조했다. 조회 함수
       (`bapReady` · `cookerProgress` · `rollProgress` · `burnerInfo` · `boardInfo` ·
       `missingFills` · `serveTarget` · `focusNow`)도 같은 조합으로 대조했다.
-- [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
-      1,438줄이라 둘로 나눈다.
+- [x] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
+      1,438줄이라 둘로 나눴다.
   - [x] **(a) 화면 뼈대 + CSS** — `index.html` 의 `<body>` 를 `Shell` ·
         `Hud` · `JoinScreen` · `LobbyScreen` · `ResultScreen` · `HelpOverlay`
         컴포넌트로 옮기고, `style.css` 618줄을 **그대로 복사**했다
@@ -347,9 +347,34 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
         JSX 는 쓴 그대로 만든다.
         (돌연변이 5종 — id 오타 · class 누락 · 글자 변경 · `<tbody>` 제거 ·
         `data-time` 오타 — 을 심어 테스트가 잡는지 확인했다.) 6개 통과.
-  - [ ] **(b) `ui.js` 이식** — `toast` · `showScreen` · `route` · `toggleHelp` ·
-        `renderLobby` · `renderHUD` · `wavePop` · `loadLobbyBoard` ·
-        `renderResult` · `initUI`.
+  - [x] **(b) `ui.js` 이식** — `toast` · `showScreen` · `route` · `renderPause` ·
+        `toggleHelp` · `renderLobby` · `renderHUD` · `wavePop` ·
+        `loadLobbyBoard` · `renderBoard` · `renderResult` · `initUI`.
+        명령형 그대로 뒀다 — HUD 는 매 프레임 불리면서 innerHTML 을 문자열
+        캐시와 비교해 바뀐 자리만 건드린다. React 상태로 바꾸면 같은 그림이
+        나온다는 보장을 잃는다.
+        검증은 같은 상태 스냅샷을 양쪽 `S` 에 심고 **33단계 대본**을 차례로
+        먹인 뒤 단계마다 화면을 `describeElement` 로 통째로 대조한다.
+        로비(혼자/5명/끊긴 사람/지난 영업) · HUD(준비·웨이브·손 5종·조준
+        문구 4종·손님 조준·평판 낮음·일시정지 방장/손님) · 웨이브 팝업 3종 ·
+        토스트 7개(5개 상한) · 도움말 · 결과 4종(폐업·완주 1위·기록 없음·
+        저장 실패) · 로비 랭킹 3종(10줄 초과·없음·실패) · 입장 폼 4종.
+        (돌연변이 13종을 심어 확인했다. 처음엔 바 색 경계 · 초 올림 · 품질
+        색 경계 · HTML 이스케이프 4종이 **안 잡혀서** 픽스처를 보강했다 —
+        pct 45%, 4.5초, 품질 85, 그리고 `&amp;`·`"`가 든 이름. `>` 와 `'` 는
+        이스케이프를 빼도 DOM 이 같아 드러날 자리가 없다.)
+        `camera` 는 레거시가 import 만 하고 안 써서 뺐다.
+        레거시가 끊긴 사람 줄에 '연결 복구 중' 표를 **두 번** 붙이는 것도
+        화면이 그대로여야 해서 그대로 옮겼다(`renderLobby` 주석).
+        `style.css` 618줄이 원본과 바이트까지 같은지는 `test/parity.test.mjs`
+        가 본다 — vitest 는 CSS 모듈을 비워서 반환해 클라이언트 쪽에서
+        대조할 수 없었다. 4개 통과.
+- [ ] **조립점 (`main.js` 80줄)** — 부팅 순서(`preloadAssets` → `initWorld` →
+      `connect` → `initPlayer` → `initUI` → `route` → 루프)와 소켓 이벤트 배선
+      (`position:correct` · `waveEnd` · `swing` · `hit`), WebGL/연결 실패 시
+      `.fatal` 안내, 그리고 `window.GB` 디버그 훅
+      (`tools/release-browser-qa.cjs` 가 이걸로 자동 검증한다).
+      4단계 슬라이스가 전부 끝나야 붙일 수 있어 마지막으로 뺐다.
 - [x] `features/customize` — `customize.js` 이식 (입장 화면 캐릭터 꾸미기).
       `ui.js` 가 이 모듈을 의존해서 `ui` 보다 먼저 옮겼다.
       3D 미리보기는 명령형 three 코드 그대로 둔다 — R3F 로 다시 짜면
@@ -386,10 +411,10 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-11 09:50)
+## 다음 세션 시작점 (2026-09-11 10:20)
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-현재 검증: 레거시 58 + 동등성 12 + 서버 65 + 클라이언트 80 = **215개 통과**,
+현재 검증: 레거시 58 + 동등성 13 + 서버 65 + 클라이언트 84 = **220개 통과**,
 build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레거시 문서
 6개(`README.md` · `render.yaml` · `docs/*` · `ci.yml`)가 예전부터 안 맞는다 —
 5단계에서 한 번에 정리한다. 워크스페이스 코드는 전부 맞는다.
@@ -399,7 +424,7 @@ build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레�
 ```bash
 git switch refactor/fe-be-split
 npm install              # 워크스페이스 링크 (이미 되어 있으면 빨리 끝난다)
-npm run verify           # 레거시 58 + 동등성 12, 그리고 서버 65 + 클라이언트 80
+npm run verify           # 레거시 58 + 동등성 13, 그리고 서버 65 + 클라이언트 84
 ```
 
 새 서버로 게임을 직접 띄워 보려면:
@@ -410,42 +435,44 @@ node apps/server/dist/main.js     # 저장소 루트에서 띄워야 data/·publ
 # → http://localhost:3211 에서 레거시 클라이언트가 새 백엔드로 돌아간다
 ```
 
-새 클라이언트 뼈대를 보려면 `npm run dev --workspace=@repo/client`
-(3211 로 API·소켓을 넘긴다). 아직 `ui.ts` 가 없어 버튼은 안 먹는다 —
-화면과 캐릭터 꾸미기까지만 보인다.
+`npm run dev --workspace=@repo/client` 로 새 클라이언트를 띄우면 화면과
+CSS 는 다 보이지만 아직 **조립점이 없어** 버튼도 3D 도 안 돈다
+(`App.tsx` 가 `Shell` 만 그리고 소켓만 연결한다). 그게 다음 할 일이다.
 
-### 바로 다음에 할 일 — `features/ui` (b) `ui.js` 이식
+### 바로 다음에 할 일 — 조립점 (`main.js` 80줄)
 
-`public/js/ui.js` 522줄 → `apps/client/src/features/ui/ui.ts`.
-뼈대(a)는 끝났다. 이제 그 위에 칠하는 명령형 코드만 옮기면 된다.
-`customize` 와 같은 구도다 — React 가 뼈대를 그리고 이 모듈이 값을 칠한다.
+4단계 슬라이스(assets · world · player · kitchen · customize · ui)가 전부
+끝났다. 남은 건 그것들을 이어 붙이는 부팅 코드다.
 
-옮길 것: `$` · `$$` · `toast` · `showScreen` · `route` · `renderPause` ·
-`setHelp`/`toggleHelp` · `renderLobby` · `renderHUD` · `wavePop` ·
-`loadLobbyBoard` · `renderBoard`/`boardRow` · `renderResult` · `initUI`.
+`public/js/main.js` → `apps/client/src/App.tsx` (+ 필요하면 `boot.ts`).
+레거시 순서를 그대로 지킨다:
 
-의존: `@repo/game-core`(ITEMS · TIME · REPUTATION_MAX · KIND ·
-itemUnlockWave · handHint · PLAYER_LIMIT · NAME_MIN/MAX · SHOP_MAX ·
-ROOM_CODE_LENGTH), `features/net`, `features/kitchen`(focusNow · bapReady),
-`features/player`(state · releaseLock · resetPose), `features/customize`.
-`world.js` 의 `camera` 는 import 만 하고 안 쓴다 — 빼도 되는지 확인할 것.
+1. `preloadAssets()` — 없으면 그냥 지나간다
+2. `initWorld(canvas)` — 실패하면 `.fatal` 안내를 붙이고 멈춘다
+3. `await connect()` — 실패하면 역시 `.fatal`
+4. `initPlayer(canvas)` → `initUI()`
+5. `on('position:correct' | 'waveEnd' | 'swing' | 'hit')` 배선
+6. `window.GB` 디버그 훅 — `tools/release-browser-qa.cjs` 가 이걸로 자동
+   검증한다. 필드를 하나라도 빠뜨리면 5단계 브라우저 QA 가 깨진다
+   (`S` · `scene` · `camera` · `interactables` · `player` · `setLook` ·
+   `getPose` · `resolveAction` · `applyKnockback` · `remoteSwing` · `step`)
+7. `route()` → `requestAnimationFrame` 루프
+   (`P.enabled` 일 때만 `updatePlayer` + `renderHUD`, 매 프레임 `render`)
 
-검증 방법(`customize.spec.ts` 의 `runTrace` 구조를 그대로 쓴다):
-같은 상태 스냅샷을 레거시 `S` 와 새 `S` 에 심고, 레거시(index.html body +
-`ui.js`) 와 새 스택(React 뼈대 + `ui.ts`) 을 **차례로** 돌린 뒤
-`dom-snapshot.ts` 의 `describeElement` 로 화면을 통째로 대조한다.
-같은 element id 를 잡으므로 동시에는 못 띄운다.
-찍어 볼 상태: 로비(참가자 1~5명 · 방장/손님 · 지난 영업 있음/없음) ·
-HUD(준비/웨이브 · 손 빈손/재료/탄 것/김밥 · 주문서 0~6명 · 진상 손님 ·
-체력바 · 포커스/테두리 · 평판 낮음 · 밥솥 상태 4종) · 웨이브 팝업 ·
-결과(완주/폐업 · 랭킹 1위/10위밖/기록없음 · 저장 실패/대기/완료) ·
-토스트 6개 쌓기(5개 넘으면 앞에서 지운다) · 도움말 열고 닫기.
-`fetch('/leaderboard.json')` 는 양쪽 모두 같은 스텁으로 가로챈다.
+React 쪽 주의: `canvas#gl` 은 `Shell` 이 그리므로 부팅은 마운트 뒤
+`useEffect` 에서 돌려야 한다. StrictMode 는 쓰지 않는다(이펙트가 두 번
+돌면 리스너가 두 벌 붙는다) — `main.tsx` 에 지금도 없다.
+
+검증: 레거시 `main.js` 는 DOM 도 3D 도 아닌 "순서와 배선"이라, 부팅을
+한 번 돌린 뒤 (1) 호출 순서, (2) `window.GB` 의 키 목록, (3) 실패 경로의
+`.fatal` 마크업을 레거시와 대조한다. 루프는 `requestAnimationFrame` 을
+가짜로 잡아 몇 프레임 수동으로 돌리고 `updatePlayer`/`renderHUD`/`render`
+호출 횟수와 인자를 비교한다.
 
 ### 남은 순서
 
-`assets` → `world` → `player` → `kitchen` → `customize` →
-**`ui` (a) 끝, (b) 남음** → 5단계
+`assets` → `world` → `player` → `kitchen` → `customize` → `ui` →
+**조립점(`main.js`)** → 5단계
 (브라우저 QA · CI 잡 추가 · Render 설정 · 레거시 제거).
 
 ### 잊지 말 것

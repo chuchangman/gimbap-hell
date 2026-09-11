@@ -41,6 +41,19 @@ declare module '@legacy/world.js' {
   export function stats(): Record<string, number> | null;
 }
 
+declare module '@legacy/ui.js' {
+  export function toast(msg: string, kind?: string): void;
+  export function showScreen(id: string): void;
+  export function route(): void;
+  export function toggleHelp(): void;
+  export function renderLobby(): void;
+  export function renderHUD(force?: boolean): void;
+  export function wavePop(d: unknown): void;
+  export function loadLobbyBoard(force?: boolean): Promise<void>;
+  export function renderResult(): void;
+  export function initUI(): void;
+}
+
 declare module '@legacy/customize.js' {
   export function initCustomizer(): void;
   export function currentLook(): Record<string, number>;

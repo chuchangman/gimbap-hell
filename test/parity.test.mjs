@@ -412,3 +412,19 @@ test('이동 가능 판정이 같다', () => {
   ];
   sweep('clearPath', legacySpatial.clearPath, core.clearPath, paths);
 });
+
+/* ────────────────────────────────────────────────────────────
+   4단계에서 통째로 복사해 온 파일들.
+   Tailwind 로 다시 쓰지 않기로 한 이상 남은 위험은 "옮기다 한 줄 샜다" 뿐이다.
+   바이트로 못 박는다 — 포맷터도 손대지 않는다(.prettierignore).
+   ──────────────────────────────────────────────────────────── */
+test('style.css 는 새 클라이언트로 한 글자도 안 바뀌고 옮겨졌다', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const at = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+  const legacy = at('../public/css/style.css');
+  const ported = at('../apps/client/src/styles/style.css');
+  // 엉뚱한 빈 파일끼리 비교하고 있지 않은지
+  assert.ok(legacy.length > 10_000, '레거시 CSS 를 못 읽었다');
+  assert.equal(ported, legacy);
+});
