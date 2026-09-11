@@ -273,7 +273,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
 경로에 닿지 않는다. `overrides` 로 2.3.0 을 밀어넣어 봤지만 정확 고정과 충돌해
 `npm ls` 가 invalid 로 남아 되돌렸다. 프레임워크가 핀을 올릴 때 함께 올린다.
 
-### 4. 프론트엔드 `apps/client` — `상태: 진행 중`
+### 4. 프론트엔드 `apps/client` — `상태: 완료`
 
 **접근법: 충실한 이식(A).** 사용자 선택. `world.js` 의 GLB 로딩 · 저폴리 조형 ·
 표정 시스템 · 틴트를 R3F 안으로 1:1 옮긴다. 씬 그래프를 선언적 JSX 로 다시
@@ -369,12 +369,27 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
         `style.css` 618줄이 원본과 바이트까지 같은지는 `test/parity.test.mjs`
         가 본다 — vitest 는 CSS 모듈을 비워서 반환해 클라이언트 쪽에서
         대조할 수 없었다. 4개 통과.
-- [ ] **조립점 (`main.js` 80줄)** — 부팅 순서(`preloadAssets` → `initWorld` →
-      `connect` → `initPlayer` → `initUI` → `route` → 루프)와 소켓 이벤트 배선
-      (`position:correct` · `waveEnd` · `swing` · `hit`), WebGL/연결 실패 시
-      `.fatal` 안내, 그리고 `window.GB` 디버그 훅
-      (`tools/release-browser-qa.cjs` 가 이걸로 자동 검증한다).
-      4단계 슬라이스가 전부 끝나야 붙일 수 있어 마지막으로 뺐다.
+- [x] **조립점 (`main.js` 80줄)** — `features/app/boot.ts` + `App.tsx`.
+      부팅 순서 · 소켓 배선 · `.fatal` 안내 · `window.GB` 훅.
+      렌더러와 프레임 루프는 `features/world/renderer.tsx` 로 갈라 R3F 가 맡는다.
+      **`<Canvas>` 대신 `createRoot` 로 기존 `canvas#gl` 에 붙인다** — `<Canvas>`
+      는 div 두 겹으로 감싸서 레거시 DOM 과 달라지고 `#gl { position: fixed }`
+      도 안 먹는다. 씬과 카메라는 `build.ts` 가 만든 것을 그대로 넘긴다.
+      **렌더러도 직접 만들어 넘긴다**(`createRenderer`) — R3F 기본값에 기대면
+      버전이 바뀔 때 톤매핑이 조용히 달라진다. 레거시가 건 값(antialias ·
+      ACESFilmic · 노출 1.18 · 그림자 off · 픽셀비 상한 2)을 가짜 렌더러로
+      받아 적어 **레거시 `initWorld` 와 대조**한다.
+      검증은 양쪽 잎 모듈을 전부 가짜로 바꾸고 레거시 `main.js` 와 새 `boot()`
+      를 차례로 돌려 (1) 호출 순서와 인자, (2) 등록한 소켓 이벤트와 **핸들러의
+      동작**(내 스윙 무시 · 남의 피격 무시 · 떨어뜨림 토스트), (3) `window.GB`
+      표면, (4) 실패 경로 2종의 `.fatal` 마크업, (5) 한 프레임의 호출 순서와
+      dt(0.1초 상한)를 대조한다. `window.GB` 는 하드코딩 목록이 아니라
+      **QA 도구 소스에서 `GB.xxx` 를 긁어내** 확인한다.
+      (돌연변이 19종 — 부팅 순서 · `on` 누락 · `buildWorld` 누락 · fatal 문구 ·
+      핸들러 조건 뒤집기 · GB 항목 누락 · dt 상한 제거 · 프레임 순서 ·
+      렌더러 설정 7종 — 을 심어 전부 잡히는지 확인했다.) 13개 통과.
+
+**4단계 완료.** `apps/client` 만으로 화면 · 3D · 입력 · 주방 · UI 가 전부 선다.
 - [x] `features/customize` — `customize.js` 이식 (입장 화면 캐릭터 꾸미기).
       `ui.js` 가 이 모듈을 의존해서 `ui` 보다 먼저 옮겼다.
       3D 미리보기는 명령형 three 코드 그대로 둔다 — R3F 로 다시 짜면
@@ -396,7 +411,7 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       `checkContract` 의 크기 허용폭(2배)과 부품 누락 경고, `partOf` 의 탐색
       순서도 함께 고정했다. 20개 통과.
 
-### 5. 동등성 검증과 마무리 — `상태: 대기`
+### 5. 동등성 검증과 마무리 — `상태: 진행 중`
 - [ ] 브라우저 QA (`tools/release-browser-qa.cjs`) 를 새 스택 기준으로 통과
 - [ ] 새 스택 + 레거시 동시 실행 비교 (같은 방, 같은 조작, 같은 결과)
 - [ ] CI 워크플로에 워크스페이스 잡 추가
@@ -411,69 +426,60 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-11 10:20)
+## 다음 세션 시작점 (2026-09-11 10:50)
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-현재 검증: 레거시 58 + 동등성 13 + 서버 65 + 클라이언트 84 = **220개 통과**,
+현재 검증: 레거시 58 + 동등성 13 + 서버 65 + 클라이언트 97 = **233개 통과**,
 build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레거시 문서
 6개(`README.md` · `render.yaml` · `docs/*` · `ci.yml`)가 예전부터 안 맞는다 —
 5단계에서 한 번에 정리한다. 워크스페이스 코드는 전부 맞는다.
+
+**4단계가 끝났다.** 이제 `apps/client` 만으로 게임이 선다(브라우저에서 아직
+직접 확인하지 않았다 — 그게 5단계 첫 항목이다).
 
 ### 다시 시작하는 방법
 
 ```bash
 git switch refactor/fe-be-split
-npm install              # 워크스페이스 링크 (이미 되어 있으면 빨리 끝난다)
-npm run verify           # 레거시 58 + 동등성 13, 그리고 서버 65 + 클라이언트 84
+npm install
+npm run verify           # 레거시 58 + 동등성 13, 그리고 서버 65 + 클라이언트 97
 ```
 
-새 서버로 게임을 직접 띄워 보려면:
+새 스택을 통째로 띄워 보려면 (터미널 둘):
 
 ```bash
 npm run build --workspace=@repo/server
-node apps/server/dist/main.js     # 저장소 루트에서 띄워야 data/·public/ 이 맞는다
-# → http://localhost:3211 에서 레거시 클라이언트가 새 백엔드로 돌아간다
+node apps/server/dist/main.js          # 저장소 루트에서 — data/ 와 public/ 이 맞아야 한다
+npm run dev --workspace=@repo/client   # 소켓·API 는 3211 로 넘어간다
 ```
 
-`npm run dev --workspace=@repo/client` 로 새 클라이언트를 띄우면 화면과
-CSS 는 다 보이지만 아직 **조립점이 없어** 버튼도 3D 도 안 돈다
-(`App.tsx` 가 `Shell` 만 그리고 소켓만 연결한다). 그게 다음 할 일이다.
+### 바로 다음에 할 일 — 5단계 첫 항목: 브라우저 QA
 
-### 바로 다음에 할 일 — 조립점 (`main.js` 80줄)
+`tools/release-browser-qa.cjs` 가 레거시 서버를 직접 띄우고 Playwright 로
+두 창을 열어 방 만들기 → 입장 → 이동 → 조리 → 서빙까지 훑는다.
+이걸 **새 스택 기준으로** 통과시키는 게 남은 일의 핵심이다.
 
-4단계 슬라이스(assets · world · player · kitchen · customize · ui)가 전부
-끝났다. 남은 건 그것들을 이어 붙이는 부팅 코드다.
+봐야 할 것:
+1. 도구가 지금은 `node server/index.mjs` + `public/` 을 띄운다. 새 스택은
+   클라이언트를 따로 빌드해야 한다 — `vite build` 결과를 서버가 서빙하도록
+   `GIMBAP_PUBLIC_ROOT` 를 `apps/client/dist` 로 주는 길이 가장 단순하다
+   (`runtime.config.ts` 의 `publicRoot`).
+2. `apps/client/index.html` 은 `<div id="app">` 하나뿐이고 `#gl` 은 React 가
+   그린다. 도구가 `window.GB` 를 기다리므로 부팅이 끝나야 잡힌다 —
+   `waitForFunction` 타임아웃이 넉넉한지 확인할 것.
+3. 레거시 `index.html` 이 쓰던 importmap·`/socket.io/socket.io.js`·`/vendor/*`
+   는 새 빌드에 없다. 서버의 CSP(정적 미들웨어)가 Vite 번들 해시를 허용하는지
+   봐야 한다 — `static.middleware.ts` 의 importmap sha256 처리와 충돌 가능.
+4. 통과하면 `qa:character` 도 같은 방식으로 돌린다.
 
-`public/js/main.js` → `apps/client/src/App.tsx` (+ 필요하면 `boot.ts`).
-레거시 순서를 그대로 지킨다:
-
-1. `preloadAssets()` — 없으면 그냥 지나간다
-2. `initWorld(canvas)` — 실패하면 `.fatal` 안내를 붙이고 멈춘다
-3. `await connect()` — 실패하면 역시 `.fatal`
-4. `initPlayer(canvas)` → `initUI()`
-5. `on('position:correct' | 'waveEnd' | 'swing' | 'hit')` 배선
-6. `window.GB` 디버그 훅 — `tools/release-browser-qa.cjs` 가 이걸로 자동
-   검증한다. 필드를 하나라도 빠뜨리면 5단계 브라우저 QA 가 깨진다
-   (`S` · `scene` · `camera` · `interactables` · `player` · `setLook` ·
-   `getPose` · `resolveAction` · `applyKnockback` · `remoteSwing` · `step`)
-7. `route()` → `requestAnimationFrame` 루프
-   (`P.enabled` 일 때만 `updatePlayer` + `renderHUD`, 매 프레임 `render`)
-
-React 쪽 주의: `canvas#gl` 은 `Shell` 이 그리므로 부팅은 마운트 뒤
-`useEffect` 에서 돌려야 한다. StrictMode 는 쓰지 않는다(이펙트가 두 번
-돌면 리스너가 두 벌 붙는다) — `main.tsx` 에 지금도 없다.
-
-검증: 레거시 `main.js` 는 DOM 도 3D 도 아닌 "순서와 배선"이라, 부팅을
-한 번 돌린 뒤 (1) 호출 순서, (2) `window.GB` 의 키 목록, (3) 실패 경로의
-`.fatal` 마크업을 레거시와 대조한다. 루프는 `requestAnimationFrame` 을
-가짜로 잡아 몇 프레임 수동으로 돌리고 `updatePlayer`/`renderHUD`/`render`
-호출 횟수와 인자를 비교한다.
+그다음: CI 워크플로에 워크스페이스 잡 추가 → `render.yaml` 빌드 명령과
+Node 버전(20.20.2 → ≥22) 갱신 → 레거시 `server/` · `public/js/` ·
+`test/*.mjs` · `testing/legacy*` 제거.
 
 ### 남은 순서
 
-`assets` → `world` → `player` → `kitchen` → `customize` → `ui` →
-**조립점(`main.js`)** → 5단계
-(브라우저 QA · CI 잡 추가 · Render 설정 · 레거시 제거).
+4단계 **완료**. 5단계만 남았다 —
+브라우저 QA → CI 잡 → Render 설정 → 레거시 제거.
 
 ### 잊지 말 것
 

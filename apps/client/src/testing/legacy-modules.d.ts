@@ -41,6 +41,9 @@ declare module '@legacy/world.js' {
   export function stats(): Record<string, number> | null;
 }
 
+/** 엔트리 — import 하는 순간 boot() 이 돈다. 내보내는 것은 없다. */
+declare module '@legacy/main.js';
+
 declare module '@legacy/ui.js' {
   export function toast(msg: string, kind?: string): void;
   export function showScreen(id: string): void;
