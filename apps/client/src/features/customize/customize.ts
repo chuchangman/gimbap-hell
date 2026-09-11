@@ -97,7 +97,11 @@ function initPreview(canvas: HTMLCanvasElement): void {
     fitPreview();
   });
   resizeObserver.observe(canvas);
+}
 
+/* 캔버스 조작은 렌더러와 수명이 다르다 — 미리보기를 껐다 켜도 한 번만 붙인다.
+   다시 붙이면 드래그 한 번에 yaw 가 두 배로 돈다. */
+function wireCanvas(canvas: HTMLCanvasElement): void {
   canvas.addEventListener('pointerdown', (event) => {
     dragX = event.clientX;
     canvas.setPointerCapture(event.pointerId);
@@ -228,6 +232,22 @@ function buildSwatches(root: Element): void {
   }
 }
 
+/** 미리보기를 켠다. WebGL 을 못 열면 미리보기만 접고 고르기는 계속 되게 둔다 */
+function openPreview(root: Element, canvas: HTMLCanvasElement): void {
+  if (renderer) return;
+  try {
+    initPreview(canvas);
+  } catch (err) {
+    // WebGL 문맥을 두 개 못 여는 환경
+    console.warn('[customize] 미리보기를 못 켰다', err);
+    const box = root.querySelector<HTMLElement>('.cz-preview');
+    if (box) box.style.display = 'none';
+  }
+}
+
+/** 리스너를 한 번만 붙였는지 — 입장 화면으로 돌아올 때 두 벌이 되면 안 된다 */
+let wired = false;
+
 /** 입장 화면이 뜰 때 한 번 부른다 */
 export function initCustomizer(): void {
   const root = document.querySelector('.customize');
@@ -235,14 +255,14 @@ export function initCustomizer(): void {
   if (!root || !canvas) return;
 
   loadSaved();
-  try {
-    initPreview(canvas);
-  } catch (err) {
-    // WebGL 문맥을 두 개 못 여는 환경 — 미리보기만 접고 고르기는 계속 되게 둔다
-    console.warn('[customize] 미리보기를 못 켰다', err);
-    const box = root.querySelector<HTMLElement>('.cz-preview');
-    if (box) box.style.display = 'none';
+  openPreview(root, canvas);
+  if (wired) {
+    paint(root);
+    if (renderer) loop();
+    return;
   }
+  wired = true;
+  wireCanvas(canvas);
 
   for (const row of root.querySelectorAll<HTMLElement>('.cz-row')) {
     const part = row.dataset.part as PartSlot;
@@ -307,6 +327,17 @@ export function initCustomizer(): void {
 /** 방에 들어갈 때 함께 보낼 값 */
 export function currentLook(): Look {
   return Object.assign({}, look);
+}
+
+/** 입장 화면으로 돌아왔을 때 미리보기를 다시 켠다 (한 번 켠 적이 있을 때만) */
+export function resumeCustomizer(): void {
+  if (!wired || renderer) return;
+  const root = document.querySelector('.customize');
+  const canvas = document.getElementById('cz-canvas') as HTMLCanvasElement | null;
+  if (!root || !canvas) return;
+  openPreview(root, canvas);
+  paint(root);
+  if (renderer) loop();
 }
 
 /** 게임이 시작되면 미리보기를 접는다 — WebGL 문맥을 붙들고 있을 이유가 없다 */

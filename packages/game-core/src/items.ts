@@ -175,13 +175,11 @@ export interface HeldItem {
 /* 냉장고 진열 — 아래 칸(집는 칸) / 위 칸(집는 칸) 두 줄 */
 export const FRIDGE_ROW_A: ItemId[] = ['gim', 'rice', 'danmuji', 'ham', 'spinach'];
 export const FRIDGE_ROW_B: ItemId[] = ['crab', 'cucumber', 'egg', 'carrot', 'fishcake'];
-export const FRIDGE_ITEMS: ItemId[] = [...FRIDGE_ROW_A, ...FRIDGE_ROW_B];
 
 /* 모든 김밥의 기본이 되는 3종 */
 export const BASE_FILLINGS: ItemId[] = ['danmuji', 'ham', 'spinach'];
 /* 웨이브가 지나며 해금되는 추가 재료 */
 export const EXTRA_FILLINGS: ItemId[] = ['crab', 'cucumber', 'egg', 'carrot', 'fishcake'];
-export const ALL_FILLINGS: ItemId[] = [...BASE_FILLINGS, ...EXTRA_FILLINGS];
 
 /* 재료 해금 — 이 웨이브가 시작될 때 풀린다 (쉬운 것부터) */
 export const UNLOCKS: Record<number, ItemId> = {

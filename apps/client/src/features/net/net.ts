@@ -22,7 +22,6 @@ import type {
   PoseCorrection,
   PositionTuple,
   PublicState,
-  RoomAck,
   SwingPayload,
   ToastPayload,
   WaveEndPayload,
@@ -177,20 +176,6 @@ export function emit(
 /** 주방 동작 — 서버가 다시 검사한다 */
 export function act(action: string, payload?: Record<string, unknown>): void {
   emit('kitchen:act', { action, payload: payload || {} });
-}
-
-export function createRoom(
-  data: { name: string; shop?: string; look?: Record<string, number> },
-  cb: (result: RoomAck) => void,
-): void {
-  emit('room:create', data, cb as never);
-}
-
-export function joinRoom(
-  data: { name: string; code: string; look?: Record<string, number> },
-  cb: (result: RoomAck) => void,
-): void {
-  emit('room:join', data, cb as never);
 }
 
 /* ──────────────── 연결 ──────────────── */

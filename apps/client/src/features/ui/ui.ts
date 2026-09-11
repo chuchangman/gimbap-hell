@@ -10,7 +10,12 @@
    레거시와 다른 점은 하나다. 레거시는 `camera` 를 world.js 에서
    import 만 하고 쓰지 않았다 — 여기서는 뺐다.
    ──────────────────────────────────────────────────────────── */
-import { currentLook, initCustomizer } from '@/features/customize/customize';
+import {
+  currentLook,
+  initCustomizer,
+  resumeCustomizer,
+  stopCustomizer,
+} from '@/features/customize/customize';
 import { bapReady, focusNow } from '@/features/kitchen/kitchen';
 import { emit, isHost, myHand, on, S, serverNow, wave as waveOf } from '@/features/net/net';
 import { state as P, releaseLock, resetPose } from '@/features/player/player';
@@ -29,9 +34,9 @@ import {
 } from '@repo/game-core';
 import type { LeaderboardRow, ResultView, WaveEndPayload } from '@repo/types';
 
-export const $ = <T extends Element = HTMLElement>(s: string, r?: ParentNode): T | null =>
+const $ = <T extends Element = HTMLElement>(s: string, r?: ParentNode): T | null =>
   (r || document).querySelector<T>(s);
-export const $$ = <T extends Element = HTMLElement>(s: string, r?: ParentNode): T[] =>
+const $$ = <T extends Element = HTMLElement>(s: string, r?: ParentNode): T[] =>
   Array.from((r || document).querySelectorAll<T>(s));
 
 /** 뼈대(`Shell`)가 반드시 그리는 자리. 없으면 화면이 깨진 것이라 바로 알려야 한다 */
@@ -81,6 +86,12 @@ export function showScreen(id: string): void {
   if (!playing) releaseLock();
   // 판이 끝나고 돌아온 경우까지 포함해, 들어온 순간엔 무조건 새로 받는다
   if (entered && id === 'screen-lobby') void loadLobbyBoard(true);
+  /* 입장 화면을 떠나면 미리보기 WebGL 문맥을 놓아준다 — 게임과 두 개를 동시에
+     붙들고 있을 이유가 없다. 세션이 만료돼 돌아오면 다시 켠다. */
+  if (entered) {
+    if (id === 'screen-join') resumeCustomizer();
+    else stopCustomizer();
+  }
 }
 
 /** 서버 phase 에 따라 알맞은 화면으로 */
