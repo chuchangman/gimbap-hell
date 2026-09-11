@@ -9,7 +9,7 @@ import {
   matchScore, servedQuality, grumbleFor, scaleCount,
   CUSTOMER_HP, QUEUE_Z, slotX, focusPick, itemUnlockWave, handHint,
   samplePath, shortestTurn, NET, PARTS, PART_COLORS, DEFAULT_LOOK, sanitizeLook, lookFromSeed
-} from '../legacy/public/js/config.js';
+} from '@repo/game-core';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,10 +19,30 @@ import fs from 'node:fs';
 process.env.GIMBAP_LEADERBOARD =
   path.join(os.tmpdir(), 'gimbap-test-lb-' + Date.now() + '.json');
 
-import { Room, nameError, NAME_MIN, NAME_MAX } from '../legacy/server/room.mjs';
-import { Kitchen } from '../legacy/server/kitchen.mjs';
-import { WaveRunner } from '../legacy/server/waves.mjs';
-import * as leaderboard from '../legacy/server/leaderboard.mjs';
+/* 여기만 절대적 기대값을 쓴다 — 나머지 검사는 전부 레거시와의 대조라,
+   레거시에 버그가 있으면 이식본도 같이 통과한다. 그래서 이 파일은
+   레거시가 아니라 **새 스택**을 겨눈다. 같은 이름을 내보내므로 import 만
+   바꾸면 되고, 랭킹만 Nest 서비스라 ConfigService 자리를 채워 준다. */
+import { Room as RoomCore, nameError, NAME_MIN, NAME_MAX } from '../apps/server/dist/domain/room.js';
+import { Kitchen } from '../apps/server/dist/domain/kitchen.js';
+import { WaveRunner } from '../apps/server/dist/domain/waves.js';
+import { LeaderboardService } from '../apps/server/dist/modules/leaderboard/leaderboard.service.js';
+import { maskShop, SHOP_MAX } from '../apps/server/dist/modules/leaderboard/leaderboard.util.js';
+import { loadRuntimeConfig } from '../apps/server/dist/config/runtime.config.js';
+
+/* 서비스는 생성자에서 설정을 읽는다 — 위에서 임시 경로를 정한 뒤에 만든다 */
+const leaderboard = Object.assign(
+  new LeaderboardService({ getOrThrow: () => loadRuntimeConfig(process.env) }),
+  { maskShop, SHOP_MAX },
+);
+
+/* 레거시 Room 은 랭킹 모듈을 직접 import 했고, 새 Room 은 주입받는다.
+   이 파일의 호출부는 그대로 두려고 여기서만 묶어 준다. */
+class Room extends RoomCore {
+  constructor(code, shopName) {
+    super(code, shopName, leaderboard);
+  }
+}
 
 let pass = 0, fail = 0;
 const failed = [];

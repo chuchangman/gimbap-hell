@@ -71,7 +71,7 @@ corepack 이 빠져 전역 설치가 필요하다. 게다가 Render 배포가 `n
 테스트가 스스로 빌드해야 하고, turbo 캐시가 있어 두 번째부터는 즉시 끝난다.
 turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필요해 함께 넣었다.
 
-### 3. 백엔드 `apps/server` — `상태: 진행 중`
+### 3. 백엔드 `apps/server` — `상태: 완료`
 
 순수 로직을 먼저 옮기고 Nest 배선을 뒤에 붙인다. 방마다 인스턴스가 하나씩
 필요한 `Room` · `Kitchen` · `WaveRunner` 는 Nest 프로바이더가 아니라 순수
@@ -118,8 +118,12 @@ turbo 2.10 이 워크스페이스를 찾으려면 `packageManager` 필드가 필
 - [x] 레거시 소켓 통합 시나리오 9개를 vitest 로 이식하고 **새 서버에서 통과**
       (`src/game.integration.spec.ts`). 실제 자식 프로세스를 띄우고 실제
       socket.io 클라이언트로 붙는다.
-- [ ] 나머지 레거시 `test/*.mjs` 시나리오 이식 (주방/웨이브/랭킹은 이미
-      단위 spec 으로 덮였고, `smoke.mjs` 와 QA 픽스처가 남았다)
+- [x] **`smoke.mjs` 265개를 새 스택으로 겨눴다.** 여기만 절대적 기대값을
+      쓴다 — 나머지 검사는 전부 레거시와의 대조라, 레거시에 버그가 있으면
+      이식본도 같이 통과한다. import 를 `@repo/game-core` 와
+      `apps/server/dist/domain/*` 로 바꾸니 **265개가 그대로 통과**했다.
+      `Room` 만 랭킹을 주입받는 형태로 바뀌어 얇은 서브클래스로 묶었다.
+      QA 픽스처도 새 스택만 띄우도록 이미 옮겼다.
 
 **주방 차분 테스트.** 분기가 많은 상태 머신은 손으로 쓴 사례로 안 덮인다.
 레거시 `Kitchen` 과 새 `Kitchen` 을 같은 동작 열 4,000회로 나란히 돌리고
@@ -503,8 +507,8 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 ## 현재 상태 (2026-09-11 13:00) — 1~5단계 완료
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-루트 78 + 서버 72 + 클라이언트 98 = **248개 통과**.
-build · typecheck · lint · format:check 전부 통과.
+루트 78(+ `smoke.mjs` 의 절대 기대값 265개) + 서버 72 + 클라이언트 98 =
+**248개 통과**. build · typecheck · lint · format:check 전부 통과.
 브라우저 QA(`qa:browser`)와 캐릭터 QA(`qa:character`, 조합 162개)도 PASS.
 
 게임은 `apps/server`(NestJS) + `apps/client`(React 19 · Vite · R3F) 로 돈다.
