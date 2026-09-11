@@ -332,8 +332,24 @@ R3F 캔버스가 높이를 알려주게 했다 — 렌더러를 직접 들고 �
       (`bapReady` · `cookerProgress` · `rollProgress` · `burnerInfo` · `boardInfo` ·
       `missingFills` · `serveTarget` · `focusNow`)도 같은 조합으로 대조했다.
 - [ ] `features/ui` — HUD · 로비 · 주문서 · 결과 · 랭킹 (`ui.js` + `index.html` + `style.css`).
-      CSS 는 Tailwind 로 다시 쓰지 않고 `style.css` 618줄을 그대로 옮긴다 —
-      참고 프로젝트는 Tailwind 지만, 다시 쓰면 화면이 미묘하게 달라진다.
+      1,438줄이라 둘로 나눈다.
+  - [x] **(a) 화면 뼈대 + CSS** — `index.html` 의 `<body>` 를 `Shell` ·
+        `Hud` · `JoinScreen` · `LobbyScreen` · `ResultScreen` · `HelpOverlay`
+        컴포넌트로 옮기고, `style.css` 618줄을 **그대로 복사**했다
+        (`src/styles/style.css`). Tailwind 로 다시 쓰지 않는다 — 참고
+        프로젝트는 Tailwind 지만, 다시 쓰면 화면이 미묘하게 달라진다.
+        검증은 레거시 `index.html` 을 `?raw` 로 읽어 **DOM 트리를
+        태그 · 속성 · 글자까지 대조**한다(`dom-snapshot.ts`). 요소 303개 ·
+        id 51개가 순서까지 같다. 여기에 더해 `ui.js` · `customize.js` 소스에서
+        선택자를 **정규식으로 긁어내** 54개가 새 뼈대에서 전부 찾아지는지 본다 —
+        트리가 같아도 정작 스크립트가 잡는 자리가 빠지면 조용히 죽는다.
+        `<tbody>` 는 직접 썼다. HTML 파서는 `<table><tr>` 사이에 끼워 넣지만
+        JSX 는 쓴 그대로 만든다.
+        (돌연변이 5종 — id 오타 · class 누락 · 글자 변경 · `<tbody>` 제거 ·
+        `data-time` 오타 — 을 심어 테스트가 잡는지 확인했다.) 6개 통과.
+  - [ ] **(b) `ui.js` 이식** — `toast` · `showScreen` · `route` · `toggleHelp` ·
+        `renderLobby` · `renderHUD` · `wavePop` · `loadLobbyBoard` ·
+        `renderResult` · `initUI`.
 - [x] `features/customize` — `customize.js` 이식 (입장 화면 캐릭터 꾸미기).
       `ui.js` 가 이 모듈을 의존해서 `ui` 보다 먼저 옮겼다.
       3D 미리보기는 명령형 three 코드 그대로 둔다 — R3F 로 다시 짜면
@@ -370,10 +386,10 @@ README 의 조작·웨이브·공정·랭킹·복구 동작이 전부 살아 있
 
 ---
 
-## 다음 세션 시작점 (2026-09-11 09:20)
+## 다음 세션 시작점 (2026-09-11 09:50)
 
 브랜치 `refactor/fe-be-split`, **푸시 안 함**. 워킹 트리 깨끗.
-현재 검증: 레거시 58 + 동등성 12 + 서버 65 + 클라이언트 74 = **209개 통과**,
+현재 검증: 레거시 58 + 동등성 12 + 서버 65 + 클라이언트 80 = **215개 통과**,
 build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레거시 문서
 6개(`README.md` · `render.yaml` · `docs/*` · `ci.yml`)가 예전부터 안 맞는다 —
 5단계에서 한 번에 정리한다. 워크스페이스 코드는 전부 맞는다.
@@ -383,7 +399,7 @@ build · typecheck · lint 전부 통과. prettier 는 저장소 루트의 레�
 ```bash
 git switch refactor/fe-be-split
 npm install              # 워크스페이스 링크 (이미 되어 있으면 빨리 끝난다)
-npm run verify           # 레거시 58 + 동등성 12, 그리고 서버 65 + 클라이언트 74
+npm run verify           # 레거시 58 + 동등성 12, 그리고 서버 65 + 클라이언트 80
 ```
 
 새 서버로 게임을 직접 띄워 보려면:
@@ -394,36 +410,42 @@ node apps/server/dist/main.js     # 저장소 루트에서 띄워야 data/·publ
 # → http://localhost:3211 에서 레거시 클라이언트가 새 백엔드로 돌아간다
 ```
 
-### 바로 다음에 할 일 — 4단계 마지막 슬라이스 `features/ui`
+새 클라이언트 뼈대를 보려면 `npm run dev --workspace=@repo/client`
+(3211 로 API·소켓을 넘긴다). 아직 `ui.ts` 가 없어 버튼은 안 먹는다 —
+화면과 캐릭터 꾸미기까지만 보인다.
 
-`ui.js` 522줄 + `index.html` 298줄 + `style.css` 618줄 = 1,438줄.
-지금까지와 성격이 다르다 — 3D 가 아니라 **DOM 과 CSS** 를 옮기는데,
-화면이 그대로여야 하므로 "렌더된 DOM 트리 비교" 를 새로 잡아야 한다.
+### 바로 다음에 할 일 — `features/ui` (b) `ui.js` 이식
 
-계획:
+`public/js/ui.js` 522줄 → `apps/client/src/features/ui/ui.ts`.
+뼈대(a)는 끝났다. 이제 그 위에 칠하는 명령형 코드만 옮기면 된다.
+`customize` 와 같은 구도다 — React 가 뼈대를 그리고 이 모듈이 값을 칠한다.
 
-1. `style.css` 618줄은 **그대로 복사**한다. Tailwind 로 다시 쓰지 않는다 —
-   참고 프로젝트(`~/Desktop/S15P21M101/web`)는 Tailwind 지만, 다시 쓰면
-   화면이 미묘하게 달라진다. 발표용이라 픽셀이 같아야 한다.
-2. `index.html` 의 화면 뼈대(입장 · 로비 · HUD · 일시정지 · 도움말 · 결과)를
-   **같은 id·class 로** React 컴포넌트에 옮긴다. `ui.js` 가 `$('#hud')` 처럼
-   id 로 직접 잡으므로 id 가 하나라도 어긋나면 조용히 죽는다.
-3. `ui.js` 는 지금까지처럼 명령형 그대로 `features/ui/ui.ts` 로 옮긴다.
-   `customize` 와 같은 구도다 — React 가 뼈대를 그리고, 이 모듈이 칠한다.
-4. 검증: 레거시(`index.html` body + `ui.js`) 와 새 스택(React 뼈대 + `ui.ts`)에
-   **같은 상태 스냅샷을 먹이고 `innerHTML` 을 통째로 비교**한다.
-   두 구현이 같은 element id 를 잡으므로 **차례로** 돌린다 —
-   `customize.spec.ts` 의 `runTrace` 구조를 그대로 쓰면 된다.
-5. 1,438줄이라 두 커밋으로 나눌 것: (a) 화면 뼈대 + CSS + `toast`/`showScreen`/
-   `route`/`toggleHelp`, (b) `renderLobby`/`renderHUD`/`wavePop`/
-   `loadLobbyBoard`/`renderResult`.
+옮길 것: `$` · `$$` · `toast` · `showScreen` · `route` · `renderPause` ·
+`setHelp`/`toggleHelp` · `renderLobby` · `renderHUD` · `wavePop` ·
+`loadLobbyBoard` · `renderBoard`/`boardRow` · `renderResult` · `initUI`.
 
-`ui` 가 끝나면 4단계가 끝나고 5단계(브라우저 QA · CI 잡 · Render 설정 ·
-레거시 제거)만 남는다.
+의존: `@repo/game-core`(ITEMS · TIME · REPUTATION_MAX · KIND ·
+itemUnlockWave · handHint · PLAYER_LIMIT · NAME_MIN/MAX · SHOP_MAX ·
+ROOM_CODE_LENGTH), `features/net`, `features/kitchen`(focusNow · bapReady),
+`features/player`(state · releaseLock · resetPose), `features/customize`.
+`world.js` 의 `camera` 는 import 만 하고 안 쓴다 — 빼도 되는지 확인할 것.
+
+검증 방법(`customize.spec.ts` 의 `runTrace` 구조를 그대로 쓴다):
+같은 상태 스냅샷을 레거시 `S` 와 새 `S` 에 심고, 레거시(index.html body +
+`ui.js`) 와 새 스택(React 뼈대 + `ui.ts`) 을 **차례로** 돌린 뒤
+`dom-snapshot.ts` 의 `describeElement` 로 화면을 통째로 대조한다.
+같은 element id 를 잡으므로 동시에는 못 띄운다.
+찍어 볼 상태: 로비(참가자 1~5명 · 방장/손님 · 지난 영업 있음/없음) ·
+HUD(준비/웨이브 · 손 빈손/재료/탄 것/김밥 · 주문서 0~6명 · 진상 손님 ·
+체력바 · 포커스/테두리 · 평판 낮음 · 밥솥 상태 4종) · 웨이브 팝업 ·
+결과(완주/폐업 · 랭킹 1위/10위밖/기록없음 · 저장 실패/대기/완료) ·
+토스트 6개 쌓기(5개 넘으면 앞에서 지운다) · 도움말 열고 닫기.
+`fetch('/leaderboard.json')` 는 양쪽 모두 같은 스텁으로 가로챈다.
 
 ### 남은 순서
 
-`assets` → `world` → `player` → `kitchen` → `customize` → **`ui`** → 5단계
+`assets` → `world` → `player` → `kitchen` → `customize` →
+**`ui` (a) 끝, (b) 남음** → 5단계
 (브라우저 QA · CI 잡 추가 · Render 설정 · 레거시 제거).
 
 ### 잊지 말 것

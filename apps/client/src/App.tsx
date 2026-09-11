@@ -1,22 +1,17 @@
 import { connect, S } from '@/features/net/net';
-import { useEffect, useState } from 'react';
+import { Shell } from '@/features/ui/Shell';
+import { useEffect } from 'react';
 
-/** 4단계 진행 중 — 지금은 연결만 확인한다.
- *  월드 · 플레이어 · 주방 · UI 는 다음 슬라이스에서 붙는다. */
+/** 4단계 진행 중 — 화면 뼈대와 소켓 연결까지.
+ *  다음 슬라이스에서 `ui.ts` 의 initUI 가 이 뼈대 위에 값을 칠하고,
+ *  월드 · 플레이어 · 주방을 붙인다. */
 export function App() {
-  const [status, setStatus] = useState('연결 중…');
-
   useEffect(() => {
-    let alive = true;
-    void connect().then(() => {
-      if (!alive) return;
-      setStatus(S.connection === 'connected' ? '연결됨 · id=' + S.meId : '연결 실패');
-    });
+    void connect();
     return () => {
-      alive = false;
       S.socket?.disconnect();
     };
   }, []);
 
-  return <div style={{ padding: 16, fontFamily: 'system-ui' }}>{status}</div>;
+  return <Shell />;
 }
