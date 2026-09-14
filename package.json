@@ -15,6 +15,7 @@
     "dev": "npm run dev --workspace=@repo/client",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "smoke": "node tools/smoke-play.mjs",
@@ -31,7 +32,8 @@
     "eslint": "10.9.1",
     "prettier": "3.9.6",
     "turbo": "^2.10.12",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^5.0.0"
   },
   "packageManager": "npm@11.19.0",
   "allowScripts": {
