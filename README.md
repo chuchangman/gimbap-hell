@@ -415,6 +415,21 @@ tools/         에셋 생성기 (GLB 를 새로 뽑을 때만)
 | 목표              | 주문서를 정확히 받아쓰기                | 웨이브를 버텨 평판 지키기                                                      |
 | 의존성            | express · socket.io · three · dotenv    | **socket.io 하나**                                                             |
 
+### 주석에 나오는 "레거시"
+
+소스 주석의 **레거시**는 hambuger 가 아니라 **이 저장소의 TypeScript 이전
+구현**입니다. `public/js/*.js` 와 `server/*.js` 로 돌던 plain JS 판이고,
+`legacy/` 로 옮겨 테스트 픽스처로 쓰다가 `4476c5e` 에서 지웠습니다.
+
+"레거시 `public/js/player.js` 를 그대로 옮겼다" 같은 주석이 짚는 파일은
+히스토리에서 그대로 꺼낼 수 있습니다.
+
+```bash
+git show 1c4c1b0:legacy/public/js/player.js   # 주석이 짚는 파일
+git show 1c4c1b0:legacy/                      # 어떤 파일이 있었는지
+git show 1c4c1b0:legacy/README.md             # 왜 남겨 뒀었는지
+```
+
 ---
 
 ## 배포 (Render)
