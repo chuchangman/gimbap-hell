@@ -12,6 +12,11 @@ export default defineConfig({
   build: {
     /* 기본값 'assets' 를 쓰면 publicDir 의 게임 에셋과 같은 폴더에 섞인다 */
     assetsDir: 'bundle',
+    /* 기본 500kB 경고를 끈다. three 는 첫 화면부터 씬 전체를 그리는 데 필요해서
+       더 쪼개도 초기 로딩이 줄지 않는다 — 청크만 늘고 요청 수가 는다.
+       실제로 나가는 건 gzip 후 three 155kB + 앱 165kB 다. 이 수를 넘기면
+       그때는 진짜 커진 것이니 경고가 다시 떠야 한다. */
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         /* three.js 는 번들의 대부분이고 거의 안 바뀐다. 앱 코드와 갈라 두면
