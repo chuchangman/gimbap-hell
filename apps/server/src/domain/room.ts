@@ -125,7 +125,7 @@ export class Room {
     shopName: unknown,
     private readonly leaderboard: RoomLeaderboard,
     private readonly clock: () => number = nowMs,
-    /** 웨이브 손님 생성에 쓰인다. 테스트가 두 구현의 난수 스트림을 묶는다. */
+    /** WaveRunner 로 넘겨 손님 생성에 쓰인다. 주입하면 같은 판이 재현된다. */
     private readonly random: () => number = Math.random,
   ) {
     this.code = code;

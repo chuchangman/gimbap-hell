@@ -158,7 +158,8 @@ const FACE_NEUTRAL = [-0.03, 0.115, 0.94, Math.PI, 0.78, 0.28];
  *
  * 손님의 감정(neutral·annoyed·angry·happy·shocked)과 유저가 고르는 표정이
  * 같은 표를 쓴다. 손님은 상태가 바뀔 때마다 갈아끼우고, 내 캐릭터는 고른 것을
- * 그대로 둔다 — 그래서 표를 나눌 이유가 없다. 키는 config.js PARTS.expression 의 id.
+ * 그대로 둔다 — 그래서 표를 나눌 이유가 없다.
+ * 키는 game-core `appearance.ts` 의 `PARTS.expression` id 다.
  *
  * 클레이 에셋에는 얼굴 그림이 없으며, 모든 표정은 이 얼굴 파츠를 함께 쓴다.
  */

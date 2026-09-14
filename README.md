@@ -46,6 +46,7 @@ npm run dev        # 클라이언트 개발 서버 (API·소켓은 3211 로 넘�
 npm run build      # 서버 + 클라이언트 빌드
 npm run typecheck
 npm run lint
+npm test          # game-core + 서버 판정 로직
 ```
 
 클라이언트 개발 서버를 쓰려면 다른 터미널에서 `npm start` 로 게임 서버를
@@ -225,7 +226,7 @@ npm run lint
 | 만드는 중             | 조립대에 넣은 재료 | 〃                                   |
 | 아무것도 안 넣었을 때 | (비교 불가)        | 그냥 가장 급한 손님                  |
 
-이 규칙은 `config.js` 의 순수 함수 `focusPick()` 하나가 계산하고,
+이 규칙은 `game-core` 의 순수 함수 `focusPick()` (`scoring.ts`) 하나가 계산하고,
 서버의 `waves.bestMatch()` / `nextTarget()` 과 **같은 규칙**입니다.
 그래서 화면에 표시된 손님과 **실제로 서빙되는 손님이 어긋나지 않습니다** (테스트로 교차 검증).
 
@@ -338,6 +339,7 @@ apps/
     common/static/ 정적 서빙 + 보안 헤더
   client/      React 19 + Vite + React Three Fiber
     public/assets/ 게임 GLB 모델 (빌드하면 dist/assets 로)
+    src/config.ts  클라이언트 튜닝값 — 렌더 · HUD · 네트워크 · 경로
     src/features/
       net/         소켓 + 공유 상태 S
       world/       three.js 씬 · 설비 · 손님 · 캐릭터 · 렌더러(R3F)
@@ -395,7 +397,7 @@ tools/         에셋 생성기 (GLB 를 새로 뽑을 때만)
 - **10초** → 밥솥 취사 시간 (`TIME.riceCook`)
 - 한 솥에서 **밥 5인분** (`TIME.riceYield`) — 취사를 걸어두고 속재료를 손질하는 흐름이 생깁니다
 
-다르게 읽으셨다면 `config.js` 의 `TIME` 세 값만 바꾸면 됩니다.
+다르게 읽으셨다면 `packages/game-core/src/items.ts` 의 `TIME` 세 값만 바꾸면 됩니다.
 
 ---
 

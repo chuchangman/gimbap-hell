@@ -56,7 +56,8 @@ export interface RuntimeConfig {
   readonly redis: { readonly url: string; readonly token: string; readonly key: string };
 }
 
-/** 시작과 테스트가 함께 쓰는 순수 파싱. PORT 0 과 옛 recovery fallback 의미를 보존한다. */
+/** env 만 읽는 순수 파싱 — 인자로 넘길 수 있다.
+ *  PORT 0 과 옛 recovery fallback 의미를 보존한다. */
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   const port = Number(env.PORT ?? PORT_DEFAULT);
   if (!Number.isInteger(port) || port < 0 || port > PORT_MAX) throw new Error('Invalid PORT');

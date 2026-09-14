@@ -17,7 +17,6 @@ export function stripControl(value: string): string {
 export function cleanShopName(name: unknown, fallback?: string): string {
   // 레거시와 같은 강제 변환을 유지한다. 숫자·불리언·toString 을 가진 객체가
   // 그대로 들어오고, 평범한 객체는 '[object Object]' 가 된다.
-  // leaderboard.util.spec.ts 가 이 결과를 레거시와 대조해 고정한다.
   // eslint-disable-next-line @typescript-eslint/no-base-to-string
   const s = stripControl(String(name ?? ''))
     .trim()

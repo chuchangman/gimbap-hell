@@ -21,8 +21,7 @@ export const record = (v: unknown): v is Record<string, unknown> =>
 const index = (v: unknown, count: number): boolean =>
   Number.isInteger(v) && (v as number) >= 0 && (v as number) < count;
 /** 제어문자(U+0000-U+001F, U+007F)를 하나라도 담고 있는가.
- *  레거시 protocol.mjs 의 제어문자 정규식과 같은 판정이며,
- *  protocol.spec.ts 가 두 구현을 대조해 고정한다. */
+ *  이름·가게 이름에 섞여 들어오면 화면과 로그가 깨진다. */
 const hasControlChar = (s: string): boolean => {
   for (let i = 0; i < s.length; i++) {
     const code = s.charCodeAt(i);

@@ -9,7 +9,6 @@
  * 덕분에 단면에서 본 모양과 손에 든 모양이 저절로 이어진다.
  *
  * 레거시 public/js/assets.js 의 CONTRACT 를 그대로 옮겼다.
- * assets.spec.ts 가 레거시와 deep-equal 로 대조해 고정한다.
  */
 export interface AssetSpec {
   size: [number, number, number];

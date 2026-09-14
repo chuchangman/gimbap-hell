@@ -14,7 +14,7 @@ import { RANKING_POLICY } from './ranking-policy.js';
 import { createRankingStore, type RankingStore } from './ranking-store.js';
 
 /** 저장소 주입 토큰. 인터페이스는 런타임에 없으므로 Nest 가 타입만으로는
- *  못 찾는다. 테스트가 { provide: RANKING_STORE, useValue: … } 로 갈아끼운다. */
+ *  못 찾는다. { provide: RANKING_STORE, useValue: … } 로 갈아끼울 수 있다. */
 export const RANKING_STORE = Symbol('RANKING_STORE');
 
 /** 원자적 파일 쓰기나 재시도하는 Redis 큐가 뒤를 받치는 동기 랭킹 뷰.
