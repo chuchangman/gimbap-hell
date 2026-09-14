@@ -82,9 +82,15 @@ export const CONTRACT: Record<string, AssetSpec> = {
 
   /* ── 1인칭 손 — 손목 원점, 손가락 +y, 손등 +z ── */
   'hand/fps-right': {
-    size: [0.15, 0.4, 0.13],
+    // Three.js의 Box3는 현재 포즈뿐 아니라 morph target 범위도 포함한다.
+    size: [0.15, 0.27, 0.11],
     origin: '손목 중심, 손가락 +y, 손등 +z, 단위 m',
-    parts: ['RightHand_Skin', 'Cuff', 'Sleeve'],
+    parts: ['RightHand_Skin'],
+  },
+  'hand/fps-right-grip': {
+    size: [0.1, 0.15, 0.025],
+    origin: '손목 중심, 손가락 +y, 손등 +z, 주먹 사진 포즈',
+    parts: ['RightHand_Skin'],
   },
 
   /* ── 설비 — 바닥 한가운데가 원점(y=0). 충돌·상호작용·이름표는 코드가 맡는다 ── */

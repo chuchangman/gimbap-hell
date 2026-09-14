@@ -1,4 +1,4 @@
-/* 1인칭 오른손: 사진 텍스처 + 연속 인체 메시. 관절 포즈는 GLB morph로 보간한다. */
+/* 1인칭 오른손: 누끼 사진을 그대로 붙인 얕은 입체 메시. 정밀 인체 리그는 아니다. */
 import { assetOrNull } from '@/features/assets/assets';
 import { myHand } from '@/features/net/net';
 import { makeItemMesh } from '@/features/world/items';
@@ -12,6 +12,7 @@ import * as THREE from 'three';
    ──────────────────────────────────────────────────────────── */
 export function updateHand(): void {
   const h = myHand();
+  syncHandPose(Boolean(h));
   const key = h ? h.uid + h.stage : 'none';
   if (D.handKey === key) return;
   D.handKey = key;
@@ -38,44 +39,69 @@ export function updateHand(): void {
   D.handBase = { pos: g.position.clone(), rot: g.rotation.clone() };
 }
 
-let skin: THREE.Mesh | null = null;
+let skinMeshes: THREE.Mesh[] = [];
 let grip = 0;
+let openHand: THREE.Object3D | null = null;
+let grippingHand: THREE.Object3D | null = null;
+
+function syncHandPose(holding: boolean): void {
+  // 주먹 사진을 독립된 모델로 사용한다. 두 손이 동시에 겹쳐 보이지 않게 한다.
+  if (openHand) openHand.visible = !holding || !grippingHand;
+  if (grippingHand) grippingHand.visible = holding;
+}
 
 export function buildArm(): void {
   const model = assetOrNull('hand/fps-right');
   if (!model) {
     console.error(
-      '[hand] 실사형 오른손 GLB를 불러오지 못했습니다. /assets/hand/fps-right-realistic.glb를 확인하세요.',
+      '[hand] 사진 오른손 GLB를 불러오지 못했습니다. /assets/hand/fps-right-photo.glb를 확인하세요.',
     );
     return;
   }
   const arm = new THREE.Group();
   arm.name = 'FirstPersonRightHand';
+  openHand = model;
+  grippingHand = assetOrNull('hand/fps-right-grip');
   arm.add(model);
-  model.traverse((obj) => {
-    if (obj instanceof THREE.Mesh && obj.morphTargetDictionary?.Grip !== undefined) skin = obj;
-    if (obj instanceof THREE.Mesh) obj.frustumCulled = false;
+  if (grippingHand) arm.add(grippingHand);
+  else console.warn('[hand] 주먹 사진 모델이 없어 기존 굽힘 포즈를 사용합니다.');
+  skinMeshes = [];
+  arm.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      if (obj.morphTargetDictionary?.Grip !== undefined) skinMeshes.push(obj);
+      obj.frustumCulled = false;
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      materials.forEach((material) => {
+        // 사진 앞면은 조명/톤매핑으로 다시 칠하지 않는다. 옆·뒷면만 조명을 받는다.
+        if (material instanceof THREE.MeshBasicMaterial) material.toneMapped = false;
+      });
+    }
   });
   // GLB: 미터 크기, 손목 원점, +Y 손가락, +Z 손등. 우하단 카메라 전용 배율.
-  arm.scale.setScalar(2.6);
-  arm.position.set(0.55, -0.44, -0.93);
-  arm.rotation.set(-0.4, -0.42, 0.65);
+  arm.scale.setScalar(2.4);
+  arm.position.set(0.47, -0.57, -0.86);
+  arm.rotation.set(-0.16, -0.14, 0.45);
   camera.add(arm);
   D.arm = arm;
   D.armBase = { pos: arm.position.clone(), rot: arm.rotation.clone() };
   grip = 0;
+  syncHandPose(Boolean(myHand()));
 }
 
 /** 걸을 때 팔이 같이 흔들린다 — player.js 가 매 프레임 알려준다 */
 let armBob = 0;
 export function setArmBob(speed: number, dt: number): void {
   const held = myHand();
-  const targetGrip = held ? (held.id === 'broom' ? 1 : 0.65) : 0;
+  syncHandPose(Boolean(held));
+  // 주먹 GLB가 있을 때는 사진 자체의 포즈를 보존한다. 실패 시에만 기존 morph.
+  const targetGrip = !grippingHand && held ? (held.id === 'broom' ? 1 : 0.65) : 0;
   grip = THREE.MathUtils.damp(grip, targetGrip, 12, dt);
-  if (skin?.morphTargetInfluences && skin.morphTargetDictionary) {
-    const index = skin.morphTargetDictionary.Grip;
-    if (index !== undefined) skin.morphTargetInfluences[index] = grip;
-  }
+  skinMeshes.forEach((skin) => {
+    if (skin.morphTargetInfluences && skin.morphTargetDictionary) {
+      const index = skin.morphTargetDictionary.Grip;
+      if (index !== undefined) skin.morphTargetInfluences[index] = grip;
+    }
+  });
   D.armSpeed = speed;
   armBob += dt * (speed > 0.1 ? (speed > 5 ? 13 : 8.5) : 1.5);
 }

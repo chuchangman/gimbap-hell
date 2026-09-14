@@ -5,12 +5,19 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const blender = process.env.BLENDER_PATH || 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe';
-if (!existsSync(path.join(root, 'assets-src/hand-realistic/source/base.obj'))) {
-  throw new Error('Missing CC0 authoring sources. See tools/REALISTIC-HAND.md. The published GLB does not require Blender.');
+for (const name of ['right-hand-photo-cutout.png', 'right-hand-grip-cutout.png']) {
+  if (!existsSync(path.join(root, 'apps/client/public/assets/hand', name))) {
+    throw new Error('Missing photo cutout: '+name+'. See tools/PHOTO-HAND.md.');
+  }
 }
-const result = spawnSync(blender, [
-  '--background', '--factory-startup', '--python-exit-code', '1',
-  '--python', path.join(root, 'tools/build-realistic-hand.py'),
-], { cwd: root, stdio: 'inherit', windowsHide: true });
-if (result.error) throw result.error;
-process.exitCode = result.status ?? 1;
+for (const pose of ['open', 'grip']) {
+  const result = spawnSync(blender, [
+    '--background', '--factory-startup', '--python-exit-code', '1',
+    '--python', path.join(root, 'tools/build-photo-hand.py'), '--', '--pose', pose,
+  ], { cwd: root, stdio: 'inherit', windowsHide: true });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    process.exitCode = result.status ?? 1;
+    break;
+  }
+}

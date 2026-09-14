@@ -108,12 +108,14 @@ Blender 라면 각 부품의 오리진을 관절 위치로 옮겨주세요.
 
 ### 1인칭 손
 
-`hand/fps-right`는 `hand/fps-right-realistic.glb`를 불러옵니다.
+`hand/fps-right`는 `hand/fps-right-photo.glb`를 불러옵니다.
 손목 중심이 원점이며 손가락 +y, 손등 +z, 미터 단위입니다.
-필수 노드는 `RightHand_Skin`, `Cuff`, `Sleeve`입니다. 스킨은 하나로 이어진
-인체 메시이며 사용자 손등 사진 기반 2K 텍스처와 normal map을 사용합니다.
-`Open` / `Grip` morph target으로 포즈를 바꾸며 물건을 들면 쥐는 포즈로 보간합니다.
-편집 원본, 재생성 방법, CC0 에셋 출처와 한계는 `tools/REALISTIC-HAND.md`를 보세요.
+필수 노드는 `RightHand_Skin`입니다. 사용자 손 사진의 누끼를 얕은 입체 윤곽에
+그대로 입힌 모델이며 앞면은 unlit 사진, 옆면과 뒷면은 단색 피부입니다.
+물건을 들면 `hand/fps-right-grip` (`hand/fps-right-photo-grip.glb`)에 등록된
+주먹 사진 모델로 전환합니다. 내려놓으면 펼친 손으로 돌아갑니다.
+두 모델 모두 필수 노드는 `RightHand_Skin`이며 정밀 손가락 리그는 아닙니다.
+편집 원본, 재생성 방법과 한계는 `tools/PHOTO-HAND.md`를 보세요.
 
 ## 파일로 대체할 수 없는 것
 
