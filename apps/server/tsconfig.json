@@ -3,11 +3,11 @@
   "extends": "@repo/typescript-config/nest.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "types": ["node"],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts"]
 }
